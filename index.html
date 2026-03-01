@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#1a2744">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="水一手帳">
 <title>デジタル生徒手帳 - 水戸第一高等学校</title>
@@ -222,16 +223,6 @@ a{text-decoration:none;color:inherit}
   transition:background .3s,border-color .3s;
 }
 [data-theme="dark"] .header{background:rgba(14,14,17,.92)}
-
-/* PWA standalone: ヘッダーをDynamic Island/ノッチ分押し下げ */
-@media(display-mode:standalone){
-  .header{
-    height:calc(var(--header-h) + var(--safe-t));
-    padding-top:var(--safe-t);
-  }
-  .layout{padding-top:calc(var(--header-h) + var(--safe-t))}
-  .sidebar{top:calc(var(--header-h) + var(--safe-t))}
-}
 
 .menu-btn{
   width:36px;height:36px;border:none;background:none;
@@ -452,6 +443,20 @@ a{text-decoration:none;color:inherit}
 .pg{display:none;animation:pgIn .22s ease}
 .pg.on{display:block}
 @keyframes pgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ===========================
+   PWA (standalone) safe-area
+   Dynamic Island / ノッチ対応
+   ※ 全レイアウト定義の後に置く
+=========================== */
+@media(display-mode:standalone){
+  .header{
+    height:calc(var(--header-h) + var(--safe-t));
+    padding-top:var(--safe-t);
+  }
+  .layout{padding-top:calc(var(--header-h) + var(--safe-t))!important}
+  .sidebar{top:calc(var(--header-h) + var(--safe-t))}
+}
 
 .pg-header{margin-bottom:24px;padding-bottom:18px;border-bottom:1.5px solid var(--border)}
 .breadcrumb{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--text-3);margin-bottom:8px}
@@ -1638,91 +1643,8 @@ function toggleTheme(){
 // =============================================
 // 検索インデックス — サイト内全コンテンツ網羅
 // =============================================
-const SEARCH_INDEX=[
-  // ===== 諸規定 =====
-  {path:'諸規定 › 第一条',title:'目的',snip:'本規定は学校生活を営むために必要な事項を定める',page:'rules',id:'r1',tags:'目的 規定 概要'},
-  {path:'諸規定 › 第二条',title:'適用範囲',snip:'本規定は本校に在学する全ての生徒に適用する',page:'rules',id:'r2',tags:'適用 範囲 対象'},
-  {path:'諸規定 › 第三条',title:'校内生活の基本',snip:'生徒は学校の定める規則に従い秩序ある学校生活を送らなければならない 授業開始前に着席すること 授業中は携帯電話等の電子機器を使用しないこと 施設は目的に従って使用すること',page:'rules',id:'r3',tags:'校内 生活 授業 着席 携帯 スマホ 電子機器 施設 設備'},
-  {path:'諸規定 › 第三条 › 項1 › ①',title:'授業開始前の着席',snip:'授業開始前に着席すること',page:'rules',id:'r3',tags:'着席 授業 遅刻 チャイム'},
-  {path:'諸規定 › 第三条 › 項1 › ②',title:'授業中の電子機器使用禁止',snip:'授業中は携帯電話等の電子機器を使用しないこと',page:'rules',id:'r3',tags:'携帯 スマホ 電子機器 禁止 授業'},
-  {path:'諸規定 › 第三条 › 項2 › ア',title:'施設の目的利用',snip:'施設は目的に従って使用すること',page:'rules',id:'r3',tags:'施設 設備 使用'},
-  {path:'諸規定 › 第三条 › 項2 › イ',title:'施設の清潔保持',snip:'使用後は清潔に保つこと',page:'rules',id:'r3',tags:'清潔 施設 清掃'},
-  {path:'諸規定 › 第四条',title:'服装規定',snip:'生徒は所定の制服を正しく着用しなければならない 着崩しや改造は禁止',page:'rules',id:'r4',tags:'服装 制服 着崩し 改造 身だしなみ ユニフォーム'},
-  {path:'諸規定 › 第四条 › 項1',title:'制服の着用義務',snip:'制服は学校が定めたものを着用すること',page:'rules',id:'r4',tags:'制服 着用 義務'},
-  {path:'諸規定 › 第四条 › 項2',title:'着崩し・改造の禁止',snip:'着崩しや改造は禁止する',page:'rules',id:'r4',tags:'着崩し 改造 禁止'},
-  {path:'諸規定 › 第四条 › 項3 › ①',title:'体育授業時の服装',snip:'体育授業中は体操服を着用すること',page:'rules',id:'r4',tags:'体操服 体育 PE'},
-  {path:'諸規定 › 第四条 › 項3 › ②',title:'体操服の指定',snip:'体操服は本校指定のものを使用すること',page:'rules',id:'r4',tags:'体操服 指定 制服'},
-  {path:'諸規定 › 第五条',title:'登下校',snip:'自転車通学は届出制とし許可を受けた者のみ可能 定められた通学路を利用すること',page:'rules',id:'r5',tags:'登校 下校 通学 自転車 通学路 バス'},
-  {path:'諸規定 › 第五条 › 項1',title:'通学路の利用',snip:'原則として定められた通学路を利用すること',page:'rules',id:'r5',tags:'通学路 登校 下校'},
-  {path:'諸規定 › 第五条 › 項2',title:'自転車通学の届出',snip:'自転車通学は届出制とし許可を受けた者のみ可能とする',page:'rules',id:'r5',tags:'自転車 通学 届出 許可'},
-  {path:'諸規定 › 第六条',title:'欠席・遅刻の届出',snip:'当日の朝保護者が学校へ連絡すること 登校後は担任に届出書を提出すること',page:'rules',id:'r6',tags:'欠席 遅刻 届出 保護者 連絡 手続き 早退'},
-  {path:'諸規定 › 第六条 › 項1',title:'保護者からの連絡',snip:'当日の朝保護者が学校へ連絡すること',page:'rules',id:'r6',tags:'保護者 連絡 電話 欠席'},
-  {path:'諸規定 › 第六条 › 項2',title:'届出書の提出',snip:'登校後は担任に届出書を提出すること',page:'rules',id:'r6',tags:'届出書 担任 提出'},
-  {path:'諸規定 › 第七条',title:'公欠の取扱い',snip:'次に掲げる事由は公欠として取り扱う 学校が認める大会コンクール等への参加 生徒会活動',page:'rules',id:'r7',tags:'公欠 欠席 大会 コンクール 生徒会 手続き 届出'},
-  {path:'諸規定 › 第七条 › 項1',title:'大会・コンクール参加による公欠',snip:'学校が認める大会コンクール等への参加は公欠とする',page:'rules',id:'r7',tags:'大会 コンクール 公欠 部活 クラブ'},
-  {path:'諸規定 › 第七条 › 項2',title:'生徒会活動による公欠',snip:'生徒会活動のうち学校が認めたものは公欠とする',page:'rules',id:'r7',tags:'生徒会 公欠 活動'},
-  {path:'諸規定 › 第七条 › 項3 › ①',title:'公欠届の事前提出',snip:'事前に公欠届を提出すること',page:'rules',id:'r7',tags:'公欠届 提出 事前'},
-  {path:'諸規定 › 第七条 › 項3 › ②',title:'公欠後の報告',snip:'帰校後担任に報告すること',page:'rules',id:'r7',tags:'帰校 報告 担任 公欠'},
-  {path:'諸規定 › 第八条',title:'[外出許可]',snip:'授業時間以外に校外へ出る場合は担任または学年主任の許可を得なければならない',page:'rules',id:'r8',tags:'外出 許可 校外 担任 学年主任'},
-  // ===== 特別教育活動 =====
-  {path:'特別教育活動 › 第一条',title:'目的',snip:'特別教育活動に関する事項を定めることを目的とする',page:'special',id:'sp1',tags:'特別 教育 活動 目的'},
-  {path:'特別教育活動 › 第二条',title:'活動の種類',snip:'ホームルーム活動 生徒会活動 学校行事',page:'special',id:'sp2',tags:'ホームルーム 生徒会 学校行事 種類'},
-  {path:'特別教育活動 › 第二条 › 項1',title:'ホームルーム活動',snip:'ホームルーム活動',page:'special',id:'sp2',tags:'ホームルーム HR 活動'},
-  {path:'特別教育活動 › 第二条 › 項2',title:'生徒会活動',snip:'生徒会活動',page:'special',id:'sp2',tags:'生徒会 活動'},
-  {path:'特別教育活動 › 第二条 › 項3',title:'学校行事',snip:'学校行事',page:'special',id:'sp2',tags:'学校行事 行事 イベント'},
-  {path:'特別教育活動 › 第三条',title:'参加義務',snip:'生徒は特別教育活動に積極的に参加しなければならない',page:'special',id:'sp3',tags:'参加 義務 特別活動'},
-  // ===== 知道生徒会憲章 =====
-  {path:'知道生徒会憲章 › 前文',title:'憲章前文',snip:'自由と民主主義の精神に基づき互いに尊重し合い豊かな学校生活を築く',page:'council-charter',id:'cc1',tags:'憲章 前文 民主主義 生徒会'},
-  {path:'知道生徒会憲章 › 第一条',title:'名称',snip:'本会は知道生徒会と称する',page:'council-charter',id:'cc2',tags:'名称 知道 生徒会'},
-  {path:'知道生徒会憲章 › 第二条',title:'目的',snip:'民主的自治的活動を通じて豊かな学校生活の実現を目的とする',page:'council-charter',id:'cc3',tags:'目的 民主的 自治 生徒会'},
-  {path:'知道生徒会憲章 › 第三条',title:'組織',snip:'本校に在籍する全ての生徒をもって組織する 執行部 評議会',page:'council-charter',id:'cc4',tags:'組織 執行部 評議会 生徒会'},
-  {path:'知道生徒会憲章 › 第三条 › 項1',title:'執行部',snip:'本会に執行部を置く',page:'council-charter',id:'cc4',tags:'執行部 会長 副会長'},
-  {path:'知道生徒会憲章 › 第三条 › 項2',title:'評議会',snip:'本会に評議会を置く',page:'council-charter',id:'cc4',tags:'評議会 代表'},
-  // ===== 生徒会関係諸規定 =====
-  {path:'生徒会関係諸規定 › 役員選挙規定 › 第一条',title:'選挙管理',snip:'生徒会役員の選挙は選挙管理委員会が管理する',page:'council-rules',id:'cr1',tags:'選挙 管理 委員会 役員'},
-  {path:'生徒会関係諸規定 › 役員選挙規定 › 第二条',title:'選挙権・被選挙権',snip:'選挙権は本校に在籍する全生徒が有する 被選挙権は第1第2学年の生徒が有する',page:'council-rules',id:'cr2',tags:'選挙権 被選挙権 投票 立候補'},
-  {path:'生徒会関係諸規定 › 役員選挙規定 › 第二条 › 項1',title:'選挙権',snip:'選挙権は本校に在籍する全生徒が有する',page:'council-rules',id:'cr2',tags:'選挙権 投票'},
-  {path:'生徒会関係諸規定 › 役員選挙規定 › 第二条 › 項2',title:'被選挙権',snip:'被選挙権は第1第2学年の生徒が有する',page:'council-rules',id:'cr2',tags:'被選挙権 立候補 1年 2年'},
-  {path:'生徒会関係諸規定 › 委員会規定 › 第一条',title:'委員会の種類',snip:'文化委員会 体育委員会 広報委員会',page:'council-rules',id:'cr3',tags:'委員会 文化 体育 広報 種類'},
-  // ===== 生徒会活動 =====
-  {path:'生徒会活動',title:'生徒会の概要',snip:'知道生徒会は全生徒をもって組織し民主的自治的活動を通じて豊かな学校生活の実現を目指す 会長 副会長 書記 会計 執行部',page:'council-activities',tags:'生徒会 概要 会長 副会長 執行部'},
-  {path:'生徒会活動 › 各委員会',title:'委員会の活動',snip:'文化委員会は水一祭の企画運営 体育委員会は体育祭 広報委員会は生徒会誌',page:'council-activities',tags:'委員会 文化 体育 広報 水一祭 体育祭 生徒会誌'},
-  // ===== 年間主要行事 =====
-  {path:'年間主要行事 › 4月',title:'4月の行事',snip:'始業式 入学式 健康診断 生徒総会',page:'events',tags:'4月 始業式 入学式 健康診断 生徒総会 春'},
-  {path:'年間主要行事 › 5月',title:'5月の行事',snip:'遠足 中間考査',page:'events',tags:'5月 遠足 中間考査 テスト'},
-  {path:'年間主要行事 › 6月',title:'6月の行事',snip:'芸術鑑賞会',page:'events',tags:'6月 芸術鑑賞会'},
-  {path:'年間主要行事 › 7月',title:'7月の行事',snip:'期末考査 終業式',page:'events',tags:'7月 期末 考査 テスト 終業式 夏休み'},
-  {path:'年間主要行事 › 8月',title:'8月の行事',snip:'夏季休業',page:'events',tags:'8月 夏休み 夏季休業'},
-  {path:'年間主要行事 › 9月',title:'9月の行事',snip:'始業式 水一祭 文化祭 体育祭',page:'events',tags:'9月 始業式 水一祭 文化祭 体育祭 秋'},
-  {path:'年間主要行事 › 10月',title:'10月の行事',snip:'中間考査 修学旅行 2年',page:'events',tags:'10月 中間考査 テスト 修学旅行 2年'},
-  {path:'年間主要行事 › 11月',title:'11月の行事',snip:'進路講演会',page:'events',tags:'11月 進路 講演会'},
-  {path:'年間主要行事 › 12月',title:'12月の行事',snip:'期末考査 終業式',page:'events',tags:'12月 期末 考査 テスト 終業式 冬休み'},
-  {path:'年間主要行事 › 1月',title:'1月の行事',snip:'始業式 大学入学共通テスト 3年',page:'events',tags:'1月 共通テスト 大学受験 3年 始業式'},
-  {path:'年間主要行事 › 2月',title:'2月の行事',snip:'学年末考査',page:'events',tags:'2月 学年末考査 テスト'},
-  {path:'年間主要行事 › 3月',title:'3月の行事',snip:'卒業式 修了式',page:'events',tags:'3月 卒業式 修了式 卒業 春'},
-  // ===== 本校の沿革 =====
-  {path:'本校の沿革',title:'創立と発展の歴史',snip:'1878年 明治11年 茨城県立第一中学校創立 1948年 昭和23年 水戸第一高等学校 創立120周年 令和4年',page:'about',tags:'沿革 歴史 創立 明治 昭和 令和 中学校'},
-  {path:'本校の沿革 › 1878（明11）',title:'茨城県立第一中学校創立',snip:'1878年 明治11年 茨城県立第一中学校として創立',page:'about',tags:'1878 明治 創立 中学校'},
-  {path:'本校の沿革 › 1948（昭23）',title:'高等学校への改称',snip:'学制改革により茨城県立水戸第一高等学校と改称',page:'about',tags:'昭和 学制改革 高等学校 改称'},
-  {path:'本校の沿革 › 2022（令4）',title:'創立120周年',snip:'創立120周年',page:'about',tags:'120周年 令和 記念'},
-  // ===== 歴代校長 =====
-  {path:'歴代校長一覧',title:'歴代校長一覧',snip:'初代から現職まで歴代校長の氏名と在任期間',page:'principals',tags:'校長 歴代 在任 初代 現職'},
-  {path:'歴代校長一覧',title:'初代校長',snip:'初代 明治13・7 ― 明治14・5',page:'principals',tags:'初代 校長 明治'},
-  // ===== 就学の目標・校是 =====
-  {path:'就学の目標',title:'就学の目標',snip:'確かな学力を身につけ自らの可能性を最大限に発揮すること 豊かな人間性と強い意志を培い社会に貢献 健康な体と活力ある精神を養い生涯にわたって学び続けること',page:'goals',tags:'目標 学力 人間性 健康 校是'},
-  {path:'就学の目標 › 一',title:'学力の向上',snip:'確かな学力を身につけ自らの可能性を最大限に発揮すること',page:'goals',tags:'学力 可能性 一'},
-  {path:'就学の目標 › 二',title:'豊かな人間性',snip:'豊かな人間性と強い意志を培い社会に貢献できる人材となること',page:'goals',tags:'人間性 意志 社会貢献 二'},
-  {path:'就学の目標 › 三',title:'健康と継続学習',snip:'健康な体と活力ある精神を養い生涯にわたって学び続けること',page:'goals',tags:'健康 精神 生涯学習 三'},
-  {path:'校是',title:'校是',snip:'校是 水戸第一高等学校の建学の精神',page:'goals',tags:'校是 建学 精神'},
-  // ===== 歌詞 =====
-  {path:'歌詞 › 校歌',title:'校歌',snip:'水戸第一高等学校 校歌 一番 二番 三番',page:'songs',tags:'校歌 歌詞 一番 二番 三番'},
-  {path:'歌詞 › 応援歌',title:'応援歌',snip:'水戸第一高等学校 応援歌 歌詞',page:'songs',tags:'応援歌 歌詞 応援'},
-  // ===== 教育課程 =====
-  {path:'教育課程',title:'教育課程（2024年度入学）',snip:'現代の国語 言語文化 論理国語 数学Ⅰ Ⅱ Ⅲ 英語コミュニケーション 単位数',page:'curriculum',tags:'教育課程 科目 単位 国語 数学 英語 理科 社会 必修 選択'},
-  {path:'教育課程 › 国語',title:'国語科目',snip:'現代の国語 言語文化 論理国語 単位数',page:'curriculum',tags:'国語 現代 言語文化 論理'},
-  {path:'教育課程 › 数学',title:'数学科目',snip:'数学Ⅰ Ⅱ Ⅲ 単位数',page:'curriculum',tags:'数学 Ⅰ Ⅱ Ⅲ 単位'},
-  {path:'教育課程 › 英語',title:'英語科目',snip:'英語コミュニケーションⅠ Ⅱ 単位数',page:'curriculum',tags:'英語 コミュニケーション 単位'},
-];
+// 静的サンプルデータは削除 - Firestoreの実データのみ使用
+const SEARCH_INDEX = [];
 
 // doSearch is defined below with dynamic index support
 
@@ -1868,45 +1790,58 @@ function runSearchPage(q){
 }
 
 /* =================================
-   GEMINI API
-   本番: この関数をCloudflare Workersプロキシに差し替え
+   GEMINI AI 検索
+   WorkersのURLを下記に設定してください
 ================================= */
+const AI_WORKERS_URL = 'https://mito1-hundbook.asanuma.ryuto.workers.dev';
+
 function _ep(){
-  // Cloudflare WorkersプロキシURL
-  return 'https://mito1-hundbook.asanuma-ryuto.workers.dev';
+  return AI_WORKERS_URL || '';
 }
 
 async function callGemini(q){
+  if(!_ep()){
+    return 'AI検索を使用するにはCloudflare WorkersのURLの設定が必要です。\n管理者にお問い合わせください。';
+  }
   const sys=`あなたは茨城県立水戸第一高等学校デジタル生徒手帳のAIアシスタントです。
 在校生の質問に対して手帳の内容に基づき、丁寧・簡潔に日本語で答えてください（200字以内目安）。
 主な内容：諸規定（校内生活・服装・登下校・欠席遅刻・公欠等）、特別教育活動、生徒会憲章・活動・関係規定、
-年間行事（4月始業式・入学式、9月水一祭・体育祭、3月卒業式等）、
-就学の目標、教育課程。`;
+年間行事（4月始業式・入学式、9月水一祭・体育祭、3月卒業式等）、就学の目標、教育課程。`;
   try{
     const res=await fetch(_ep(),{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        model:'gemini-2.5-flash',
-        max_tokens:1000,
-        messages:[{role:'user',content:sys+'\n\n質問：'+q}]
+        system:sys,
+        prompt:q
       })
     });
+    const text=await res.text();
     if(!res.ok){
-      const errText=await res.text();
-      console.error('Gemini API error:',res.status,errText);
-      return '回答を生成できませんでした（ステータス:'+res.status+'）';
+      console.error('AI Workers error:',res.status,text);
+      return `AIサーバーからエラーが返されました（${res.status}）。\nサーバーログを確認してください。`;
     }
-    const d=await res.json();
-    // Cloudflare Workers経由のAnthropicAPI形式
+    let d;
+    try{ d=JSON.parse(text); }catch(e){
+      // レスポンスがそのままテキストの場合
+      return text||'回答を生成できませんでした。';
+    }
+    // Anthropic Claude API 形式
     if(d.content?.[0]?.text) return d.content[0].text;
-    // GeminiAPI直接形式
-    if(d.candidates?.[0]?.content?.parts?.[0]?.text) return d.candidates[0].content.parts[0].text;
+    // シンプルなtext返却形式
+    if(typeof d.text==='string') return d.text;
+    if(typeof d.result==='string') return d.result;
+    if(typeof d.answer==='string') return d.answer;
+    // エラー形式
+    if(d.error){
+      console.error('AI response error:',d.error);
+      return `エラー: ${typeof d.error==='string'?d.error:JSON.stringify(d.error)}`;
+    }
     console.error('Unexpected response shape:',d);
-    return '回答を生成できませんでした。';
+    return '回答を生成できませんでした（予期しないレスポンス形式）。';
   }catch(e){
-    console.error('callGemini error:',e);
-    return 'AIに接続できません（'+e.message+'）';
+    console.error('callGemini fetch error:',e);
+    return `AIに接続できません（${e.message}）`;
   }
 }
 
