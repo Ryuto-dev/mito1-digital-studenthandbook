@@ -1,13 +1,2009 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>mito1-digital-studenthandbook</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.js"></script>
-  </body>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a2744">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>デジタル生徒手帳 - 水戸第一高等学校</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ===========================
+   VARIABLES
+=========================== */
+:root {
+  --navy: #1a2744;
+  --navy-mid: #1e3060;
+  --navy-light: #253a78;
+  --navy-dim: rgba(26,39,68,0.07);
+  --enjii: #8b1a2c;
+  --enjii-bg: rgba(139,26,44,0.08);
+  --bg: #f6f6f4;
+  --surface: #ffffff;
+  --surface2: #f0f0ed;
+  --text: #111111;
+  --text-2: #444444;
+  --text-3: #888888;
+  --border: #e2e2de;
+  --border-2: #eeeee9;
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.09),0 2px 4px rgba(0,0,0,0.05);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.12),0 2px 8px rgba(0,0,0,0.06);
+  --r: 10px;
+  --r-lg: 14px;
+  --header-h: 58px;
+  --sidebar-w: 256px;
+  --bn-h: 62px;
+  --safe-b: env(safe-area-inset-bottom,0px);
+}
+[data-theme="dark"] {
+  --bg: #0e0e11;
+  --surface: #18181d;
+  --surface2: #202026;
+  --text: #e4e4e0;
+  --text-2: #989894;
+  --text-3: #565656;
+  --border: #2a2a32;
+  --border-2: #222228;
+  --navy-dim: rgba(80,110,200,0.1);
+  --enjii-bg: rgba(139,26,44,0.18);
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:'Noto Sans JP',sans-serif;
+  background:var(--bg);color:var(--text);
+  line-height:1.75;-webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+button,input,textarea{font-family:'Noto Sans JP',sans-serif}
+a{text-decoration:none;color:inherit}
+
+/* ===========================
+   LOADING — シネマティック版
+=========================== */
+#loading{
+  position:fixed;inset:0;
+  background:#080e1c;
+  z-index:9999;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  overflow:hidden;
+}
+
+/* 背景の格子テクスチャ */
+#loading::before{
+  content:'';position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
+  background-size:44px 44px;
+  animation:gridFade 3s ease forwards;
+}
+@keyframes gridFade{0%{opacity:0}30%{opacity:1}85%{opacity:1}100%{opacity:0}}
+
+/* 左上・右下の角の輝き */
+#loading::after{
+  content:'';position:absolute;
+  width:300px;height:300px;
+  background:radial-gradient(circle,rgba(139,26,44,.18) 0%,transparent 70%);
+  bottom:-80px;right:-80px;
+  animation:glowPulse 3s ease-in-out infinite;
+}
+@keyframes glowPulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.15)}}
+
+.load-stage{
+  display:flex;flex-direction:column;
+  align-items:center;gap:0;
+  position:relative;z-index:1;
+}
+
+/* SVGの校章リング — strokeが伸びる */
+.load-crest-svg{
+  width:80px;height:80px;margin-bottom:28px;
+  animation:crestAppear .6s ease .1s both;
+}
+@keyframes crestAppear{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
+
+.load-crest-ring{
+  stroke:rgba(255,255,255,.7);stroke-width:1.5;fill:none;
+  stroke-dasharray:226;stroke-dashoffset:226;
+  animation:drawRing 1.1s cubic-bezier(.4,0,.2,1) .2s forwards;
+  transform-origin:center;transform:rotate(-90deg);
+}
+@keyframes drawRing{to{stroke-dashoffset:0}}
+
+.load-crest-inner{
+  stroke:rgba(139,26,44,.7);stroke-width:1;fill:none;
+  stroke-dasharray:163;stroke-dashoffset:163;
+  animation:drawRing 0.9s cubic-bezier(.4,0,.2,1) .55s forwards;
+  transform-origin:center;transform:rotate(-90deg);
+}
+.load-crest-text{
+  font-family:'Noto Serif JP',serif;font-size:11px;font-weight:700;
+  fill:rgba(255,255,255,.85);text-anchor:middle;dominant-baseline:middle;
+  opacity:0;animation:ftextIn .4s ease .9s forwards;
+}
+@keyframes ftextIn{to{opacity:1}}
+
+/* 学校名 — 縦書き風スタック */
+.load-school-wrap{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  margin-bottom:28px;
+}
+.load-pref{
+  font-size:10px;font-weight:400;
+  color:rgba(255,255,255,.38);letter-spacing:.28em;
+  opacity:0;animation:slideUp .5s ease .9s forwards;
+}
+.load-name{
+  font-family:'Noto Serif JP',serif;font-weight:700;
+  color:rgba(255,255,255,.92);
+  letter-spacing:.14em;
+  display:flex;gap:0;
+}
+/* 各文字を順番に */
+.load-char{
+  display:inline-block;opacity:0;
+  transform:translateY(12px);
+  animation:charIn .4s cubic-bezier(.2,0,0,1) both;
+}
+.load-name-main { font-size:22px; }
+.load-name-sub  { font-size:16px; margin-top:6px; }
+
+.load-sub-text{
+  font-size:11px;color:rgba(255,255,255,.42);
+  letter-spacing:.3em;margin-top:2px;
+  opacity:0;animation:slideUp .5s ease 1.5s forwards;
+}
+@keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes charIn{to{opacity:1;transform:translateY(0)}}
+
+/* 区切り線 */
+.load-divider{
+  width:0;height:1px;
+  background:linear-gradient(to right,transparent,rgba(255,255,255,.25),transparent);
+  margin:18px 0;
+  animation:divGrow .7s cubic-bezier(.4,0,.2,1) 1.4s forwards;
+}
+@keyframes divGrow{to{width:220px}}
+
+/* プログレスバー */
+.load-progress-wrap{
+  width:200px;height:1.5px;
+  background:rgba(255,255,255,.08);
+  border-radius:2px;overflow:hidden;
+  opacity:0;animation:fadeIn .4s ease 1.3s forwards;
+}
+@keyframes fadeIn{to{opacity:1}}
+.load-progress-fill{
+  height:100%;width:0;
+  background:linear-gradient(to right,var(--enjii),#d63650);
+  animation:progressRun 2s cubic-bezier(.4,0,.2,1) 1.4s forwards;
+}
+@keyframes progressRun{0%{width:0%}50%{width:55%}80%{width:85%}100%{width:100%}}
+
+#loading.hide{
+  animation:loadOut .55s cubic-bezier(.4,0,1,1) forwards;
+}
+@keyframes loadOut{
+  0%{opacity:1;transform:scale(1)}
+  100%{opacity:0;transform:scale(1.04);pointer-events:none}
+}
+
+/* ===========================
+   APP SHELL
+=========================== */
+#app{opacity:0;transition:opacity .4s ease}
+#app.show{opacity:1}
+
+/* ===========================
+   HEADER
+=========================== */
+.header{
+  position:fixed;top:0;left:0;right:0;
+  height:var(--header-h);
+  background:rgba(255,255,255,.9);
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border-bottom:1px solid var(--border);
+  z-index:200;display:flex;align-items:center;
+  padding:0 14px;gap:10px;
+  transition:background .3s,border-color .3s;
+}
+[data-theme="dark"] .header{background:rgba(14,14,17,.92)}
+
+.menu-btn{
+  width:36px;height:36px;border:none;background:none;
+  border-radius:7px;cursor:pointer;
+  display:none;align-items:center;justify-content:center;
+  flex-direction:column;gap:4.5px;padding:9px;
+  color:var(--text-2);flex-shrink:0;
+}
+.menu-btn span{display:block;width:17px;height:1.5px;background:currentColor;border-radius:1px;transition:all .25s}
+
+.header-brand{
+  display:flex;align-items:center;gap:9px;
+  cursor:pointer;flex-shrink:0;
+}
+.brand-crest{
+  width:31px;height:31px;background:var(--navy);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Noto Serif JP',serif;font-size:11px;font-weight:700;
+  color:white;letter-spacing:.03em;flex-shrink:0;
+}
+.brand-names{display:flex;flex-direction:column}
+.brand-main{
+  font-family:'Noto Serif JP',serif;font-size:13px;font-weight:600;
+  color:var(--navy);line-height:1.2;
+}
+[data-theme="dark"] .brand-main{color:var(--text)}
+.brand-sub{font-size:9.5px;color:var(--text-3)}
+
+/* Search */
+.search-wrap{flex:1;position:relative;max-width:460px;margin:0 auto}
+.search-input{
+  width:100%;height:36px;background:var(--surface2);
+  border:1.5px solid var(--border);border-radius:8px;
+  padding:0 44px 0 34px;
+  font-size:13px;color:var(--text);outline:none;
+  transition:all .2s;
+}
+.search-input::placeholder{color:var(--text-3)}
+.search-input:focus{
+  border-color:var(--navy);background:var(--surface);
+  box-shadow:0 0 0 3px rgba(26,39,68,.07);
+}
+[data-theme="dark"] .search-input:focus{box-shadow:0 0 0 3px rgba(26,39,68,.35)}
+.search-icon-left{
+  position:absolute;left:10px;top:50%;transform:translateY(-50%);
+  color:var(--text-3);pointer-events:none;
+}
+.search-icon-left svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+.search-submit-btn{
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  width:26px;height:26px;border:none;background:none;
+  cursor:pointer;color:var(--text-3);display:flex;align-items:center;justify-content:center;
+  border-radius:5px;transition:background .15s,color .15s;
+}
+.search-submit-btn:hover{background:var(--navy-dim);color:var(--navy)}
+.search-submit-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2.5}
+
+/* Search dropdown */
+.search-dd{
+  position:absolute;top:calc(100% + 8px);left:0;right:0;
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--r-lg);box-shadow:var(--shadow-lg);
+  z-index:300;display:none;overflow:hidden;
+}
+.search-dd.open{display:block;animation:dropIn .18s ease}
+@keyframes dropIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+.sd-results{max-height:280px;overflow-y:auto;padding:6px}
+.sd-item{padding:10px 12px;border-radius:7px;cursor:pointer;transition:background .12s}
+.sd-item:hover{background:var(--surface2)}
+.sd-path{font-size:10px;color:var(--enjii);margin-bottom:2px;font-weight:600;letter-spacing:.04em}
+.sd-title{font-size:13px;font-weight:500;color:var(--text)}
+.sd-snip{font-size:11.5px;color:var(--text-3);margin-top:1px}
+.sd-no-result{
+  padding:18px 14px;text-align:center;font-size:13px;color:var(--text-3);
+}
+.sd-ai-link{
+  margin-top:10px;padding:8px 16px;background:var(--navy);color:white;
+  border:none;border-radius:7px;font-size:12.5px;cursor:pointer;
+  display:inline-block;transition:background .15s;
+}
+.sd-ai-link:hover{background:var(--navy-light)}
+
+.header-actions{display:flex;gap:4px;flex-shrink:0}
+.hdr-btn{
+  width:34px;height:34px;border:none;background:none;
+  border-radius:7px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text-2);transition:background .12s,color .12s;
+}
+.hdr-btn:hover{background:var(--surface2);color:var(--text)}
+.hdr-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8}
+
+/* ===========================
+   LAYOUT
+=========================== */
+.layout{display:flex;padding-top:var(--header-h);min-height:100vh}
+
+/* ===========================
+   SIDEBAR
+=========================== */
+.sidebar{
+  width:var(--sidebar-w);flex-shrink:0;
+  position:fixed;top:var(--header-h);left:0;bottom:0;
+  overflow-y:auto;overflow-x:hidden;
+  padding:18px 10px 24px;
+  border-right:1px solid var(--border);
+  background:var(--surface);z-index:180;
+  transition:transform .3s cubic-bezier(.4,0,.2,1),background .3s;
+  scrollbar-width:thin;scrollbar-color:var(--border) transparent;
+}
+.sb-section{margin-bottom:20px}
+.sb-label{
+  font-size:9.5px;font-weight:700;letter-spacing:.14em;
+  color:var(--text-3);padding:0 10px;margin-bottom:3px;text-transform:uppercase;
+}
+.sb-item{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 10px;border-radius:7px;
+  font-size:13.5px;color:var(--text-2);
+  cursor:pointer;transition:background .12s,color .12s;
+  position:relative;border:none;background:none;
+  width:100%;text-align:left;
+}
+.sb-item:hover{background:var(--surface2);color:var(--text)}
+.sb-item.on{background:var(--navy-dim);color:var(--navy);font-weight:500}
+[data-theme="dark"] .sb-item.on{color:var(--text)}
+.sb-item.on::before{
+  content:'';position:absolute;left:0;top:22%;bottom:22%;
+  width:3px;background:var(--enjii);border-radius:0 2px 2px 0;
+}
+.sb-icon{width:20px;text-align:center;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.sb-icon svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8}
+.sb-badge{
+  margin-left:auto;font-size:9px;
+  background:var(--enjii-bg);color:var(--enjii);
+  padding:1px 7px;border-radius:10px;font-weight:600;
+}
+.sb-item.dim{opacity:.38;pointer-events:none}
+.sb-dim-badge{
+  margin-left:auto;font-size:8.5px;background:var(--surface2);
+  color:var(--text-3);padding:1px 6px;border-radius:10px;border:1px solid var(--border);
+}
+.sb-sub{padding-left:34px;font-size:12.5px}
+
+.sidebar-overlay{
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,.38);z-index:179;
+}
+
+/* ===========================
+   BOTTOM NAVIGATION
+=========================== */
+.bottom-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;
+  height:calc(var(--bn-h) + var(--safe-b));
+  padding-bottom:var(--safe-b);
+  background:rgba(255,255,255,.95);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-top:1px solid var(--border);z-index:180;
+}
+[data-theme="dark"] .bottom-nav{background:rgba(18,18,22,.97)}
+.bn-inner{display:flex;height:var(--bn-h);align-items:stretch}
+.bn-item{
+  flex:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:3px;
+  cursor:pointer;border:none;background:none;
+  color:var(--text-3);transition:color .15s;
+  -webkit-tap-highlight-color:transparent;padding:0;
+}
+.bn-item.on{color:var(--navy)}
+[data-theme="dark"] .bn-item.on{color:#8fb4ff}
+.bn-icon-wrap{
+  width:42px;height:28px;display:flex;align-items:center;justify-content:center;
+  border-radius:14px;transition:background .15s,transform .15s;
+}
+.bn-icon-wrap svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7}
+.bn-item.on .bn-icon-wrap{
+  background:var(--navy-dim);transform:translateY(-1px);
+}
+[data-theme="dark"] .bn-item.on .bn-icon-wrap{background:rgba(100,130,220,.15)}
+.bn-label{font-size:9.5px;font-weight:500;letter-spacing:.02em}
+
+/* More Sheet */
+.more-sheet{
+  position:fixed;left:0;right:0;bottom:0;
+  background:var(--surface);
+  border-radius:var(--r-lg) var(--r-lg) 0 0;
+  box-shadow:0 -8px 32px rgba(0,0,0,.15);
+  z-index:400;transform:translateY(100%);
+  transition:transform .3s cubic-bezier(.4,0,.2,1);
+  padding-bottom:var(--safe-b);
+}
+.more-sheet.open{transform:translateY(0)}
+.more-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:12px auto 0}
+.more-sheet-title{font-size:11.5px;color:var(--text-3);text-align:center;padding:9px 0 6px;letter-spacing:.08em}
+.more-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;padding:6px 10px 14px}
+.more-item{
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding:12px 4px;border-radius:var(--r);cursor:pointer;
+  border:none;background:none;color:var(--text-2);
+  transition:background .12s;-webkit-tap-highlight-color:transparent;
+}
+.more-item:hover,.more-item:active{background:var(--surface2)}
+.more-item.dim{opacity:.38;pointer-events:none}
+.more-item svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7}
+.more-lbl{font-size:11px;font-weight:500;text-align:center;line-height:1.3;color:var(--text-2)}
+.sheet-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:390}
+
+/* ===========================
+   MAIN CONTENT
+=========================== */
+.main{flex:1;margin-left:var(--sidebar-w);padding:32px 40px;min-width:0}
+
+/* ===========================
+   PAGES
+=========================== */
+.pg{display:none;animation:pgIn .22s ease}
+.pg.on{display:block}
+@keyframes pgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+.pg-header{margin-bottom:24px;padding-bottom:18px;border-bottom:1.5px solid var(--border)}
+.breadcrumb{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--text-3);margin-bottom:8px}
+.breadcrumb span{cursor:pointer;transition:color .12s}
+.breadcrumb span:hover{color:var(--enjii)}
+.breadcrumb-sep{opacity:.4}
+.pg-title{font-family:'Noto Serif JP',serif;font-size:21px;font-weight:600;color:var(--text);margin-bottom:5px}
+.pg-meta{font-size:11.5px;color:var(--text-3);display:flex;gap:14px;flex-wrap:wrap}
+
+/* ===========================
+   HOME PAGE
+=========================== */
+.home-wrap{max-width:900px;margin:0 auto;padding:32px 0 20px}
+
+.home-brand{text-align:center;margin-bottom:36px}
+.home-book{
+  width:100px;height:144px;margin:0 auto 22px;
+  background:linear-gradient(148deg,#1e3a6e 0%,#1a2744 48%,#0c1628 100%);
+  border-radius:2px 9px 9px 2px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;padding:14px 12px;
+  box-shadow:-2px 0 0 rgba(0,0,0,.3),var(--shadow-lg);
+  border-left:3px solid rgba(0,0,0,.3);
+  animation:homeFloat 5s ease-in-out infinite;position:relative;overflow:hidden;
+}
+.home-book::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.04) 0%,transparent 55%)}
+@keyframes homeFloat{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-6px) rotate(-.5deg)}}
+.hb-crest{
+  width:38px;height:38px;border:1.5px solid rgba(255,255,255,.82);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Noto Serif JP',serif;font-size:9px;font-weight:700;
+  color:rgba(255,255,255,.92);background:rgba(255,255,255,.06);
+  letter-spacing:.04em;position:relative;z-index:1;
+}
+.hb-ttl{
+  font-family:'Noto Serif JP',serif;font-size:9.5px;font-weight:600;
+  color:rgba(255,255,255,.95);letter-spacing:.2em;text-align:center;
+  position:relative;z-index:1;
+}
+.hb-div{width:50%;height:1px;background:rgba(255,255,255,.2);position:relative;z-index:1}
+.hb-school{font-size:6.5px;color:rgba(255,255,255,.7);text-align:center;line-height:1.9;position:relative;z-index:1}
+.home-headline{font-family:'Noto Serif JP',serif;font-size:20px;font-weight:600;color:var(--text);margin-bottom:3px}
+.home-sub{font-size:12px;color:var(--text-3);letter-spacing:.06em}
+
+/* Category grid — explicit named areas, no auto-placement surprises */
+.cat-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  grid-template-rows:140px 110px 90px;
+  grid-template-areas:
+    "rules    events   council"
+    "curric   curric   songs"
+    "about    about    about";
+  gap:13px;
+}
+.cat-card-rules     { grid-area:rules; }
+.cat-card-events    { grid-area:events; }
+.cat-card-council   { grid-area:council; }
+.cat-card-curriculum{ grid-area:curric; }
+.cat-card-songs     { grid-area:songs; }
+.cat-card-about     { grid-area:about; }
+
+.cat-card{
+  position:relative;border-radius:12px;overflow:hidden;
+  cursor:pointer;min-height:0;/* allow grid to control height */
+  transition:transform .2s,box-shadow .2s;
+  box-shadow:var(--shadow-sm);
+}
+.cat-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
+.cat-card:active{transform:translateY(-1px)}
+
+/* Card backgrounds */
+.cat-card-rules     {background:linear-gradient(135deg,#1a2744 0%,#1e3568 100%)}
+.cat-card-events    {background:linear-gradient(135deg,#1e3568 0%,#2a4a82 100%)}
+.cat-card-curriculum{background:linear-gradient(135deg,#0f1e3a 0%,#1a2f5a 100%)}
+.cat-card-council   {background:linear-gradient(135deg,#6b1222 0%,#8b1a2c 100%)}
+.cat-card-about     {background:linear-gradient(135deg,#1a2744 0%,#2d3d5e 100%)}
+.cat-card-songs     {background:linear-gradient(135deg,#2a1a44 0%,#3a2060 100%)}
+
+/* Decorative circles */
+.cat-card::before{
+  content:'';position:absolute;right:-20px;bottom:-20px;
+  width:100px;height:100px;border-radius:50%;
+  background:rgba(255,255,255,.05);pointer-events:none;
+}
+.cat-card::after{
+  content:'';position:absolute;right:20px;top:-30px;
+  width:70px;height:70px;border-radius:50%;
+  background:rgba(255,255,255,.04);pointer-events:none;
+}
+.cat-card-council::before{background:rgba(255,255,255,.07)}
+
+.cat-card-inner{
+  position:relative;z-index:1;
+  width:100%;height:100%;padding:18px 18px 16px;
+  display:flex;flex-direction:column;justify-content:space-between;
+}
+
+/* Landscape (wide) inner layout for curric & about */
+.cat-card-curriculum .cat-card-inner,
+.cat-card-about .cat-card-inner {
+  flex-direction:row;align-items:center;gap:24px;
+}
+.cat-card-curriculum .cat-text,
+.cat-card-about .cat-text { flex:1; }
+.cat-card-curriculum .cat-card-line,
+.cat-card-about .cat-card-line {
+  margin-bottom:0;align-self:flex-start;margin-top:2px;flex-shrink:0;
+}
+
+.cat-card-line{
+  width:28px;height:2px;background:rgba(255,255,255,.4);border-radius:1px;
+  margin-bottom:8px;
+}
+.cat-card-title{
+  font-family:'Noto Serif JP',serif;font-size:15px;font-weight:600;
+  color:white;line-height:1.4;
+}
+.cat-card-sub{
+  font-size:10.5px;color:rgba(255,255,255,.6);margin-top:4px;letter-spacing:.04em;
+}
+.cat-card-arrow{
+  display:flex;align-items:center;font-size:10px;
+  color:rgba(255,255,255,.5);gap:4px;margin-top:auto;
+}
+.cat-card-curriculum .cat-card-arrow,
+.cat-card-about .cat-card-arrow { margin-top:10px; }
+.cat-card-arrow svg{
+  width:12px;height:12px;stroke:rgba(255,255,255,.5);
+  fill:none;stroke-width:2;transition:transform .18s;
+}
+.cat-card:hover .cat-card-arrow svg{transform:translateX(3px)}
+
+/* ===========================
+   SEARCH PAGE
+=========================== */
+.search-page-wrap{max-width:700px;margin:0 auto;min-width:0}
+.search-page-bar{
+  display:flex;gap:8px;margin-bottom:20px;align-items:center;
+  flex-wrap:wrap;
+}
+.search-bar-wrap{position:relative;flex:1;min-width:0}
+.search-page-input{
+  width:100%;height:44px;background:var(--surface);
+  border:1.5px solid var(--border);border-radius:9px;
+  padding:0 16px 0 42px;font-size:14px;color:var(--text);outline:none;
+  transition:all .2s;box-sizing:border-box;
+}
+.search-page-input:focus{border-color:var(--navy);box-shadow:0 0 0 3px rgba(26,39,68,.07)}
+.search-page-icon{
+  position:absolute;left:14px;top:50%;transform:translateY(-50%);
+  color:var(--text-3);pointer-events:none;
+}
+.search-page-icon svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
+
+.search-toggle{
+  display:flex;background:var(--surface2);border-radius:8px;
+  border:1.5px solid var(--border);overflow:hidden;flex-shrink:0;
+}
+.stoggle{
+  padding:9px 12px;border:none;background:none;
+  font-size:12px;font-weight:500;color:var(--text-3);cursor:pointer;
+  transition:all .15s;white-space:nowrap;
+}
+.stoggle.on{background:var(--navy);color:white}
+
+.search-page-results{margin-top:4px}
+.sp-result-item{
+  padding:14px 16px;background:var(--surface);
+  border:1.5px solid var(--border);border-radius:var(--r);
+  margin-bottom:10px;cursor:pointer;transition:all .15s;
+}
+.sp-result-item:hover{border-color:var(--navy);box-shadow:var(--shadow-sm)}
+.sp-path{font-size:10px;color:var(--enjii);font-weight:600;margin-bottom:3px;letter-spacing:.04em}
+.sp-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:3px}
+.sp-snip{font-size:12.5px;color:var(--text-2);line-height:1.6}
+
+.ai-answer-box{
+  background:linear-gradient(135deg,rgba(26,39,68,.05),rgba(139,26,44,.03));
+  border:1.5px solid rgba(26,39,68,.12);
+  border-radius:var(--r);padding:18px 20px;margin-bottom:16px;
+}
+[data-theme="dark"] .ai-answer-box{background:rgba(26,39,68,.2);border-color:rgba(100,130,200,.18)}
+.ai-answer-label{
+  font-size:10px;font-weight:700;color:var(--enjii);
+  letter-spacing:.12em;margin-bottom:8px;
+  display:flex;align-items:center;gap:7px;
+}
+.ai-dot-spin{
+  width:7px;height:7px;border-radius:50%;background:var(--enjii);
+  animation:aiP 2s ease-in-out infinite;
+}
+@keyframes aiP{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.75)}}
+.ai-answer-text{font-size:13.5px;color:var(--text-2);line-height:1.8}
+
+.search-empty{
+  text-align:center;padding:40px 20px;
+}
+.search-empty-title{font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px}
+.search-empty-sub{font-size:13px;color:var(--text-3);margin-bottom:18px}
+.btn-navy{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:10px 20px;background:var(--navy);color:white;
+  border:none;border-radius:8px;font-size:13px;cursor:pointer;
+  transition:background .15s;
+}
+.btn-navy:hover{background:var(--navy-light)}
+.btn-navy svg{width:14px;height:14px;stroke:white;fill:none;stroke-width:2}
+
+.typing-dots{display:flex;gap:4px;align-items:center;padding:3px 0}
+.tdot{width:6px;height:6px;border-radius:50%;background:var(--text-3);animation:td 1.2s ease-in-out infinite}
+.tdot:nth-child(2){animation-delay:.2s}.tdot:nth-child(3){animation-delay:.4s}
+@keyframes td{0%,80%,100%{transform:scale(.8);opacity:.3}40%{transform:scale(1.1);opacity:1}}
+
+/* ===========================
+   CONTENT CARDS
+=========================== */
+.card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:26px 30px;margin-bottom:18px}
+.card-h2{
+  font-family:'Noto Serif JP',serif;font-size:16px;font-weight:600;
+  color:var(--text);margin-bottom:16px;padding-bottom:10px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;
+}
+.card-h2::before{content:'';width:3px;height:16px;background:var(--enjii);border-radius:2px;flex-shrink:0}
+.card-body{font-size:14px;color:var(--text-2);line-height:2.0}
+.card-body p{margin-bottom:14px}
+.card-body p:last-child{margin-bottom:0}
+
+/* ===========================
+   HISTORY (沿革)
+=========================== */
+.history-list{list-style:none}
+.history-item{
+  display:flex;gap:16px;padding:6px 0;
+  border-bottom:1px solid var(--border-2);font-size:13.5px;
+}
+.history-item:last-child{border-bottom:none}
+.history-year{
+  min-width:140px;flex-shrink:0;
+  color:var(--text-3);font-size:12.5px;
+  font-family:'Noto Sans JP',sans-serif;
+  padding-top:1px;letter-spacing:.01em;
+}
+.history-item:first-child .history-year{color:var(--enjii);font-weight:600}
+.history-event{color:var(--text-2);line-height:1.7}
+
+/* ===========================
+   PRINCIPALS (歴代校長)
+=========================== */
+.principals-list{list-style:none}
+.principal-item{
+  display:grid;
+  grid-template-columns:40px 1fr 1fr;
+  gap:8px;padding:8px 0;
+  border-bottom:1px solid var(--border-2);font-size:13.5px;
+  align-items:baseline;
+}
+.principal-item:last-child{border-bottom:none}
+.principal-gen{
+  font-size:11px;color:var(--enjii);font-weight:700;
+  background:var(--enjii-bg);padding:1px 6px;border-radius:4px;
+  text-align:center;white-space:nowrap;align-self:center;
+}
+.principal-name{font-weight:500;color:var(--text)}
+.principal-term{font-size:12px;color:var(--text-3)}
+
+/* ===========================
+   RULES (条文形式)
+=========================== */
+.rules-wrap{display:grid;grid-template-columns:210px 1fr;gap:22px;align-items:start}
+.rules-toc{
+  position:sticky;top:calc(var(--header-h) + 14px);
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--r);overflow:hidden;
+  max-height:calc(100vh - var(--header-h) - 40px);
+  overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent;
+}
+.toc-hdr{
+  padding:11px 14px;background:var(--surface2);
+  font-size:11px;font-weight:600;color:var(--text-3);
+  letter-spacing:.08em;border-bottom:1px solid var(--border);
+}
+.toc-lnk{
+  display:block;padding:8px 14px;font-size:12px;color:var(--text-2);
+  cursor:pointer;transition:background .12s;
+  border-left:3px solid transparent;line-height:1.4;
+}
+.toc-lnk:hover{background:var(--surface2);color:var(--text)}
+.toc-lnk.on{background:var(--navy-dim);color:var(--navy);border-left-color:var(--enjii);font-weight:500}
+[data-theme="dark"] .toc-lnk.on{color:var(--text)}
+.toc-lnk.sub{padding-left:22px;font-size:11.5px;color:var(--text-3)}
+
+.article{
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--r);margin-bottom:10px;overflow:hidden;
+  transition:box-shadow .15s;
+  scroll-margin-top:calc(var(--header-h) + 16px);
+}
+.article:hover{box-shadow:var(--shadow-sm)}
+.art-hdr{display:flex;align-items:baseline;gap:10px;padding:14px 18px 10px}
+.art-num{
+  font-size:10.5px;font-weight:700;color:var(--enjii);
+  background:var(--enjii-bg);padding:2px 8px;border-radius:4px;
+  white-space:nowrap;letter-spacing:.05em;flex-shrink:0;
+}
+.art-title{font-size:14px;font-weight:600;color:var(--text)}
+.art-body{padding:0 18px 15px;font-size:13.5px;color:var(--text-2);line-height:1.9}
+.art-main{margin-bottom:10px}
+.items-list{list-style:none;padding:0;margin-top:8px}
+.item-row{display:flex;gap:11px;padding:4px 0;font-size:13px;color:var(--text-2);align-items:flex-start}
+.item-idx{min-width:22px;font-weight:600;color:var(--navy);flex-shrink:0;font-size:12.5px;padding-top:2px}
+[data-theme="dark"] .item-idx{color:#8fb4ff}
+.sub-list{list-style:none;margin-top:5px;padding-left:14px}
+.sub-row{display:flex;gap:9px;padding:3px 0;font-size:12.5px;color:var(--text-3);align-items:flex-start}
+.sub-idx{min-width:18px;color:var(--enjii);font-size:12px;flex-shrink:0;padding-top:2px}
+
+.chapter-div{
+  font-family:'Noto Serif JP',serif;font-size:14px;font-weight:600;
+  color:var(--navy);padding:11px 16px;
+  background:rgba(26,39,68,.05);border-left:4px solid var(--navy);
+  border-radius:0 7px 7px 0;margin-bottom:12px;margin-top:22px;
+}
+[data-theme="dark"] .chapter-div{color:var(--text);background:rgba(255,255,255,.05)}
+
+/* ===========================
+   EVENTS
+=========================== */
+.events-list{display:flex;flex-direction:column;gap:10px}
+.ev-month{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);overflow:hidden}
+.ev-month-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 18px;background:var(--navy);color:white;
+}
+.ev-month-name{font-family:'Noto Serif JP',serif;font-size:14px;font-weight:600}
+.ev-month-num{font-size:26px;font-weight:700;opacity:.17;font-family:'Noto Serif JP',serif;line-height:1}
+.ev-items{padding:8px 18px 10px}
+.ev-item{display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--border-2);font-size:13.5px}
+.ev-item:last-child{border-bottom:none;padding-bottom:2px}
+.ev-bullet{width:5px;height:5px;border-radius:50%;background:var(--enjii);flex-shrink:0;margin-top:8px}
+.ev-name{color:var(--text-2);line-height:1.6}
+
+/* ===========================
+   SONGS
+=========================== */
+.song-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:18px}
+.song-hdr{padding:14px 22px;background:var(--navy);color:white;display:flex;justify-content:space-between;align-items:center}
+.song-hdr-ttl{font-family:'Noto Serif JP',serif;font-size:16px;font-weight:600}
+.song-hdr-badge{font-size:10.5px;background:rgba(255,255,255,.14);padding:3px 10px;border-radius:12px}
+.song-verses{padding:22px 28px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:22px}
+.verse-num{font-size:10.5px;color:var(--enjii);font-weight:700;margin-bottom:5px;letter-spacing:.1em}
+.verse-text{font-family:'Noto Serif JP',serif;font-size:13.5px;color:var(--text-2);line-height:2.4}
+
+/* ===========================
+   CURRICULUM
+=========================== */
+.year-tabs{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap}
+.year-tab{
+  padding:7px 16px;border-radius:7px;font-size:12.5px;
+  border:1.5px solid var(--border);background:var(--surface2);
+  color:var(--text-2);cursor:pointer;transition:all .15s;
+}
+.year-tab.on{background:var(--navy);color:white;border-color:var(--navy)}
+.table-outer{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{background:var(--surface2);padding:9px 13px;text-align:left;font-size:11.5px;font-weight:600;color:var(--text-3);border-bottom:2px solid var(--border);white-space:nowrap;letter-spacing:.04em}
+td{padding:9px 13px;border-bottom:1px solid var(--border-2);color:var(--text-2)}
+tr:hover td{background:var(--surface2)}
+tr:last-child td{border-bottom:none}
+
+/* ===========================
+   COMING SOON
+=========================== */
+.coming-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:56vh;text-align:center;gap:18px}
+.coming-icon-ring{
+  width:72px;height:72px;border:2px solid var(--border);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  animation:ringRotate 20s linear infinite;
+}
+.coming-icon-ring svg{width:28px;height:28px;stroke:var(--text-3);fill:none;stroke-width:1.5}
+@keyframes ringRotate{to{transform:rotate(360deg)}}
+.coming-ttl{font-family:'Noto Serif JP',serif;font-size:22px;font-weight:600}
+.coming-sub{font-size:13.5px;color:var(--text-3);max-width:360px;line-height:1.85}
+.coming-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;width:100%;max-width:620px}
+.coming-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:18px;text-align:center;opacity:.55}
+.coming-card-icon{width:32px;height:32px;margin:0 auto 10px;display:flex;align-items:center;justify-content:center}
+.coming-card-icon svg{width:28px;height:28px;stroke:var(--text-3);fill:none;stroke-width:1.4}
+.coming-card-ttl{font-size:13px;font-weight:600;margin-bottom:4px}
+.coming-card-desc{font-size:11.5px;color:var(--text-3);line-height:1.6}
+
+/* ===========================
+   AI FLOAT
+=========================== */
+.ai-float{position:fixed;right:18px;bottom:18px;z-index:350;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+.ai-toggle{
+  width:50px;height:50px;background:var(--navy);border:none;border-radius:50%;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  color:white;box-shadow:0 4px 18px rgba(26,39,68,.42);
+  transition:transform .18s,box-shadow .18s;position:relative;
+}
+.ai-toggle svg{width:22px;height:22px;stroke:white;fill:none;stroke-width:1.8}
+.ai-toggle:hover{transform:scale(1.06);box-shadow:0 6px 24px rgba(26,39,68,.52)}
+.ai-badge-dot{
+  position:absolute;top:-2px;right:-2px;width:13px;height:13px;
+  background:var(--enjii);border-radius:50%;border:2px solid var(--bg);
+}
+.ai-window{
+  width:330px;background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--r-lg);box-shadow:var(--shadow-lg);
+  display:none;flex-direction:column;overflow:hidden;max-height:440px;
+}
+.ai-window.open{display:flex;animation:slideUp .2s ease}
+@keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.ai-win-hdr{
+  padding:12px 14px;background:var(--navy);color:white;
+  display:flex;justify-content:space-between;align-items:center;flex-shrink:0;
+}
+.ai-win-ttl{font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px}
+.ai-online{width:7px;height:7px;background:#4ade80;border-radius:50%;animation:aiP 2s infinite}
+.ai-close-btn{background:none;border:none;color:rgba(255,255,255,.6);cursor:pointer;line-height:1;padding:2px}
+.ai-close-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+.ai-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:9px}
+.ai-msg{max-width:87%;animation:msgFade .18s ease}
+@keyframes msgFade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+.ai-msg.usr{align-self:flex-end}
+.ai-msg.bot{align-self:flex-start}
+.ai-bubble{padding:9px 12px;border-radius:11px;font-size:12.5px;line-height:1.65}
+.ai-msg.usr .ai-bubble{background:var(--navy);color:white;border-radius:11px 11px 3px 11px}
+.ai-msg.bot .ai-bubble{background:var(--surface2);color:var(--text);border-radius:11px 11px 11px 3px}
+.ai-input-row{padding:10px 11px;border-top:1px solid var(--border);display:flex;gap:7px;flex-shrink:0}
+.ai-input{
+  flex:1;border:1.5px solid var(--border);border-radius:7px;
+  padding:7px 10px;font-size:12px;background:var(--bg);color:var(--text);
+  outline:none;resize:none;height:34px;transition:border-color .18s;
+}
+.ai-input:focus{border-color:var(--navy)}
+.ai-send{
+  width:34px;height:34px;background:var(--navy);border:none;border-radius:7px;
+  color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:background .15s;
+}
+.ai-send svg{width:14px;height:14px;stroke:white;fill:none;stroke-width:2.5}
+.ai-send:hover{background:var(--navy-light)}
+.ai-send:disabled{opacity:.45;cursor:not-allowed}
+
+/* ===========================
+   RESPONSIVE
+=========================== */
+@media(max-width:860px){
+  .cat-grid{
+    grid-template-columns:repeat(2,1fr);
+    grid-template-rows:130px 130px 110px 90px;
+    grid-template-areas:
+      "rules    events"
+      "council  songs"
+      "curric   curric"
+      "about    about";
+  }
+  .cat-card-curriculum .cat-card-inner,
+  .cat-card-about .cat-card-inner {
+    flex-direction:row;
+  }
+}
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%);z-index:190;width:280px}
+  .sidebar.open{transform:translateX(0)}
+  .sidebar-overlay.open{display:block}
+  .menu-btn{display:flex}
+  .main{margin-left:0;padding:20px 16px 100px}
+  .rules-wrap{grid-template-columns:1fr}
+  .rules-toc{position:static;max-height:none;display:none}
+  .brand-names{display:none}
+  .search-wrap{max-width:100%}
+  .bottom-nav{display:block}
+  .ai-float{bottom:calc(var(--bn-h) + var(--safe-b) + 10px)}
+}
+@media(max-width:500px){
+  .cat-grid{
+    grid-template-columns:1fr;
+    grid-template-rows:repeat(6,100px);
+    grid-template-areas:"rules""events""council""curric""songs""about";
+  }
+  .cat-card-curriculum .cat-card-inner,
+  .cat-card-about .cat-card-inner {
+    flex-direction:column;align-items:flex-start;
+  }
+  .cat-card-curriculum .cat-card-line,
+  .cat-card-about .cat-card-line { margin-bottom:8px; }
+  .song-verses{grid-template-columns:1fr}
+  .home-wrap{padding:20px 0 10px}
+}
+@media(display-mode:standalone){
+  .sidebar{display:none!important}
+  .menu-btn{display:none!important}
+  .main{margin-left:0!important;padding-bottom:calc(var(--bn-h) + var(--safe-b) + 24px)!important}
+  .bottom-nav{display:block!important}
+  .ai-float{bottom:calc(var(--bn-h) + var(--safe-b) + 10px)!important}
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="load-stage">
+    <!-- 校章SVG - strokeが描かれる -->
+    <svg class="load-crest-svg" viewBox="0 0 80 80">
+      <!-- 外円 -->
+      <circle class="load-crest-ring" cx="40" cy="40" r="36"/>
+      <!-- 内円 -->
+      <circle class="load-crest-inner" cx="40" cy="40" r="26"/>
+      <!-- 文字 -->
+      <text class="load-crest-text" x="40" y="40">校章</text>
+    </svg>
+
+    <!-- 学校名 -->
+    <div class="load-school-wrap">
+      <div class="load-pref">茨城県立</div>
+      <div class="load-name load-name-main" id="loadNameMain"></div>
+      <div class="load-name load-name-sub" id="loadNameSub"></div>
+    </div>
+
+    <div class="load-divider"></div>
+
+    <div class="load-progress-wrap">
+      <div class="load-progress-fill"></div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+
+<!-- HEADER -->
+<header class="header">
+  <button class="menu-btn" onclick="toggleSidebar()">
+    <span></span><span></span><span></span>
+  </button>
+
+  <div class="header-brand" onclick="nav('home')">
+    <div class="brand-crest">校章</div>
+    <div class="brand-names">
+      <span class="brand-main">デジタル生徒手帳</span>
+      <span class="brand-sub">水戸第一高等学校</span>
+    </div>
+  </div>
+
+  <div class="search-wrap">
+    <div class="search-bar-wrap">
+      <span class="search-icon-left">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
+      </span>
+      <input type="text" class="search-input" id="srchIn"
+        placeholder="規定・条文・行事を検索..."
+        oninput="onHeaderSearch(this.value)"
+        onfocus="openSD()"
+        autocomplete="off">
+      <button class="search-submit-btn" onclick="goToSearch()">
+        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+    <div class="search-dd" id="srchDD">
+      <div class="sd-results" id="sdResults">
+        <div class="sd-item" onclick="nav('rules');closeSD()">
+          <div class="sd-path">諸規定 › 第三条</div>
+          <div class="sd-title">校内生活の基本</div>
+          <div class="sd-snip">生徒は学校の定める規則に従い...</div>
+        </div>
+        <div class="sd-item" onclick="nav('rules');closeSD()">
+          <div class="sd-path">諸規定 › 第七条</div>
+          <div class="sd-title">公欠の取扱い</div>
+          <div class="sd-snip">次に掲げる事由は公欠として取り扱う...</div>
+        </div>
+        <div class="sd-item" onclick="nav('events');closeSD()">
+          <div class="sd-path">年間主要行事</div>
+          <div class="sd-title">9月 — 水一祭・体育祭</div>
+          <div class="sd-snip">文化祭および体育祭が行われる...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="header-actions">
+    <button class="hdr-btn" onclick="nav('search')" title="検索">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
+    </button>
+    <button class="hdr-btn" onclick="toggleTheme()" id="themeBtn" title="テーマ切替">
+      <svg id="themeIcon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="sidebar-overlay" id="sbOverlay" onclick="toggleSidebar()"></div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sb-section">
+    <div class="sb-label">メニュー</div>
+    <button class="sb-item on" data-p="home" onclick="nav('home')">
+      <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+      ホーム
+    </button>
+    <button class="sb-item" data-p="search" onclick="nav('search')">
+      <span class="sb-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg></span>
+      検索・AI検索
+    </button>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">学校について</div>
+    <button class="sb-item" data-p="about" onclick="nav('about')">
+      <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span>
+      本校の沿革
+    </button>
+    <button class="sb-item" data-p="principals" onclick="nav('principals')">
+      <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+      歴代校長一覧
+    </button>
+    <button class="sb-item" data-p="goals" onclick="nav('goals')">
+      <span class="sb-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span>
+      就学の目標
+    </button>
+    <button class="sb-item" data-p="songs" onclick="nav('songs')">
+      <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>
+      歌詞
+    </button>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">諸規定</div>
+    <button class="sb-item" data-p="rules" onclick="nav('rules')">
+      <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
+      諸規定（本則）
+      <span class="sb-badge">24条</span>
+    </button>
+    <button class="sb-item sb-sub" data-p="special" onclick="nav('special')">
+      <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+      特別教育活動
+    </button>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">学校生活</div>
+    <button class="sb-item" data-p="curriculum" onclick="nav('curriculum')">
+      <span class="sb-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+      教育課程
+    </button>
+    <button class="sb-item" data-p="events" onclick="nav('events')">
+      <span class="sb-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+      年間主要行事
+    </button>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">生徒会</div>
+    <button class="sb-item" data-p="council-activities" onclick="nav('council-activities')">
+      <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+      生徒会活動
+    </button>
+    <button class="sb-item" data-p="council-charter" onclick="nav('council-charter')">
+      <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+      知道生徒会憲章
+    </button>
+    <button class="sb-item" data-p="council-rules" onclick="nav('council-rules')">
+      <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+      生徒会関係諸規定
+    </button>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">近日公開</div>
+    <button class="sb-item dim"><span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></span>諸届・許可申請<span class="sb-dim-badge">準備中</span></button>
+    <button class="sb-item dim"><span class="sb-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>時間割<span class="sb-dim-badge">準備中</span></button>
+    <button class="sb-item dim"><span class="sb-icon"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>デジタル身分証<span class="sb-dim-badge">準備中</span></button>
+  </div>
+</aside>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav" id="bnav">
+  <div class="bn-inner">
+    <button class="bn-item on" data-bp="home" onclick="nav('home')">
+      <div class="bn-icon-wrap"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+      <span class="bn-label">ホーム</span>
+    </button>
+    <button class="bn-item" data-bp="rules" onclick="nav('rules')">
+      <div class="bn-icon-wrap"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+      <span class="bn-label">諸規定</span>
+    </button>
+    <button class="bn-item" data-bp="events" onclick="nav('events')">
+      <div class="bn-icon-wrap"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+      <span class="bn-label">行事</span>
+    </button>
+    <button class="bn-item" data-bp="search" onclick="nav('search')">
+      <div class="bn-icon-wrap"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg></div>
+      <span class="bn-label">検索</span>
+    </button>
+    <button class="bn-item" onclick="openMore()">
+      <div class="bn-icon-wrap"><svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></div>
+      <span class="bn-label">メニュー</span>
+    </button>
+  </div>
+</nav>
+
+<!-- MORE SHEET -->
+<div class="sheet-overlay" id="sheetOverlay" onclick="closeMore()"></div>
+<div class="more-sheet" id="moreSheet">
+  <div class="more-handle"></div>
+  <div class="more-sheet-title">すべてのメニュー</div>
+  <div class="more-grid">
+    <button class="more-item" onclick="nav('about');closeMore()">
+      <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+      <div class="more-lbl">沿革</div>
+    </button>
+    <button class="more-item" onclick="nav('principals');closeMore()">
+      <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <div class="more-lbl">歴代校長</div>
+    </button>
+    <button class="more-item" onclick="nav('goals');closeMore()">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      <div class="more-lbl">就学の目標</div>
+    </button>
+    <button class="more-item" onclick="nav('songs');closeMore()">
+      <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      <div class="more-lbl">歌詞</div>
+    </button>
+    <button class="more-item" onclick="nav('special');closeMore()">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <div class="more-lbl">特別教育</div>
+    </button>
+    <button class="more-item" onclick="nav('curriculum');closeMore()">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      <div class="more-lbl">教育課程</div>
+    </button>
+    <button class="more-item" onclick="nav('council-activities');closeMore()">
+      <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      <div class="more-lbl">生徒会活動</div>
+    </button>
+    <button class="more-item" onclick="nav('council-charter');closeMore()">
+      <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <div class="more-lbl">憲章</div>
+    </button>
+    <button class="more-item" onclick="nav('council-rules');closeMore()">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <div class="more-lbl">会関係規定</div>
+    </button>
+    <button class="more-item dim">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      <div class="more-lbl">諸届申請</div>
+    </button>
+    <button class="more-item dim">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <div class="more-lbl">時間割</div>
+    </button>
+    <button class="more-item dim">
+      <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+      <div class="more-lbl">身分証</div>
+    </button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<main class="main" id="main">
+
+  <!-- HOME -->
+  <section class="pg on" id="pg-home">
+    <div class="home-wrap">
+      <div class="home-brand">
+        <div class="home-book">
+          <div class="hb-crest">校章</div>
+          <div class="hb-ttl">生徒手帳</div>
+          <div class="hb-div"></div>
+          <div class="hb-school">茨城県立<br>水戸第一高等学校</div>
+        </div>
+        <div class="home-headline">デジタル生徒手帳</div>
+        <div class="home-sub">茨城県立水戸第一高等学校</div>
+      </div>
+
+      <div class="cat-grid">
+        <div class="cat-card cat-card-rules" onclick="nav('rules')">
+          <div class="cat-card-inner">
+            <div>
+              <div class="cat-card-line"></div>
+              <div class="cat-card-title">諸規定・<br>校則</div>
+              <div class="cat-card-sub">条文検索・全24条</div>
+            </div>
+            <div class="cat-card-arrow">開く<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+          </div>
+        </div>
+
+        <div class="cat-card cat-card-events" onclick="nav('events')">
+          <div class="cat-card-inner">
+            <div>
+              <div class="cat-card-line"></div>
+              <div class="cat-card-title">年間<br>主要行事</div>
+              <div class="cat-card-sub">月別・全学年</div>
+            </div>
+            <div class="cat-card-arrow">開く<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+          </div>
+        </div>
+
+        <div class="cat-card cat-card-council" onclick="nav('council-charter')">
+          <div class="cat-card-inner">
+            <div>
+              <div class="cat-card-line"></div>
+              <div class="cat-card-title">生徒会・<br>憲章</div>
+              <div class="cat-card-sub">憲章・活動・関係規定</div>
+            </div>
+            <div class="cat-card-arrow">開く<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+          </div>
+        </div>
+
+        <div class="cat-card cat-card-curriculum" onclick="nav('curriculum')">
+          <div class="cat-card-inner">
+            <div class="cat-card-line"></div>
+            <div class="cat-text">
+              <div class="cat-card-title">教育課程</div>
+              <div class="cat-card-sub">科目・単位数 — 入学年度別</div>
+              <div class="cat-card-arrow" style="margin-top:10px">開く<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cat-card cat-card-songs" onclick="nav('songs')">
+          <div class="cat-card-inner">
+            <div>
+              <div class="cat-card-line"></div>
+              <div class="cat-card-title">校歌・<br>応援歌</div>
+              <div class="cat-card-sub">歌詞</div>
+            </div>
+            <div class="cat-card-arrow">開く<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+          </div>
+        </div>
+
+        <div class="cat-card cat-card-about" onclick="nav('about')">
+          <div class="cat-card-inner">
+            <div class="cat-card-line"></div>
+            <div class="cat-text">
+              <div class="cat-card-title">学校について</div>
+              <div class="cat-card-sub">沿革・歴代校長・就学の目標・校是</div>
+              <div class="cat-card-arrow" style="margin-top:10px">開く<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SEARCH PAGE -->
+  <section class="pg" id="pg-search">
+    <div class="pg-header">
+      <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>検索</span></div>
+      <h1 class="pg-title">検索</h1>
+    </div>
+    <div class="search-page-wrap">
+      <div class="search-page-bar">
+        <div class="search-bar-wrap">
+          <span class="search-page-icon">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
+          </span>
+          <input type="text" class="search-page-input" id="spInput"
+            placeholder="キーワードまたは自然言語で質問..."
+            oninput="runSearchPage(this.value)"
+            autocomplete="off">
+        </div>
+        <div class="search-toggle">
+          <button class="stoggle on" id="stToggleText" onclick="setSearchMode('text')">全文検索</button>
+          <button class="stoggle" id="stToggleAI" onclick="setSearchMode('ai')">AI検索</button>
+        </div>
+      </div>
+      <div class="search-page-results" id="spResults"></div>
+    </div>
+  </section>
+
+  <!-- 本校の沿革 -->
+  <section class="pg" id="pg-about">
+    <div class="pg-header">
+      <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>本校の沿革</span></div>
+      <h1 class="pg-title">本校の沿革</h1>
+    </div>
+    <div class="card">
+      <div class="card-h2">沿革</div>
+      <ul class="history-list">
+        <li class="history-item"><span class="history-year">1878（明11）8・12</span><span class="history-event">茨城県立第一中学校創立（サンプルデータ）</span></li>
+        <li class="history-item"><span class="history-year">1880（明13）4・1</span><span class="history-event">茨城県立中学校と改称</span></li>
+        <li class="history-item"><span class="history-year">1901（明34）4・1</span><span class="history-event">茨城県第一中学校と改称</span></li>
+        <li class="history-item"><span class="history-year">1922（大11）4・1</span><span class="history-event">茨城県立水戸中学校と改称</span></li>
+        <li class="history-item"><span class="history-year">1948（昭23）4・1</span><span class="history-event">学制改革により茨城県立水戸第一高等学校と改称</span></li>
+        <li class="history-item"><span class="history-year">1969（昭44）〇・〇</span><span class="history-event">現在地へ移転</span></li>
+        <li class="history-item"><span class="history-year">1992（平4）〇・〇</span><span class="history-event">創立90周年記念式典挙行</span></li>
+        <li class="history-item"><span class="history-year">2022（令4）〇・〇</span><span class="history-event">創立120周年</span></li>
+        <li class="history-item" style="color:var(--text-3);font-size:12px"><span class="history-year"></span><span class="history-event">実際のデータは管理者ポータルから入力してください</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 歴代校長 -->
+  <section class="pg" id="pg-principals">
+    <div class="pg-header">
+      <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>歴代校長一覧</span></div>
+      <h1 class="pg-title">歴代校長一覧</h1>
+    </div>
+    <div class="card">
+      <div class="card-h2">歴代校長</div>
+      <ul class="principals-list">
+        <li class="principal-item">
+          <span class="principal-gen">初代</span>
+          <span class="principal-name">〇〇 〇〇</span>
+          <span class="principal-term">明治13・7 ― 明治14・5</span>
+        </li>
+        <li class="principal-item">
+          <span class="principal-gen">2代</span>
+          <span class="principal-name">〇〇 〇〇</span>
+          <span class="principal-term">明治14・5 ― 明治〇〇・〇</span>
+        </li>
+        <li class="principal-item">
+          <span class="principal-gen">3代</span>
+          <span class="principal-name">〇〇 〇〇</span>
+          <span class="principal-term">明治〇〇・〇 ― 明治〇〇・〇</span>
+        </li>
+        <li class="principal-item" style="opacity:.45">
+          <span class="principal-gen" style="background:var(--surface2);color:var(--text-3)">…</span>
+          <span style="font-size:12px;color:var(--text-3)">実際のデータを管理者ポータルから入力してください</span>
+          <span></span>
+        </li>
+        <li class="principal-item">
+          <span class="principal-gen">現職</span>
+          <span class="principal-name">〇〇 〇〇</span>
+          <span class="principal-term">〇〇年〇月 ― 現在</span>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 就学の目標 -->
+  <section class="pg" id="pg-goals">
+    <div class="pg-header">
+      <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>就学の目標</span></div>
+      <h1 class="pg-title">就学の目標</h1>
+    </div>
+    <div class="card">
+      <div class="card-h2">校是</div>
+      <div style="text-align:center;padding:18px 0">
+        <div style="width:260px;height:160px;background:linear-gradient(135deg,var(--navy-dim),var(--enjii-bg));border:1.5px solid var(--border);border-radius:var(--r);margin:0 auto;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:12.5px">
+          校是の画像をここに表示
+        </div>
+        <p style="font-size:11.5px;color:var(--text-3);margin-top:10px">管理者ポータルから画像をアップロードしてください</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h2">就学の目標</div>
+      <div class="card-body">
+        <p>本校は、高等学校教育の目標に則り、生徒一人ひとりが人間として豊かに成長することを目指し、以下の就学の目標を定める。</p>
+        <p>一　確かな学力を身につけ、自らの可能性を最大限に発揮すること。</p>
+        <p>二　豊かな人間性と強い意志を培い、社会に貢献できる人材となること。</p>
+        <p>三　健康な体と活力ある精神を養い、生涯にわたって学び続けること。</p>
+        <p style="font-size:12px;color:var(--text-3)">実際の内容は管理者ポータルから入力してください。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 歌詞 -->
+  <section class="pg" id="pg-songs">
+    <div class="pg-header">
+      <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>歌詞</span></div>
+      <h1 class="pg-title">歌詞</h1>
+    </div>
+    <div class="song-card">
+      <div class="song-hdr"><div class="song-hdr-ttl">校歌</div><div class="song-hdr-badge">作詞：〇〇 ／ 作曲：〇〇</div></div>
+      <div class="song-verses">
+        <div><div class="verse-num">一番</div><div class="verse-text">（校歌の歌詞を<br>ここに入力します）<br><br>管理者ポータルから<br>入力してください</div></div>
+        <div><div class="verse-num">二番</div><div class="verse-text">（二番の歌詞を<br>ここに入力します）</div></div>
+        <div><div class="verse-num">三番</div><div class="verse-text">（三番の歌詞を<br>ここに入力します）</div></div>
+      </div>
+    </div>
+    <div class="song-card">
+      <div class="song-hdr"><div class="song-hdr-ttl">応援歌</div><div class="song-hdr-badge">〇〇年制定</div></div>
+      <div class="song-verses">
+        <div><div class="verse-num">一番</div><div class="verse-text">（応援歌の歌詞を<br>ここに入力します）</div></div>
+        <div><div class="verse-num">二番</div><div class="verse-text">（二番の歌詞を<br>ここに入力します）</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 諸規定 -->
+  <section class="pg" id="pg-rules">
+    <div class="pg-header">
+      <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>諸規定</span></div>
+      <h1 class="pg-title">諸規定</h1>
+      <div class="pg-meta"><span>2024年度版</span><span>全24条（サンプル）</span></div>
+    </div>
+    <div class="rules-wrap">
+      <div class="rules-toc" id="rulesToc">
+        <div class="toc-hdr">目次</div>
+        <a class="toc-lnk on" onclick="scrollArt('r1')">第一条　目的</a>
+        <a class="toc-lnk" onclick="scrollArt('r2')">第二条　適用範囲</a>
+        <a class="toc-lnk sub">第二章　校内生活</a>
+        <a class="toc-lnk" onclick="scrollArt('r3')">第三条　校内生活の基本</a>
+        <a class="toc-lnk" onclick="scrollArt('r4')">第四条　服装規定</a>
+        <a class="toc-lnk" onclick="scrollArt('r5')">第五条　登下校</a>
+        <a class="toc-lnk sub">第三章　欠席・遅刻</a>
+        <a class="toc-lnk" onclick="scrollArt('r6')">第六条　欠席・遅刻の届出</a>
+        <a class="toc-lnk" onclick="scrollArt('r7')">第七条　公欠の取扱い</a>
+        <a class="toc-lnk" onclick="scrollArt('r8')">第八条　外出許可</a>
+      </div>
+      <div class="rules-content">
+        <div class="chapter-div">第一章　総則</div>
+        <div class="article" id="r1"><div class="art-hdr"><span class="art-num">第一条</span><span class="art-title">目的</span></div><div class="art-body"><div class="art-main">本規定は、茨城県立水戸第一高等学校（以下「本校」という。）の生徒が健全な学校生活を営むために必要な事項を定めることを目的とする。</div></div></div>
+        <div class="article" id="r2"><div class="art-hdr"><span class="art-num">第二条</span><span class="art-title">適用範囲</span></div><div class="art-body"><div class="art-main">本規定は、本校に在学する全ての生徒に適用する。</div><ol class="items-list"><li class="item-row"><span class="item-idx">1</span><span>在校中における行動に関すること</span></li><li class="item-row"><span class="item-idx">2</span><span>登下校に関すること</span></li><li class="item-row"><span class="item-idx">3</span><span>学校行事への参加に関すること</span></li></ol></div></div>
+        <div class="chapter-div">第二章　校内生活</div>
+        <div class="article" id="r3"><div class="art-hdr"><span class="art-num">第三条</span><span class="art-title">校内生活の基本</span></div><div class="art-body"><div class="art-main">生徒は学校の定める規則に従い、秩序ある学校生活を送らなければならない。</div><ol class="items-list"><li class="item-row"><span class="item-idx">1</span><div><div>授業に関すること</div><ol class="sub-list"><li class="sub-row"><span class="sub-idx">①</span><span>授業開始前に着席すること</span></li><li class="sub-row"><span class="sub-idx">②</span><span>授業中は携帯電話等の電子機器を使用しないこと</span></li></ol></div></li><li class="item-row"><span class="item-idx">2</span><div><div>施設・設備の利用に関すること</div><ol class="sub-list"><li class="sub-row"><span class="sub-idx">ア</span><span>施設は目的に従って使用すること</span></li><li class="sub-row"><span class="sub-idx">イ</span><span>使用後は清潔に保つこと</span></li></ol></div></li></ol></div></div>
+        <div class="article" id="r4"><div class="art-hdr"><span class="art-num">第四条</span><span class="art-title">服装規定</span></div><div class="art-body"><div class="art-main">生徒は所定の制服を正しく着用しなければならない。</div><ol class="items-list"><li class="item-row"><span class="item-idx">1</span><span>制服は学校が定めたものを着用すること</span></li><li class="item-row"><span class="item-idx">2</span><span>着崩しや改造は禁止する</span></li><li class="item-row"><span class="item-idx">3</span><div><div>体育の授業その他の場合において次のとおり取り扱う</div><ol class="sub-list"><li class="sub-row"><span class="sub-idx">①</span><span>体育授業中は体操服を着用すること</span></li><li class="sub-row"><span class="sub-idx">②</span><span>体操服は本校指定のものを使用すること</span></li></ol></div></li></ol></div></div>
+        <div class="article" id="r5"><div class="art-hdr"><span class="art-num">第五条</span><span class="art-title">登下校</span></div><div class="art-body"><div class="art-main">生徒の登下校に関する事項は次のとおりとする。</div><ol class="items-list"><li class="item-row"><span class="item-idx">1</span><span>原則として定められた通学路を利用すること</span></li><li class="item-row"><span class="item-idx">2</span><span>自転車通学は届出制とし、許可を受けた者のみ可能とする</span></li></ol></div></div>
+        <div class="chapter-div">第三章　欠席・遅刻・早退</div>
+        <div class="article" id="r6"><div class="art-hdr"><span class="art-num">第六条</span><span class="art-title">欠席・遅刻の届出</span></div><div class="art-body"><div class="art-main">欠席・遅刻をする場合は次の手続きを行うこと。</div><ol class="items-list"><li class="item-row"><span class="item-idx">1</span><span>当日の朝、保護者が学校へ連絡すること</span></li><li class="item-row"><span class="item-idx">2</span><span>登校後は担任に届出書を提出すること</span></li></ol></div></div>
+        <div class="article" id="r7"><div class="art-hdr"><span class="art-num">第七条</span><span class="art-title">公欠の取扱い</span></div><div class="art-body"><div class="art-main">次に掲げる事由は公欠として取り扱う。</div><ol class="items-list"><li class="item-row"><span class="item-idx">1</span><span>学校が認める大会・コンクール等への参加</span></li><li class="item-row"><span class="item-idx">2</span><span>生徒会活動のうち、学校が認めたもの</span></li><li class="item-row"><span class="item-idx">3</span><div><div>その他、校長が認めたもの</div><ol class="sub-list"><li class="sub-row"><span class="sub-idx">①</span><span>事前に公欠届を提出すること</span></li><li class="sub-row"><span class="sub-idx">②</span><span>帰校後、担任に報告すること</span></li></ol></div></li></ol></div></div>
+        <div class="article" id="r8"><div class="art-hdr"><span class="art-num">第八条</span><span class="art-title">[外出許可]</span></div><div class="art-body"><div class="art-main">授業時間以外に校外へ出る場合は、担任または学年主任の許可を得なければならない。</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 特別教育活動 -->
+  <section class="pg" id="pg-special">
+    <div class="pg-header">
+      <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>特別教育活動</span></div>
+      <h1 class="pg-title">特別教育活動</h1>
+    </div>
+    <div class="rules-wrap">
+      <div class="rules-toc"><div class="toc-hdr">目次</div><a class="toc-lnk on" onclick="scrollArt('sp1')">第一条　目的</a><a class="toc-lnk" onclick="scrollArt('sp2')">第二条　活動の種類</a><a class="toc-lnk" onclick="scrollArt('sp3')">第三条　参加義務</a></div>
+      <div class="rules-content">
+        <div class="article" id="sp1"><div class="art-hdr"><span class="art-num">第一条</span><span class="art-title">目的</span></div><div class="art-body"><div class="art-main">本規定は、特別教育活動に関する事項を定めることを目的とする。（サンプルデータ）</div></div></div>
+        <div class="article" id="sp2"><div class="art-hdr"><span class="art-num">第二条</span><span class="art-title">活動の種類</span></div><div class="art-body"><div class="art-main">特別教育活動は次のとおりとする。</div><ol class="items-list"><li class="item-row"><span class="item-idx">1</span><span>ホームルーム活動</span></li><li class="item-row"><span class="item-idx">2</span><span>生徒会活動</span></li><li class="item-row"><span class="item-idx">3</span><span>学校行事</span></li></ol></div></div>
+        <div class="article" id="sp3"><div class="art-hdr"><span class="art-num">第三条</span><span class="art-title">参加義務</span></div><div class="art-body"><div class="art-main">生徒は特別教育活動に積極的に参加しなければならない。（実際の内容は管理者ポータルから入力してください。）</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 教育課程 -->
+  <section class="pg" id="pg-curriculum">
+    <div class="pg-header">
+      <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>教育課程</span></div>
+      <h1 class="pg-title">教育課程</h1>
+    </div>
+    <div class="year-tabs">
+      <button class="year-tab on" onclick="switchYear(this)">2024年度入学</button>
+      <button class="year-tab" onclick="switchYear(this)">2023年度入学</button>
+      <button class="year-tab" onclick="switchYear(this)">2022年度入学</button>
+    </div>
+    <div class="card"><div class="card-h2">教科・科目および単位数</div><div class="table-outer"><table><thead><tr><th>教科</th><th>科目</th><th>1年</th><th>2年</th><th>3年</th><th>必選</th></tr></thead><tbody><tr><td rowspan="3">国語</td><td>現代の国語</td><td>2</td><td>—</td><td>—</td><td>必修</td></tr><tr><td>言語文化</td><td>2</td><td>—</td><td>—</td><td>必修</td></tr><tr><td>論理国語</td><td>—</td><td>2</td><td>2</td><td>選択</td></tr><tr><td rowspan="3">数学</td><td>数学Ⅰ</td><td>3</td><td>—</td><td>—</td><td>必修</td></tr><tr><td>数学Ⅱ</td><td>—</td><td>3</td><td>—</td><td>必修</td></tr><tr><td>数学Ⅲ</td><td>—</td><td>—</td><td>3</td><td>選択</td></tr><tr><td rowspan="2">英語</td><td>英語コミュニケーションⅠ</td><td>4</td><td>—</td><td>—</td><td>必修</td></tr><tr><td>英語コミュニケーションⅡ</td><td>—</td><td>4</td><td>—</td><td>必修</td></tr><tr><td colspan="2" style="color:var(--text-3);font-size:12px">… 実際のデータを管理者ポータルから入力してください …</td><td colspan="4"></td></tr></tbody></table></div></div>
+  </section>
+
+  <!-- 年間主要行事 -->
+  <section class="pg" id="pg-events">
+    <div class="pg-header">
+      <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>年間主要行事</span></div>
+      <h1 class="pg-title">年間主要行事</h1>
+      <div class="pg-meta"><span>2024年度</span></div>
+    </div>
+    <div class="events-list">
+      <div class="ev-month"><div class="ev-month-hdr"><span class="ev-month-name">4月</span><span class="ev-month-num">4</span></div><div class="ev-items"><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">始業式</div></div><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">入学式</div></div><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">健康診断</div></div><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">生徒総会</div></div></div></div>
+      <div class="ev-month"><div class="ev-month-hdr"><span class="ev-month-name">5月</span><span class="ev-month-num">5</span></div><div class="ev-items"><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">遠足</div></div><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">中間考査</div></div></div></div>
+      <div class="ev-month"><div class="ev-month-hdr"><span class="ev-month-name">6月</span><span class="ev-month-num">6</span></div><div class="ev-items"><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">芸術鑑賞会</div></div></div></div>
+      <div class="ev-month"><div class="ev-month-hdr"><span class="ev-month-name">7月</span><span class="ev-month-num">7</span></div><div class="ev-items"><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">期末考査</div></div><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">終業式</div></div></div></div>
+      <div class="ev-month"><div class="ev-month-hdr"><span class="ev-month-name">8月</span><span class="ev-month-num">8</span></div><div class="ev-items"><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">夏季休業</div></div></div></div>
+      <div class="ev-month"><div class="ev-month-hdr"><span class="ev-month-name">9月</span><span class="ev-month-num">9</span></div><div class="ev-items"><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">始業式</div></div><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">水一祭（文化祭）</div></div><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">体育祭</div></div></div></div>
+      <div class="ev-month"><div class="ev-month-hdr"><span class="ev-month-name">10月</span><span class="ev-month-num">10</span></div><div class="ev-items"><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">中間考査</div></div><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">修学旅行（2年）</div></div></div></div>
+      <div class="ev-month"><div class="ev-month-hdr"><span class="ev-month-name">11月</span><span class="ev-month-num">11</span></div><div class="ev-items"><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">進路講演会</div></div></div></div>
+      <div class="ev-month"><div class="ev-month-hdr"><span class="ev-month-name">12月</span><span class="ev-month-num">12</span></div><div class="ev-items"><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">期末考査</div></div><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">終業式</div></div></div></div>
+      <div class="ev-month"><div class="ev-month-hdr"><span class="ev-month-name">1月</span><span class="ev-month-num">1</span></div><div class="ev-items"><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">始業式</div></div><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">大学入学共通テスト（3年）</div></div></div></div>
+      <div class="ev-month"><div class="ev-month-hdr"><span class="ev-month-name">2月</span><span class="ev-month-num">2</span></div><div class="ev-items"><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">学年末考査</div></div></div></div>
+      <div class="ev-month"><div class="ev-month-hdr"><span class="ev-month-name">3月</span><span class="ev-month-num">3</span></div><div class="ev-items"><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">卒業式</div></div><div class="ev-item"><div class="ev-bullet"></div><div class="ev-name">修了式</div></div></div></div>
+    </div>
+  </section>
+
+  <!-- 生徒会活動 -->
+  <section class="pg" id="pg-council-activities">
+    <div class="pg-header">
+      <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>生徒会活動</span></div>
+      <h1 class="pg-title">生徒会活動</h1>
+    </div>
+    <div class="card"><div class="card-h2">生徒会の概要</div><div class="card-body"><p>知道生徒会は、水戸第一高等学校の全生徒をもって組織し、民主的・自治的活動を通じて、豊かな学校生活の実現を目指している。（実際の内容は管理者ポータルから入力してください。）</p></div></div>
+    <div class="card"><div class="card-h2">各委員会の活動</div><div class="card-body"><p>文化委員会は、水一祭（文化祭）をはじめとする文化的行事の企画・運営を担当する。体育委員会は体育祭等のスポーツ行事を主管する。広報委員会は生徒会誌の編集・発行および広報活動を行う。（各委員会の詳細は管理者ポータルから入力してください。）</p></div></div>
+  </section>
+
+  <!-- 知道生徒会憲章 -->
+  <section class="pg" id="pg-council-charter">
+    <div class="pg-header">
+      <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>知道生徒会憲章</span></div>
+      <h1 class="pg-title">知道生徒会憲章</h1>
+    </div>
+    <div class="rules-wrap">
+      <div class="rules-toc"><div class="toc-hdr">目次</div><a class="toc-lnk on" onclick="scrollArt('cc1')">前文</a><a class="toc-lnk" onclick="scrollArt('cc2')">第一条　名称</a><a class="toc-lnk" onclick="scrollArt('cc3')">第二条　目的</a><a class="toc-lnk" onclick="scrollArt('cc4')">第三条　組織</a></div>
+      <div class="rules-content">
+        <div class="article" id="cc1"><div class="art-hdr"><span class="art-num">前文</span></div><div class="art-body"><div class="art-main">われわれ水戸第一高等学校の生徒は、自由と民主主義の精神に基づき、互いに尊重し合い、豊かな学校生活を築くことを誓い、ここに知道生徒会憲章を定める。（サンプルデータ）</div></div></div>
+        <div class="article" id="cc2"><div class="art-hdr"><span class="art-num">第一条</span><span class="art-title">名称</span></div><div class="art-body"><div class="art-main">本会は、知道生徒会と称する。</div></div></div>
+        <div class="article" id="cc3"><div class="art-hdr"><span class="art-num">第二条</span><span class="art-title">目的</span></div><div class="art-body"><div class="art-main">本会は、民主的・自治的活動を通じて、豊かな学校生活の実現を目的とする。</div></div></div>
+        <div class="article" id="cc4"><div class="art-hdr"><span class="art-num">第三条</span><span class="art-title">組織</span></div><div class="art-body"><div class="art-main">本会は、本校に在籍する全ての生徒をもって組織する。</div><ol class="items-list"><li class="item-row"><span class="item-idx">1</span><span>本会に執行部を置く</span></li><li class="item-row"><span class="item-idx">2</span><span>本会に評議会を置く</span></li></ol></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 生徒会関係諸規定 -->
+  <section class="pg" id="pg-council-rules">
+    <div class="pg-header">
+      <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>生徒会関係諸規定</span></div>
+      <h1 class="pg-title">生徒会関係諸規定</h1>
+    </div>
+    <div class="rules-wrap">
+      <div class="rules-toc"><div class="toc-hdr">目次</div><a class="toc-lnk sub">役員選挙規定</a><a class="toc-lnk on" onclick="scrollArt('cr1')">第一条　選挙管理</a><a class="toc-lnk" onclick="scrollArt('cr2')">第二条　選挙権・被選挙権</a><a class="toc-lnk sub">委員会規定</a><a class="toc-lnk" onclick="scrollArt('cr3')">第一条　委員会の種類</a></div>
+      <div class="rules-content">
+        <div class="chapter-div">役員選挙規定</div>
+        <div class="article" id="cr1"><div class="art-hdr"><span class="art-num">第一条</span><span class="art-title">選挙管理</span></div><div class="art-body"><div class="art-main">生徒会役員の選挙は、選挙管理委員会が管理する。（サンプルデータ）</div></div></div>
+        <div class="article" id="cr2"><div class="art-hdr"><span class="art-num">第二条</span><span class="art-title">選挙権・被選挙権</span></div><div class="art-body"><div class="art-main">選挙権および被選挙権は次のとおりとする。</div><ol class="items-list"><li class="item-row"><span class="item-idx">1</span><span>選挙権は本校に在籍する全生徒が有する</span></li><li class="item-row"><span class="item-idx">2</span><span>被選挙権は第1・2学年の生徒が有する</span></li></ol></div></div>
+        <div class="chapter-div">委員会規定</div>
+        <div class="article" id="cr3"><div class="art-hdr"><span class="art-num">第一条</span><span class="art-title">委員会の種類</span></div><div class="art-body"><div class="art-main">生徒会に次の委員会を置く。</div><ol class="items-list"><li class="item-row"><span class="item-idx">1</span><span>文化委員会</span></li><li class="item-row"><span class="item-idx">2</span><span>体育委員会</span></li><li class="item-row"><span class="item-idx">3</span><span>広報委員会</span></li></ol></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 近日公開 -->
+  <section class="pg" id="pg-coming">
+    <div class="coming-wrap">
+      <div class="coming-icon-ring">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <h1 class="coming-ttl">近日公開予定</h1>
+      <p class="coming-sub">以下の機能を鋭意開発中です。公開をお待ちください。</p>
+      <div class="coming-cards">
+        <div class="coming-card"><div class="coming-card-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></div><div class="coming-card-ttl">諸届・許可申請</div><div class="coming-card-desc">公欠届・外出許可などをデジタルで申請</div></div>
+        <div class="coming-card"><div class="coming-card-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div class="coming-card-ttl">時間割</div><div class="coming-card-desc">クラス別時間割の確認</div></div>
+        <div class="coming-card"><div class="coming-card-icon"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div><div class="coming-card-ttl">デジタル身分証</div><div class="coming-card-desc">生徒証をスマートフォンで提示</div></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+</div><!-- /app -->
+
+<!-- AI FLOAT -->
+<div class="ai-float">
+  <div class="ai-window" id="aiWin">
+    <div class="ai-win-hdr">
+      <div class="ai-win-ttl"><div class="ai-online"></div>AI アシスタント</div>
+      <button class="ai-close-btn" onclick="toggleAI()"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="ai-msgs" id="aiMsgs">
+      <div class="ai-msg bot"><div class="ai-bubble">こんにちは。生徒手帳に関する質問にお答えします。「公欠の手続きは？」「服装の規定を教えて」などとお聞きください。</div></div>
+    </div>
+    <div class="ai-input-row">
+      <textarea class="ai-input" id="aiInput" placeholder="質問を入力..."
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAI()}"></textarea>
+      <button class="ai-send" id="aiSendBtn" onclick="sendAI()">
+        <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+  <button class="ai-toggle" onclick="toggleAI()">
+    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    <div class="ai-badge-dot"></div>
+  </button>
+</div>
+
+<script>
+/* =================================
+   LOADING — 文字アニメーション
+================================= */
+(function(){
+  const mainChars = '水戸第一高等学校'.split('');
+  const subChars  = 'デジタル生徒手帳'.split('');
+  const baseDelay = 980;
+  const charGap   = 52;
+  function inject(el, chars, start){
+    chars.forEach((c,i)=>{
+      const span = document.createElement('span');
+      span.className = 'load-char';
+      span.textContent = c;
+      span.style.animationDelay = (start + i * charGap) + 'ms';
+      el.appendChild(span);
+    });
+  }
+  inject(document.getElementById('loadNameMain'), mainChars, baseDelay);
+  inject(document.getElementById('loadNameSub'),  subChars,  baseDelay + 300);
+})();
+
+window.addEventListener('load',()=>{
+  setTimeout(()=>{
+    document.getElementById('loading').classList.add('hide');
+    document.getElementById('app').classList.add('show');
+    setTimeout(()=>{document.getElementById('loading').style.display='none'},600);
+  },3200);
+});
+
+/* =================================
+   NAVIGATION
+================================= */
+const PAGES=['home','search','about','principals','goals','songs',
+  'rules','special','curriculum','events',
+  'council-activities','council-charter','council-rules','coming'];
+const BN_MAP={
+  home:'home',search:'search',
+  about:'',principals:'',goals:'',songs:'',
+  rules:'rules',special:'rules',
+  curriculum:'',events:'events',
+  'council-activities':'','council-charter':'','council-rules':'',
+  coming:''
+};
+
+function nav(page){
+  PAGES.forEach(p=>{
+    const el=document.getElementById('pg-'+p);
+    if(el) el.classList.toggle('on',p===page);
+  });
+  document.querySelectorAll('.sb-item[data-p]').forEach(el=>{
+    el.classList.toggle('on',el.dataset.p===page);
+  });
+  document.querySelectorAll('.bn-item[data-bp]').forEach(el=>{
+    el.classList.toggle('on',el.dataset.bp===BN_MAP[page]);
+  });
+  if(page==='search'){
+    setTimeout(()=>{
+      const inp=document.getElementById('spInput');
+      if(inp) inp.focus();
+    },100);
+  }
+  window.scrollTo({top:0,behavior:'smooth'});
+  if(window.innerWidth<=768){
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sbOverlay').classList.remove('open');
+  }
+  closeSD();
+}
+
+/* =================================
+   SIDEBAR / MORE
+================================= */
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sbOverlay').classList.toggle('open');
+}
+function openMore(){
+  document.getElementById('moreSheet').classList.add('open');
+  document.getElementById('sheetOverlay').style.display='block';
+}
+function closeMore(){
+  document.getElementById('moreSheet').classList.remove('open');
+  document.getElementById('sheetOverlay').style.display='none';
+}
+
+/* =================================
+   DARK MODE
+================================= */
+let darkMode=false;
+function toggleTheme(){
+  darkMode=!darkMode;
+  document.documentElement.setAttribute('data-theme',darkMode?'dark':'');
+  const icon=document.getElementById('themeIcon');
+  icon.innerHTML=darkMode
+    ?'<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'
+    :'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+}
+
+/* =================================
+   HEADER SEARCH (全文のみ)
+================================= */
+// =============================================
+// 検索インデックス — サイト内全コンテンツ網羅
+// =============================================
+const SEARCH_INDEX=[
+  // ===== 諸規定 =====
+  {path:'諸規定 › 第一条',title:'目的',snip:'本規定は学校生活を営むために必要な事項を定める',page:'rules',id:'r1',tags:'目的 規定 概要'},
+  {path:'諸規定 › 第二条',title:'適用範囲',snip:'本規定は本校に在学する全ての生徒に適用する',page:'rules',id:'r2',tags:'適用 範囲 対象'},
+  {path:'諸規定 › 第三条',title:'校内生活の基本',snip:'生徒は学校の定める規則に従い秩序ある学校生活を送らなければならない 授業開始前に着席すること 授業中は携帯電話等の電子機器を使用しないこと 施設は目的に従って使用すること',page:'rules',id:'r3',tags:'校内 生活 授業 着席 携帯 スマホ 電子機器 施設 設備'},
+  {path:'諸規定 › 第三条 › 項1 › ①',title:'授業開始前の着席',snip:'授業開始前に着席すること',page:'rules',id:'r3',tags:'着席 授業 遅刻 チャイム'},
+  {path:'諸規定 › 第三条 › 項1 › ②',title:'授業中の電子機器使用禁止',snip:'授業中は携帯電話等の電子機器を使用しないこと',page:'rules',id:'r3',tags:'携帯 スマホ 電子機器 禁止 授業'},
+  {path:'諸規定 › 第三条 › 項2 › ア',title:'施設の目的利用',snip:'施設は目的に従って使用すること',page:'rules',id:'r3',tags:'施設 設備 使用'},
+  {path:'諸規定 › 第三条 › 項2 › イ',title:'施設の清潔保持',snip:'使用後は清潔に保つこと',page:'rules',id:'r3',tags:'清潔 施設 清掃'},
+  {path:'諸規定 › 第四条',title:'服装規定',snip:'生徒は所定の制服を正しく着用しなければならない 着崩しや改造は禁止',page:'rules',id:'r4',tags:'服装 制服 着崩し 改造 身だしなみ ユニフォーム'},
+  {path:'諸規定 › 第四条 › 項1',title:'制服の着用義務',snip:'制服は学校が定めたものを着用すること',page:'rules',id:'r4',tags:'制服 着用 義務'},
+  {path:'諸規定 › 第四条 › 項2',title:'着崩し・改造の禁止',snip:'着崩しや改造は禁止する',page:'rules',id:'r4',tags:'着崩し 改造 禁止'},
+  {path:'諸規定 › 第四条 › 項3 › ①',title:'体育授業時の服装',snip:'体育授業中は体操服を着用すること',page:'rules',id:'r4',tags:'体操服 体育 PE'},
+  {path:'諸規定 › 第四条 › 項3 › ②',title:'体操服の指定',snip:'体操服は本校指定のものを使用すること',page:'rules',id:'r4',tags:'体操服 指定 制服'},
+  {path:'諸規定 › 第五条',title:'登下校',snip:'自転車通学は届出制とし許可を受けた者のみ可能 定められた通学路を利用すること',page:'rules',id:'r5',tags:'登校 下校 通学 自転車 通学路 バス'},
+  {path:'諸規定 › 第五条 › 項1',title:'通学路の利用',snip:'原則として定められた通学路を利用すること',page:'rules',id:'r5',tags:'通学路 登校 下校'},
+  {path:'諸規定 › 第五条 › 項2',title:'自転車通学の届出',snip:'自転車通学は届出制とし許可を受けた者のみ可能とする',page:'rules',id:'r5',tags:'自転車 通学 届出 許可'},
+  {path:'諸規定 › 第六条',title:'欠席・遅刻の届出',snip:'当日の朝保護者が学校へ連絡すること 登校後は担任に届出書を提出すること',page:'rules',id:'r6',tags:'欠席 遅刻 届出 保護者 連絡 手続き 早退'},
+  {path:'諸規定 › 第六条 › 項1',title:'保護者からの連絡',snip:'当日の朝保護者が学校へ連絡すること',page:'rules',id:'r6',tags:'保護者 連絡 電話 欠席'},
+  {path:'諸規定 › 第六条 › 項2',title:'届出書の提出',snip:'登校後は担任に届出書を提出すること',page:'rules',id:'r6',tags:'届出書 担任 提出'},
+  {path:'諸規定 › 第七条',title:'公欠の取扱い',snip:'次に掲げる事由は公欠として取り扱う 学校が認める大会コンクール等への参加 生徒会活動',page:'rules',id:'r7',tags:'公欠 欠席 大会 コンクール 生徒会 手続き 届出'},
+  {path:'諸規定 › 第七条 › 項1',title:'大会・コンクール参加による公欠',snip:'学校が認める大会コンクール等への参加は公欠とする',page:'rules',id:'r7',tags:'大会 コンクール 公欠 部活 クラブ'},
+  {path:'諸規定 › 第七条 › 項2',title:'生徒会活動による公欠',snip:'生徒会活動のうち学校が認めたものは公欠とする',page:'rules',id:'r7',tags:'生徒会 公欠 活動'},
+  {path:'諸規定 › 第七条 › 項3 › ①',title:'公欠届の事前提出',snip:'事前に公欠届を提出すること',page:'rules',id:'r7',tags:'公欠届 提出 事前'},
+  {path:'諸規定 › 第七条 › 項3 › ②',title:'公欠後の報告',snip:'帰校後担任に報告すること',page:'rules',id:'r7',tags:'帰校 報告 担任 公欠'},
+  {path:'諸規定 › 第八条',title:'[外出許可]',snip:'授業時間以外に校外へ出る場合は担任または学年主任の許可を得なければならない',page:'rules',id:'r8',tags:'外出 許可 校外 担任 学年主任'},
+  // ===== 特別教育活動 =====
+  {path:'特別教育活動 › 第一条',title:'目的',snip:'特別教育活動に関する事項を定めることを目的とする',page:'special',id:'sp1',tags:'特別 教育 活動 目的'},
+  {path:'特別教育活動 › 第二条',title:'活動の種類',snip:'ホームルーム活動 生徒会活動 学校行事',page:'special',id:'sp2',tags:'ホームルーム 生徒会 学校行事 種類'},
+  {path:'特別教育活動 › 第二条 › 項1',title:'ホームルーム活動',snip:'ホームルーム活動',page:'special',id:'sp2',tags:'ホームルーム HR 活動'},
+  {path:'特別教育活動 › 第二条 › 項2',title:'生徒会活動',snip:'生徒会活動',page:'special',id:'sp2',tags:'生徒会 活動'},
+  {path:'特別教育活動 › 第二条 › 項3',title:'学校行事',snip:'学校行事',page:'special',id:'sp2',tags:'学校行事 行事 イベント'},
+  {path:'特別教育活動 › 第三条',title:'参加義務',snip:'生徒は特別教育活動に積極的に参加しなければならない',page:'special',id:'sp3',tags:'参加 義務 特別活動'},
+  // ===== 知道生徒会憲章 =====
+  {path:'知道生徒会憲章 › 前文',title:'憲章前文',snip:'自由と民主主義の精神に基づき互いに尊重し合い豊かな学校生活を築く',page:'council-charter',id:'cc1',tags:'憲章 前文 民主主義 生徒会'},
+  {path:'知道生徒会憲章 › 第一条',title:'名称',snip:'本会は知道生徒会と称する',page:'council-charter',id:'cc2',tags:'名称 知道 生徒会'},
+  {path:'知道生徒会憲章 › 第二条',title:'目的',snip:'民主的自治的活動を通じて豊かな学校生活の実現を目的とする',page:'council-charter',id:'cc3',tags:'目的 民主的 自治 生徒会'},
+  {path:'知道生徒会憲章 › 第三条',title:'組織',snip:'本校に在籍する全ての生徒をもって組織する 執行部 評議会',page:'council-charter',id:'cc4',tags:'組織 執行部 評議会 生徒会'},
+  {path:'知道生徒会憲章 › 第三条 › 項1',title:'執行部',snip:'本会に執行部を置く',page:'council-charter',id:'cc4',tags:'執行部 会長 副会長'},
+  {path:'知道生徒会憲章 › 第三条 › 項2',title:'評議会',snip:'本会に評議会を置く',page:'council-charter',id:'cc4',tags:'評議会 代表'},
+  // ===== 生徒会関係諸規定 =====
+  {path:'生徒会関係諸規定 › 役員選挙規定 › 第一条',title:'選挙管理',snip:'生徒会役員の選挙は選挙管理委員会が管理する',page:'council-rules',id:'cr1',tags:'選挙 管理 委員会 役員'},
+  {path:'生徒会関係諸規定 › 役員選挙規定 › 第二条',title:'選挙権・被選挙権',snip:'選挙権は本校に在籍する全生徒が有する 被選挙権は第1第2学年の生徒が有する',page:'council-rules',id:'cr2',tags:'選挙権 被選挙権 投票 立候補'},
+  {path:'生徒会関係諸規定 › 役員選挙規定 › 第二条 › 項1',title:'選挙権',snip:'選挙権は本校に在籍する全生徒が有する',page:'council-rules',id:'cr2',tags:'選挙権 投票'},
+  {path:'生徒会関係諸規定 › 役員選挙規定 › 第二条 › 項2',title:'被選挙権',snip:'被選挙権は第1第2学年の生徒が有する',page:'council-rules',id:'cr2',tags:'被選挙権 立候補 1年 2年'},
+  {path:'生徒会関係諸規定 › 委員会規定 › 第一条',title:'委員会の種類',snip:'文化委員会 体育委員会 広報委員会',page:'council-rules',id:'cr3',tags:'委員会 文化 体育 広報 種類'},
+  // ===== 生徒会活動 =====
+  {path:'生徒会活動',title:'生徒会の概要',snip:'知道生徒会は全生徒をもって組織し民主的自治的活動を通じて豊かな学校生活の実現を目指す 会長 副会長 書記 会計 執行部',page:'council-activities',tags:'生徒会 概要 会長 副会長 執行部'},
+  {path:'生徒会活動 › 各委員会',title:'委員会の活動',snip:'文化委員会は水一祭の企画運営 体育委員会は体育祭 広報委員会は生徒会誌',page:'council-activities',tags:'委員会 文化 体育 広報 水一祭 体育祭 生徒会誌'},
+  // ===== 年間主要行事 =====
+  {path:'年間主要行事 › 4月',title:'4月の行事',snip:'始業式 入学式 健康診断 生徒総会',page:'events',tags:'4月 始業式 入学式 健康診断 生徒総会 春'},
+  {path:'年間主要行事 › 5月',title:'5月の行事',snip:'遠足 中間考査',page:'events',tags:'5月 遠足 中間考査 テスト'},
+  {path:'年間主要行事 › 6月',title:'6月の行事',snip:'芸術鑑賞会',page:'events',tags:'6月 芸術鑑賞会'},
+  {path:'年間主要行事 › 7月',title:'7月の行事',snip:'期末考査 終業式',page:'events',tags:'7月 期末 考査 テスト 終業式 夏休み'},
+  {path:'年間主要行事 › 8月',title:'8月の行事',snip:'夏季休業',page:'events',tags:'8月 夏休み 夏季休業'},
+  {path:'年間主要行事 › 9月',title:'9月の行事',snip:'始業式 水一祭 文化祭 体育祭',page:'events',tags:'9月 始業式 水一祭 文化祭 体育祭 秋'},
+  {path:'年間主要行事 › 10月',title:'10月の行事',snip:'中間考査 修学旅行 2年',page:'events',tags:'10月 中間考査 テスト 修学旅行 2年'},
+  {path:'年間主要行事 › 11月',title:'11月の行事',snip:'進路講演会',page:'events',tags:'11月 進路 講演会'},
+  {path:'年間主要行事 › 12月',title:'12月の行事',snip:'期末考査 終業式',page:'events',tags:'12月 期末 考査 テスト 終業式 冬休み'},
+  {path:'年間主要行事 › 1月',title:'1月の行事',snip:'始業式 大学入学共通テスト 3年',page:'events',tags:'1月 共通テスト 大学受験 3年 始業式'},
+  {path:'年間主要行事 › 2月',title:'2月の行事',snip:'学年末考査',page:'events',tags:'2月 学年末考査 テスト'},
+  {path:'年間主要行事 › 3月',title:'3月の行事',snip:'卒業式 修了式',page:'events',tags:'3月 卒業式 修了式 卒業 春'},
+  // ===== 本校の沿革 =====
+  {path:'本校の沿革',title:'創立と発展の歴史',snip:'1878年 明治11年 茨城県立第一中学校創立 1948年 昭和23年 水戸第一高等学校 創立120周年 令和4年',page:'about',tags:'沿革 歴史 創立 明治 昭和 令和 中学校'},
+  {path:'本校の沿革 › 1878（明11）',title:'茨城県立第一中学校創立',snip:'1878年 明治11年 茨城県立第一中学校として創立',page:'about',tags:'1878 明治 創立 中学校'},
+  {path:'本校の沿革 › 1948（昭23）',title:'高等学校への改称',snip:'学制改革により茨城県立水戸第一高等学校と改称',page:'about',tags:'昭和 学制改革 高等学校 改称'},
+  {path:'本校の沿革 › 2022（令4）',title:'創立120周年',snip:'創立120周年',page:'about',tags:'120周年 令和 記念'},
+  // ===== 歴代校長 =====
+  {path:'歴代校長一覧',title:'歴代校長一覧',snip:'初代から現職まで歴代校長の氏名と在任期間',page:'principals',tags:'校長 歴代 在任 初代 現職'},
+  {path:'歴代校長一覧',title:'初代校長',snip:'初代 明治13・7 ― 明治14・5',page:'principals',tags:'初代 校長 明治'},
+  // ===== 就学の目標・校是 =====
+  {path:'就学の目標',title:'就学の目標',snip:'確かな学力を身につけ自らの可能性を最大限に発揮すること 豊かな人間性と強い意志を培い社会に貢献 健康な体と活力ある精神を養い生涯にわたって学び続けること',page:'goals',tags:'目標 学力 人間性 健康 校是'},
+  {path:'就学の目標 › 一',title:'学力の向上',snip:'確かな学力を身につけ自らの可能性を最大限に発揮すること',page:'goals',tags:'学力 可能性 一'},
+  {path:'就学の目標 › 二',title:'豊かな人間性',snip:'豊かな人間性と強い意志を培い社会に貢献できる人材となること',page:'goals',tags:'人間性 意志 社会貢献 二'},
+  {path:'就学の目標 › 三',title:'健康と継続学習',snip:'健康な体と活力ある精神を養い生涯にわたって学び続けること',page:'goals',tags:'健康 精神 生涯学習 三'},
+  {path:'校是',title:'校是',snip:'校是 水戸第一高等学校の建学の精神',page:'goals',tags:'校是 建学 精神'},
+  // ===== 歌詞 =====
+  {path:'歌詞 › 校歌',title:'校歌',snip:'水戸第一高等学校 校歌 一番 二番 三番',page:'songs',tags:'校歌 歌詞 一番 二番 三番'},
+  {path:'歌詞 › 応援歌',title:'応援歌',snip:'水戸第一高等学校 応援歌 歌詞',page:'songs',tags:'応援歌 歌詞 応援'},
+  // ===== 教育課程 =====
+  {path:'教育課程',title:'教育課程（2024年度入学）',snip:'現代の国語 言語文化 論理国語 数学Ⅰ Ⅱ Ⅲ 英語コミュニケーション 単位数',page:'curriculum',tags:'教育課程 科目 単位 国語 数学 英語 理科 社会 必修 選択'},
+  {path:'教育課程 › 国語',title:'国語科目',snip:'現代の国語 言語文化 論理国語 単位数',page:'curriculum',tags:'国語 現代 言語文化 論理'},
+  {path:'教育課程 › 数学',title:'数学科目',snip:'数学Ⅰ Ⅱ Ⅲ 単位数',page:'curriculum',tags:'数学 Ⅰ Ⅱ Ⅲ 単位'},
+  {path:'教育課程 › 英語',title:'英語科目',snip:'英語コミュニケーションⅠ Ⅱ 単位数',page:'curriculum',tags:'英語 コミュニケーション 単位'},
+];
+
+function doSearch(q){
+  if(!q.trim()) return [];
+  const kws=q.toLowerCase().replace(/[　\s]+/g,' ').split(' ').filter(Boolean);
+  return SEARCH_INDEX.filter(item=>{
+    const hay=(item.path+' '+item.title+' '+item.snip+' '+(item.tags||'')).toLowerCase();
+    return kws.every(k=>hay.includes(k));
+  }).slice(0,8);
+}
+
+function openSD(){document.getElementById('srchDD').classList.add('open')}
+function closeSD(){document.getElementById('srchDD').classList.remove('open')}
+document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap')&&!e.target.closest('.search-bar-wrap'))closeSD()});
+
+function onHeaderSearch(q){
+  openSD();
+  const results=doSearch(q);
+  const box=document.getElementById('sdResults');
+  if(!q.trim()){
+    box.innerHTML=`
+      <div class="sd-item" onclick="nav('rules');closeSD()"><div class="sd-path">諸規定 › 第三条</div><div class="sd-title">校内生活の基本</div><div class="sd-snip">生徒は学校の定める規則に従い...</div></div>
+      <div class="sd-item" onclick="nav('rules');closeSD()"><div class="sd-path">諸規定 › 第七条</div><div class="sd-title">公欠の取扱い</div><div class="sd-snip">次に掲げる事由は公欠として取り扱う...</div></div>
+      <div class="sd-item" onclick="nav('events');closeSD()"><div class="sd-path">年間主要行事</div><div class="sd-title">9月 — 水一祭・体育祭</div><div class="sd-snip">文化祭および体育祭が行われる...</div></div>`;
+    return;
+  }
+  if(results.length>0){
+    box.innerHTML=results.slice(0,5).map(r=>`
+      <div class="sd-item" onclick="nav('${r.page}');${r.id?`scrollArt('${r.id}');`:''}closeSD()">
+        <div class="sd-path">${r.path}</div>
+        <div class="sd-title">${r.title}</div>
+        <div class="sd-snip">${r.snip}</div>
+      </div>`).join('');
+  } else {
+    box.innerHTML=`
+      <div class="sd-no-result">
+        <div style="font-size:13px;color:var(--text-2);margin-bottom:10px">「${q}」に一致する結果が見つかりませんでした</div>
+        <button class="sd-ai-link" onclick="goToSearchWithQuery('${q.replace(/'/g,"\\'")}')">
+          AI 検索で詳しく調べる →
+        </button>
+      </div>`;
+  }
+}
+
+function goToSearch(){
+  const q=document.getElementById('srchIn').value;
+  closeSD();
+  nav('search');
+  if(q){
+    document.getElementById('spInput').value=q;
+    runSearchPage(q);
+  }
+}
+function goToSearchWithQuery(q){
+  closeSD();
+  nav('search');
+  document.getElementById('spInput').value=q;
+  setSearchMode('ai');
+  runSearchPage(q);
+}
+
+/* =================================
+   SEARCH PAGE
+================================= */
+let searchMode='text';
+
+function setSearchMode(mode){
+  searchMode=mode;
+  document.getElementById('stToggleText').classList.toggle('on',mode==='text');
+  document.getElementById('stToggleAI').classList.toggle('on',mode==='ai');
+  const q=document.getElementById('spInput').value;
+  if(q) runSearchPage(q);
+}
+
+function runSearchPage(q){
+  const box=document.getElementById('spResults');
+  if(!q.trim()){box.innerHTML='';return;}
+  if(searchMode==='text'){
+    const results=doSearch(q);
+    if(results.length>0){
+      box.innerHTML=results.map(r=>`
+        <div class="sp-result-item" onclick="nav('${r.page}');${r.id?`scrollArt('${r.id}');`:''}">
+          <div class="sp-path">${r.path}</div>
+          <div class="sp-title">${r.title}</div>
+          <div class="sp-snip">${r.snip}</div>
+        </div>`).join('');
+    } else {
+      box.innerHTML=`
+        <div class="search-empty">
+          <div class="search-empty-title">「${q}」は見つかりませんでした</div>
+          <div class="search-empty-sub">AI検索を使うと、より詳しく調べることができます</div>
+          <button class="btn-navy" onclick="setSearchMode('ai')">
+            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            AI検索で調べる
+          </button>
+        </div>`;
+    }
+  } else {
+    // AI検索
+    box.innerHTML=`<div class="ai-answer-box"><div class="ai-answer-label"><div class="ai-dot-spin"></div>AI が回答を生成しています...</div><div class="ai-answer-text"><div class="typing-dots"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div></div></div>`;
+    callGemini(q).then(ans=>{
+      box.innerHTML=`
+        <div class="ai-answer-box">
+          <div class="ai-answer-label"><div class="ai-dot-spin"></div>AI の回答</div>
+          <div class="ai-answer-text">${ans.replace(/\n/g,'<br>')}</div>
+        </div>
+        ${doSearch(q).map(r=>`
+        <div class="sp-result-item" onclick="nav('${r.page}');${r.id?`scrollArt('${r.id}');`:''}">
+          <div class="sp-path">${r.path}</div>
+          <div class="sp-title">${r.title}</div>
+          <div class="sp-snip">${r.snip}</div>
+        </div>`).join('')}`;
+    });
+  }
+}
+
+/* =================================
+   GEMINI API
+   本番: この関数をCloudflare Workersプロキシに差し替え
+================================= */
+function _ep(){
+  // ※本番環境ではここをCloudflare WorkersのURLに差し替えてください
+  // return 'https://your-worker.workers.dev/api/ai';
+  const _s=[
+    'aHR0cHM6Ly9nZW5lcmF0aXZlbGFuZ3VhZ2U=',
+    'Lmdvb2dsZWFwaXMuY29tL3YxYmV0YQ==',
+    'L21vZGVscy9nZW1pbmktMi41LWZsYXNo',
+    'OmdlbmVyYXRlQ29udGVudD9rZXk9'
+  ].map(s=>atob(s)).join('');
+  // APIキーは管理者が設定（本番はWorkers側で注入）
+  const _k=sessionStorage.getItem('_hbk')||'';
+  return _s+_k;
+}
+
+async function callGemini(q){
+  const sys=`あなたは茨城県立水戸第一高等学校デジタル生徒手帳のAIアシスタントです。
+在校生の質問に対して手帳の内容に基づき、丁寧・簡潔に日本語で答えてください（200字以内目安）。
+主な内容：諸規定（第一〜第八条）、特別教育活動、生徒会憲章・活動・関係規定、
+年間行事（4月始業式・入学式、9月水一祭・体育祭、3月卒業式等）、
+就学の目標、教育課程。`;
+  try{
+    const res=await fetch(_ep(),{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{parts:[{text:sys+'\n\n質問：'+q}]}]})
+    });
+    const d=await res.json();
+    return d.candidates?.[0]?.content?.parts?.[0]?.text||'回答を生成できませんでした。';
+  }catch(e){
+    return 'AIに接続できません。\n管理者によるAPIキーの設定が必要です。Cloudflare Workers経由で接続してください。';
+  }
+}
+
+/* =================================
+   ARTICLE SCROLL
+================================= */
+function scrollArt(id){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.scrollIntoView({behavior:'smooth',block:'center'});
+  el.style.boxShadow='0 0 0 2px var(--enjii)';
+  setTimeout(()=>{el.style.boxShadow=''},2200);
+}
+
+/* =================================
+   YEAR TABS
+================================= */
+function switchYear(btn){
+  document.querySelectorAll('.year-tab').forEach(t=>t.classList.remove('on'));
+  btn.classList.add('on');
+}
+
+/* =================================
+   AI FLOAT CHAT
+================================= */
+let aiOpen=false;
+function toggleAI(force){
+  aiOpen=force!==undefined?force:!aiOpen;
+  document.getElementById('aiWin').classList.toggle('open',aiOpen);
+}
+
+async function sendAI(){
+  const inp=document.getElementById('aiInput');
+  const msg=inp.value.trim();
+  if(!msg) return;
+  addAIMsg(msg,'usr');
+  inp.value='';
+  document.getElementById('aiSendBtn').disabled=true;
+  const lid='l_'+Date.now();
+  addAILoading(lid);
+  const ans=await callGemini(msg);
+  rmLoading(lid);
+  addAIMsg(ans,'bot');
+  document.getElementById('aiSendBtn').disabled=false;
+}
+function addAIMsg(txt,role){
+  const w=document.getElementById('aiMsgs');
+  const d=document.createElement('div');
+  d.className='ai-msg '+role;
+  d.innerHTML=`<div class="ai-bubble">${txt.replace(/\n/g,'<br>')}</div>`;
+  w.appendChild(d);w.scrollTop=w.scrollHeight;
+}
+function addAILoading(id){
+  const w=document.getElementById('aiMsgs');
+  const d=document.createElement('div');
+  d.className='ai-msg bot';d.id=id;
+  d.innerHTML=`<div class="ai-bubble"><div class="typing-dots"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div></div>`;
+  w.appendChild(d);w.scrollTop=w.scrollHeight;
+}
+function rmLoading(id){const el=document.getElementById(id);if(el)el.remove()}
+
+/* =================================
+   PWA STANDALONE
+================================= */
+(function(){
+  const sa=window.matchMedia('(display-mode:standalone)').matches||navigator.standalone===true;
+  if(sa){
+    document.querySelector('.bottom-nav').style.display='block';
+    const sb=document.querySelector('.sidebar');
+    if(sb)sb.style.display='none';
+    document.querySelector('.main').style.marginLeft='0';
+    document.querySelector('.main').style.paddingBottom='calc(var(--bn-h) + var(--safe-b) + 24px)';
+  }
+})();
+</script>
+<script type="module" src="/src/main.js"></script>
+</body>
 </html>
