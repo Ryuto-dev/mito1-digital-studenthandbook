@@ -10,28 +10,63 @@ import {
   orderBy, query
 } from 'firebase/firestore'
 
-// DOMが読み込まれてからイベントを登録
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('loginBtn')
-    ?.addEventListener('click', doLogin)
-
-  document.getElementById('loginPass')
-    ?.addEventListener('keydown', e => {
-      if (e.key === 'Enter') doLogin()
-    })
-
-  document.getElementById('modalOverlay')
-    ?.addEventListener('click', e => {
-      if (e.target === e.currentTarget) closeModal()
-    })
-})
-
 // =============================================
 // STATE
 // =============================================
 let currentSection = 'dashboard'
 let editingId = null
 let editingType = null
+
+// =============================================
+// DOM READY
+// =============================================
+document.addEventListener('DOMContentLoaded', () => {
+  // Login
+  document.getElementById('loginBtn')?.addEventListener('click', doLogin)
+  document.getElementById('loginPass')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin()
+  })
+
+  // Logout
+  document.getElementById('logoutBtnEl')?.addEventListener('click', doLogout)
+
+  // Sidebar items
+  document.querySelectorAll('.adm-sb-item[data-sec]').forEach(btn => {
+    btn.addEventListener('click', () => switchSec(btn.dataset.sec))
+  })
+
+  // Add buttons
+  document.querySelectorAll('[data-add]').forEach(btn => {
+    btn.addEventListener('click', () => openModal(btn.dataset.add))
+  })
+
+  // Modal
+  document.getElementById('modalSaveBtn')?.addEventListener('click', saveModal)
+  document.getElementById('modalCancelBtn')?.addEventListener('click', closeModal)
+  document.getElementById('modalCloseBtn')?.addEventListener('click', closeModal)
+  document.getElementById('modalOverlay')?.addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModal()
+  })
+
+  // Event delegation for dynamically generated edit/delete/action buttons
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('[data-edit],[data-delete],[data-nav],[data-save-action]')
+    if (!btn) return
+    if (btn.dataset.edit) {
+      const [col, id] = btn.dataset.edit.split('|')
+      openModal(col, id)
+    }
+    if (btn.dataset.delete) {
+      const [col, id] = btn.dataset.delete.split('|')
+      deleteItem(col, id)
+    }
+    if (btn.dataset.nav) {
+      switchSec(btn.dataset.nav)
+    }
+    if (btn.dataset.saveAction === 'goals') saveGoals()
+    if (btn.dataset.saveAction === 'council-activities') saveCouncilActivities()
+  })
+})
 
 // =============================================
 // AUTH
@@ -48,7 +83,7 @@ onAuthStateChanged(auth, user => {
   }
 })
 
-window.doLogin = async () => {
+async function doLogin() {
   const email = document.getElementById('loginEmail').value.trim()
   const pass  = document.getElementById('loginPass').value
   const btn   = document.getElementById('loginBtn')
@@ -64,19 +99,19 @@ window.doLogin = async () => {
       'auth/wrong-password':     'パスワードが違います',
       'auth/invalid-email':      'メールアドレスの形式が正しくありません',
     }
-    err.textContent = msgs[e.code] || 'ログインに失敗しました'
+    err.textContent = msgs[e.code] || 'ログインに失敗しました（' + e.code + '）'
     btn.disabled = false
   }
 }
 
-window.doLogout = async () => {
+async function doLogout() {
   await signOut(auth)
 }
 
 // =============================================
 // NAVIGATION
 // =============================================
-window.switchSec = (sec) => {
+function switchSec(sec) {
   currentSection = sec
   document.querySelectorAll('.adm-section').forEach(s => s.classList.remove('on'))
   document.querySelectorAll('.adm-sb-item').forEach(s => s.classList.remove('on'))
@@ -156,7 +191,7 @@ async function loadDashboard() {
     <div class="dash-card">
       <div class="dash-card-num">${counts[i]}</div>
       <div class="dash-card-label">${s.label}</div>
-      <span class="dash-card-link" onclick="switchSec('${s.sec}')">管理する →</span>
+      <span class="dash-card-link" data-nav="${s.sec}">管理する →</span>
     </div>
   `).join('')
 }
@@ -172,10 +207,10 @@ function renderHistoryList(items) {
       <div class="history-year-cell">${item.year || ''}</div>
       <div class="history-event-cell">${item.event || ''}</div>
       <div class="item-actions">
-        <button class="btn-icon" onclick="openModal('history','${item.id}')">
+        <button class="btn-icon" data-edit="history|${item.id}">
           <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>
-        <button class="btn-icon del" onclick="deleteItem('history','${item.id}')">
+        <button class="btn-icon del" data-delete="history|${item.id}">
           <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
         </button>
       </div>
@@ -195,10 +230,10 @@ function renderPrincipalsList(items) {
       <div class="history-event-cell">${item.name || ''}</div>
       <div class="history-year-cell">${item.term || ''}</div>
       <div class="item-actions">
-        <button class="btn-icon" onclick="openModal('principals','${item.id}')">
+        <button class="btn-icon" data-edit="principals|${item.id}">
           <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>
-        <button class="btn-icon del" onclick="deleteItem('principals','${item.id}')">
+        <button class="btn-icon del" data-delete="principals|${item.id}">
           <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
         </button>
       </div>
@@ -222,11 +257,11 @@ async function loadGoalsForm() {
       <label>就学の目標（本文）</label>
       <textarea id="goalsText" rows="8" placeholder="目標の内容を入力...">${data.text || ''}</textarea>
     </div>
-    <button class="btn-save" style="margin-top:8px" onclick="saveGoals()">保存</button>
+    <button class="btn-save" style="margin-top:8px" data-save-action="goals">保存</button>
   `
 }
 
-window.saveGoals = async () => {
+async function saveGoals() {
   const imageUrl = document.getElementById('goalsImgUrl').value.trim()
   const text     = document.getElementById('goalsText').value.trim()
   await setDoc(doc(db, 'content', 'goals'), { imageUrl, text })
@@ -245,10 +280,10 @@ function renderSongsList(items) {
         <span class="item-num">${item.type || '校歌'}</span>
         <span class="item-title">${item.title || ''}</span>
         <div class="item-actions">
-          <button class="btn-icon" onclick="openModal('songs','${item.id}')">
+          <button class="btn-icon" data-edit="songs|${item.id}">
             <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
-          <button class="btn-icon del" onclick="deleteItem('songs','${item.id}')">
+          <button class="btn-icon del" data-delete="songs|${item.id}">
             <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
           </button>
         </div>
@@ -273,10 +308,10 @@ function renderArticleList(containerId) {
           <span class="item-num">${item.number || ''}</span>
           <span class="item-title">${item.title || ''}</span>
           <div class="item-actions">
-            <button class="btn-icon" onclick="openModal('${containerId.replace('List','')}','${item.id}')">
+            <button class="btn-icon" data-edit="${containerId.replace('List','')}|${item.id}">
               <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             </button>
-            <button class="btn-icon del" onclick="deleteItem('${containerId.replace('List','')}','${item.id}')">
+            <button class="btn-icon del" data-delete="${containerId.replace('List','')}|${item.id}">
               <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
             </button>
           </div>
@@ -331,10 +366,10 @@ function renderCurriculumList(items) {
                 <td style="padding:8px 12px;text-align:center;border-bottom:1px solid var(--border-2);color:var(--text-2)">${r.required||''}</td>
                 <td style="padding:8px 12px;border-bottom:1px solid var(--border-2)">
                   <div style="display:flex;gap:4px">
-                    <button class="btn-icon" onclick="openModal('curriculum','${r.id}')">
+                    <button class="btn-icon" data-edit="curriculum|${r.id}">
                       <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/></svg>
                     </button>
-                    <button class="btn-icon del" onclick="deleteItem('curriculum','${r.id}')">
+                    <button class="btn-icon del" data-delete="curriculum|${r.id}">
                       <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
                     </button>
                   </div>
@@ -371,10 +406,10 @@ function renderEventsList(items) {
         <div class="history-row" style="grid-template-columns:1fr auto">
           <div class="history-event-cell">${item.name || ''}</div>
           <div class="item-actions">
-            <button class="btn-icon" onclick="openModal('events','${item.id}')">
+            <button class="btn-icon" data-edit="events|${item.id}">
               <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/></svg>
             </button>
-            <button class="btn-icon del" onclick="deleteItem('events','${item.id}')">
+            <button class="btn-icon del" data-delete="events|${item.id}">
               <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
             </button>
           </div>
@@ -400,11 +435,11 @@ async function loadCouncilActivitiesForm() {
       <label>各委員会の活動（本文）</label>
       <textarea id="caCommittees" rows="5">${data.committees || ''}</textarea>
     </div>
-    <button class="btn-save" style="margin-top:8px" onclick="saveCouncilActivities()">保存</button>
+    <button class="btn-save" style="margin-top:8px" data-save-action="council-activities">保存</button>
   `
 }
 
-window.saveCouncilActivities = async () => {
+async function saveCouncilActivities() {
   const overview    = document.getElementById('caOverview').value.trim()
   const committees  = document.getElementById('caCommittees').value.trim()
   await setDoc(doc(db, 'content', 'council-activities'), { overview, committees })
@@ -694,7 +729,7 @@ const CONTAINER_TO_COL = {
   councilCharterList: 'council-charter', councilRulesList: 'council-rules',
 }
 
-window.openModal = async (type, id = null) => {
+async function openModal(type, id = null) {
   editingType = type
   editingId   = id
   const cfg = MODAL_CONFIGS[type]
@@ -702,6 +737,12 @@ window.openModal = async (type, id = null) => {
 
   document.getElementById('modalTitle').textContent = (id ? '編集 — ' : '追加 — ') + cfg.title
   document.getElementById('modalBody').innerHTML = cfg.fields()
+
+  // bind inline save buttons (goals / council-activities)
+  document.getElementById('modalBody').querySelectorAll('[data-action]').forEach(btn => {
+    if (btn.dataset.action === 'saveGoals') btn.addEventListener('click', saveGoals)
+    if (btn.dataset.action === 'saveCouncilActivities') btn.addEventListener('click', saveCouncilActivities)
+  })
 
   if (id) {
     const snap = await getDoc(doc(db, type, id))
@@ -711,12 +752,12 @@ window.openModal = async (type, id = null) => {
   document.getElementById('modalOverlay').classList.add('open')
 }
 
-window.closeModal = () => {
+function closeModal() {
   document.getElementById('modalOverlay').classList.remove('open')
   editingId = null; editingType = null
 }
 
-window.saveModal = async () => {
+async function saveModal() {
   const cfg = MODAL_CONFIGS[editingType]
   if (!cfg) return
   const btn = document.getElementById('modalSaveBtn')
@@ -738,14 +779,9 @@ window.saveModal = async () => {
   btn.disabled = false
 }
 
-window.deleteItem = async (col, id) => {
+async function deleteItem(col, id) {
   if (!confirm('削除しますか？')) return
   await deleteDoc(doc(db, col, id))
   showToast('削除しました')
   loadSection(currentSection)
 }
-
-// Close modal on overlay click
-document.getElementById('modalOverlay').addEventListener('click', (e) => {
-  if (e.target === e.currentTarget) closeModal()
-})

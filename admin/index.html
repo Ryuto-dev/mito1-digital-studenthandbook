@@ -362,7 +362,8 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
     </div>
     <div class="form-group">
       <label class="form-label">パスワード</label>
-      <input type="password" class="form-input" id="loginPass" placeholder="••••••••">
+      <input type="password" class="form-input" id="loginPass" placeholder="••••••••"
+        onkeydown="if(event.key==='Enter')doLogin()">
     </div>
     <button class="btn-primary" id="loginBtn">ログイン</button>
     <div class="login-err" id="loginErr"></div>
@@ -378,62 +379,62 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
       <span class="adm-brand-badge">管理者</span>
     </div>
     <span class="adm-header-user" id="headerUser"></span>
-    <button class="adm-logout-btn" onclick="doLogout()">ログアウト</button>
+    <button class="adm-logout-btn" id="logoutBtnEl">ログアウト</button>
   </header>
 
   <div class="adm-body">
     <!-- SIDEBAR -->
     <aside class="adm-sidebar">
       <div class="sb-section-label">概要</div>
-      <button class="adm-sb-item on" data-sec="dashboard" onclick="switchSec('dashboard')">
+      <button class="adm-sb-item on" data-sec="dashboard">
         <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         ダッシュボード
       </button>
       <div class="sb-section-label">学校について</div>
-      <button class="adm-sb-item" data-sec="history" onclick="switchSec('history')">
+      <button class="adm-sb-item" data-sec="history">
         <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
         本校の沿革
       </button>
-      <button class="adm-sb-item" data-sec="principals" onclick="switchSec('principals')">
+      <button class="adm-sb-item" data-sec="principals">
         <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         歴代校長一覧
       </button>
-      <button class="adm-sb-item" data-sec="goals" onclick="switchSec('goals')">
+      <button class="adm-sb-item" data-sec="goals">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
         就学の目標
       </button>
-      <button class="adm-sb-item" data-sec="songs" onclick="switchSec('songs')">
+      <button class="adm-sb-item" data-sec="songs">
         <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
         歌詞
       </button>
       <div class="sb-section-label">諸規定</div>
-      <button class="adm-sb-item" data-sec="rules" onclick="switchSec('rules')">
+      <button class="adm-sb-item" data-sec="rules">
         <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         諸規定（本則）
       </button>
-      <button class="adm-sb-item" data-sec="special" onclick="switchSec('special')">
+      <button class="adm-sb-item" data-sec="special">
         <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         特別教育活動
       </button>
       <div class="sb-section-label">学校生活</div>
-      <button class="adm-sb-item" data-sec="curriculum" onclick="switchSec('curriculum')">
+      <button class="adm-sb-item" data-sec="curriculum">
         <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         教育課程
       </button>
-      <button class="adm-sb-item" data-sec="events" onclick="switchSec('events')">
+      <button class="adm-sb-item" data-sec="events">
         <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         年間主要行事
       </button>
       <div class="sb-section-label">生徒会</div>
-      <button class="adm-sb-item" data-sec="council-activities" onclick="switchSec('council-activities')">
+      <button class="adm-sb-item" data-sec="council-activities">
         <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
         生徒会活動
       </button>
-      <button class="adm-sb-item" data-sec="council-charter" onclick="switchSec('council-charter')">
+      <button class="adm-sb-item" data-sec="council-charter">
         <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         知道生徒会憲章
       </button>
-      <button class="adm-sb-item" data-sec="council-rules" onclick="switchSec('council-rules')">
+      <button class="adm-sb-item" data-sec="council-rules">
         <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         生徒会関係諸規定
       </button>
@@ -462,7 +463,7 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
             <div class="adm-section-title">本校の沿革</div>
             <div class="adm-section-sub">年号と出来事を管理</div>
           </div>
-          <button class="btn-add" onclick="openModal('history')">
+          <button class="btn-add" data-add="history">
             <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             追加
           </button>
@@ -479,7 +480,7 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
             <div class="adm-section-title">歴代校長一覧</div>
             <div class="adm-section-sub">代数・氏名・在任期間を管理</div>
           </div>
-          <button class="btn-add" onclick="openModal('principals')">
+          <button class="btn-add" data-add="principals">
             <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             追加
           </button>
@@ -509,7 +510,7 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
             <div class="adm-section-title">歌詞</div>
             <div class="adm-section-sub">校歌・応援歌の歌詞を管理</div>
           </div>
-          <button class="btn-add" onclick="openModal('songs')">
+          <button class="btn-add" data-add="songs">
             <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             追加
           </button>
@@ -524,7 +525,7 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
             <div class="adm-section-title">諸規定（本則）</div>
             <div class="adm-section-sub">条文を章ごとに管理</div>
           </div>
-          <button class="btn-add" onclick="openModal('rules')">
+          <button class="btn-add" data-add="rules">
             <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             条文を追加
           </button>
@@ -539,7 +540,7 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
             <div class="adm-section-title">特別教育活動</div>
             <div class="adm-section-sub">条文を管理</div>
           </div>
-          <button class="btn-add" onclick="openModal('special')">
+          <button class="btn-add" data-add="special">
             <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             条文を追加
           </button>
@@ -554,7 +555,7 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
             <div class="adm-section-title">教育課程</div>
             <div class="adm-section-sub">入学年度別・科目・単位数を管理</div>
           </div>
-          <button class="btn-add" onclick="openModal('curriculum')">
+          <button class="btn-add" data-add="curriculum">
             <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             科目を追加
           </button>
@@ -569,7 +570,7 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
             <div class="adm-section-title">年間主要行事</div>
             <div class="adm-section-sub">月別の行事を管理</div>
           </div>
-          <button class="btn-add" onclick="openModal('events')">
+          <button class="btn-add" data-add="events">
             <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             行事を追加
           </button>
@@ -597,7 +598,7 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
             <div class="adm-section-title">知道生徒会憲章</div>
             <div class="adm-section-sub">条文を管理</div>
           </div>
-          <button class="btn-add" onclick="openModal('council-charter')">
+          <button class="btn-add" data-add="council-charter">
             <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             条文を追加
           </button>
@@ -612,7 +613,7 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
             <div class="adm-section-title">生徒会関係諸規定</div>
             <div class="adm-section-sub">条文を管理</div>
           </div>
-          <button class="btn-add" onclick="openModal('council-rules')">
+          <button class="btn-add" data-add="council-rules">
             <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             条文を追加
           </button>
@@ -629,14 +630,14 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
   <div class="modal" id="modal">
     <div class="modal-header">
       <span class="modal-title" id="modalTitle">追加</span>
-      <button class="modal-close" onclick="closeModal()">
+      <button class="modal-close" id="modalCloseBtn">
         <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
     <div class="modal-body" id="modalBody"></div>
     <div class="modal-footer">
-      <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
-      <button class="btn-save" id="modalSaveBtn" onclick="saveModal()">保存</button>
+      <button class="btn-cancel" id="modalCancelBtn">キャンセル</button>
+      <button class="btn-save" id="modalSaveBtn">保存</button>
     </div>
   </div>
 </div>
