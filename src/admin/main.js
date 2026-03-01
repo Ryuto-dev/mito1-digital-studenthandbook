@@ -10,6 +10,22 @@ import {
   orderBy, query
 } from 'firebase/firestore'
 
+// DOMが読み込まれてからイベントを登録
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('loginBtn')
+    ?.addEventListener('click', doLogin)
+
+  document.getElementById('loginPass')
+    ?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') doLogin()
+    })
+
+  document.getElementById('modalOverlay')
+    ?.addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeModal()
+    })
+})
+
 // =============================================
 // STATE
 // =============================================
