@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理者ポータル — 水戸第一高等学校デジタル生徒手帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600&family=Noto+Sans+JP:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#1a2744;--navy-light:#253a78;
+  --enjii:#8b1a2c;--enjii-bg:rgba(139,26,44,.08);
+  --bg:#f6f6f4;--surface:#fff;--surface2:#f0f0ed;
+  --text:#111;--text-2:#444;--text-3:#888;
+  --border:#e2e2de;--border-2:#eeeee9;
+  --r:9px;--r-lg:13px;
+  --shadow-sm:0 1px 4px rgba(0,0,0,.06);
+  --shadow-md:0 4px 16px rgba(0,0,0,.09);
+  --sidebar-w:230px;
+  --header-h:54px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
+
+/* ===== LOGIN ===== */
+#loginScreen{
+  position:fixed;inset:0;background:var(--navy);
+  display:flex;align-items:center;justify-content:center;
+  z-index:9999;
+}
+#loginScreen.hide{display:none}
+.login-box{
+  background:var(--surface);border-radius:var(--r-lg);
+  padding:40px 36px;width:100%;max-width:380px;
+  box-shadow:0 8px 40px rgba(0,0,0,.3);
+}
+.login-logo{
+  text-align:center;margin-bottom:28px;
+}
+.login-crest{
+  width:52px;height:52px;background:var(--navy);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Noto Serif JP',serif;font-size:11px;font-weight:700;
+  color:white;margin:0 auto 12px;
+}
+.login-title{font-family:'Noto Serif JP',serif;font-size:17px;font-weight:600;color:var(--navy)}
+.login-sub{font-size:11px;color:var(--text-3);margin-top:3px}
+.form-group{margin-bottom:16px}
+.form-label{font-size:11.5px;font-weight:600;color:var(--text-3);margin-bottom:5px;display:block;letter-spacing:.04em}
+.form-input{
+  width:100%;height:42px;border:1.5px solid var(--border);
+  border-radius:var(--r);padding:0 13px;font-size:14px;
+  color:var(--text);background:var(--bg);outline:none;
+  transition:border-color .2s;
+}
+.form-input:focus{border-color:var(--navy)}
+.btn-primary{
+  width:100%;height:44px;background:var(--navy);color:white;
+  border:none;border-radius:var(--r);font-size:14px;font-weight:600;
+  cursor:pointer;transition:background .15s;margin-top:4px;
+}
+.btn-primary:hover{background:var(--navy-light)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.login-err{
+  font-size:12px;color:var(--enjii);text-align:center;
+  margin-top:12px;min-height:18px;
+}
+
+/* ===== APP SHELL ===== */
+#appShell{display:none}
+#appShell.show{display:flex;min-height:100vh;flex-direction:column}
+
+/* Header */
+.adm-header{
+  position:fixed;top:0;left:0;right:0;height:var(--header-h);
+  background:var(--navy);
+  display:flex;align-items:center;padding:0 18px;gap:12px;
+  z-index:200;
+}
+.adm-header-brand{
+  display:flex;align-items:center;gap:9px;flex:1;
+}
+.adm-crest{
+  width:30px;height:30px;background:rgba(255,255,255,.12);
+  border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-family:'Noto Serif JP',serif;font-size:9px;color:white;font-weight:700;
+}
+.adm-brand-name{font-family:'Noto Serif JP',serif;font-size:13px;color:rgba(255,255,255,.95);font-weight:600}
+.adm-brand-badge{
+  font-size:9.5px;background:var(--enjii);color:white;
+  padding:2px 8px;border-radius:10px;margin-left:8px;
+  letter-spacing:.04em;
+}
+.adm-header-user{font-size:12px;color:rgba(255,255,255,.6)}
+.adm-logout-btn{
+  height:30px;padding:0 13px;background:rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.2);border-radius:6px;
+  color:rgba(255,255,255,.85);font-size:12px;cursor:pointer;
+  transition:background .15s;
+}
+.adm-logout-btn:hover{background:rgba(255,255,255,.18)}
+
+/* Layout */
+.adm-body{
+  display:flex;padding-top:var(--header-h);min-height:100vh;
+}
+
+/* Sidebar */
+.adm-sidebar{
+  width:var(--sidebar-w);flex-shrink:0;
+  position:fixed;top:var(--header-h);left:0;bottom:0;
+  background:var(--surface);border-right:1px solid var(--border);
+  overflow-y:auto;padding:16px 10px;
+  scrollbar-width:thin;scrollbar-color:var(--border) transparent;
+}
+.sb-section-label{
+  font-size:9px;font-weight:700;letter-spacing:.14em;
+  color:var(--text-3);padding:0 8px;margin-bottom:3px;margin-top:14px;
+  text-transform:uppercase;
+}
+.sb-section-label:first-child{margin-top:0}
+.adm-sb-item{
+  display:flex;align-items:center;gap:7px;
+  width:100%;padding:8px 10px;border:none;background:none;
+  border-radius:7px;font-size:13px;color:var(--text-2);
+  cursor:pointer;text-align:left;transition:background .12s,color .12s;
+  position:relative;
+}
+.adm-sb-item:hover{background:var(--surface2);color:var(--text)}
+.adm-sb-item.on{background:var(--navy-dim,rgba(26,39,68,.07));color:var(--navy);font-weight:500}
+.adm-sb-item.on::before{
+  content:'';position:absolute;left:0;top:20%;bottom:20%;
+  width:3px;background:var(--enjii);border-radius:0 2px 2px 0;
+}
+.adm-sb-item svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;flex-shrink:0}
+
+/* Main */
+.adm-main{
+  flex:1;margin-left:var(--sidebar-w);
+  padding:28px 36px;min-width:0;
+}
+.adm-section{display:none}
+.adm-section.on{display:block;animation:secIn .2s ease}
+@keyframes secIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+
+.adm-section-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:22px;padding-bottom:16px;
+  border-bottom:1.5px solid var(--border);
+}
+.adm-section-title{
+  font-family:'Noto Serif JP',serif;font-size:20px;font-weight:600;
+}
+.adm-section-sub{font-size:12px;color:var(--text-3);margin-top:3px}
+.btn-add{
+  display:flex;align-items:center;gap:6px;
+  height:38px;padding:0 16px;
+  background:var(--navy);color:white;
+  border:none;border-radius:var(--r);
+  font-size:13px;font-weight:500;cursor:pointer;
+  transition:background .15s;
+}
+.btn-add:hover{background:var(--navy-light)}
+.btn-add svg{width:15px;height:15px;stroke:white;fill:none;stroke-width:2.5}
+
+/* Cards */
+.item-card{
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--r);margin-bottom:10px;
+  overflow:hidden;transition:box-shadow .15s;
+}
+.item-card:hover{box-shadow:var(--shadow-sm)}
+.item-card-header{
+  display:flex;align-items:center;gap:10px;
+  padding:13px 16px;cursor:pointer;
+  user-select:none;
+}
+.item-num{
+  font-size:10px;font-weight:700;color:var(--enjii);
+  background:var(--enjii-bg);padding:2px 8px;
+  border-radius:4px;white-space:nowrap;flex-shrink:0;
+}
+.item-title{font-size:13.5px;font-weight:500;color:var(--text);flex:1}
+.item-actions{display:flex;gap:4px;flex-shrink:0}
+.btn-icon{
+  width:30px;height:30px;border:none;background:none;
+  border-radius:6px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text-3);transition:background .12s,color .12s;
+}
+.btn-icon:hover{background:var(--surface2);color:var(--text)}
+.btn-icon.del:hover{background:rgba(139,26,44,.08);color:var(--enjii)}
+.btn-icon svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+.item-card-body{
+  padding:12px 16px 16px;border-top:1px solid var(--border);
+  background:var(--surface2);
+}
+.item-body-text{font-size:13px;color:var(--text-2);line-height:1.8}
+
+/* Forms */
+.form-row{margin-bottom:14px}
+.form-row label{
+  display:block;font-size:11.5px;font-weight:600;
+  color:var(--text-3);margin-bottom:5px;letter-spacing:.04em;
+}
+.form-row input,.form-row textarea,.form-row select{
+  width:100%;border:1.5px solid var(--border);
+  border-radius:var(--r);padding:9px 12px;
+  font-size:13.5px;color:var(--text);background:var(--surface);
+  outline:none;transition:border-color .2s;
+}
+.form-row input:focus,.form-row textarea:focus,.form-row select:focus{
+  border-color:var(--navy);
+}
+.form-row textarea{resize:vertical;min-height:80px;line-height:1.7}
+.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* Modal */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.4);
+  z-index:800;display:none;align-items:center;justify-content:center;
+  padding:20px;
+}
+.modal-overlay.open{display:flex;animation:moIn .2s ease}
+@keyframes moIn{from{opacity:0}to{opacity:1}}
+.modal{
+  background:var(--surface);border-radius:var(--r-lg);
+  width:100%;max-width:580px;max-height:90vh;
+  overflow-y:auto;box-shadow:var(--shadow-md);
+  animation:modalIn .2s cubic-bezier(.4,0,.2,1);
+}
+@keyframes modalIn{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.modal-header{
+  padding:18px 22px 14px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--border);
+  position:sticky;top:0;background:var(--surface);z-index:1;
+}
+.modal-title{font-family:'Noto Serif JP',serif;font-size:16px;font-weight:600}
+.modal-close{
+  width:32px;height:32px;border:none;background:none;
+  border-radius:6px;cursor:pointer;color:var(--text-3);
+  display:flex;align-items:center;justify-content:center;
+  transition:background .12s;
+}
+.modal-close:hover{background:var(--surface2)}
+.modal-close svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+.modal-body{padding:20px 22px}
+.modal-footer{
+  padding:14px 22px;border-top:1px solid var(--border);
+  display:flex;justify-content:flex-end;gap:8px;
+  position:sticky;bottom:0;background:var(--surface);
+}
+.btn-cancel{
+  height:38px;padding:0 18px;border:1.5px solid var(--border);
+  background:none;border-radius:var(--r);font-size:13px;
+  color:var(--text-2);cursor:pointer;transition:background .15s;
+}
+.btn-cancel:hover{background:var(--surface2)}
+.btn-save{
+  height:38px;padding:0 20px;background:var(--navy);color:white;
+  border:none;border-radius:var(--r);font-size:13px;font-weight:600;
+  cursor:pointer;transition:background .15s;
+}
+.btn-save:hover{background:var(--navy-light)}
+.btn-save:disabled{opacity:.5;cursor:not-allowed}
+
+/* Sub-items editor */
+.sub-items-wrap{border:1.5px solid var(--border);border-radius:var(--r);overflow:hidden;margin-top:6px}
+.sub-item-row{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 10px;border-bottom:1px solid var(--border-2);
+}
+.sub-item-row:last-child{border-bottom:none}
+.sub-idx-tag{
+  font-size:10.5px;font-weight:700;color:var(--enjii);
+  background:var(--enjii-bg);padding:1px 7px;border-radius:4px;
+  white-space:nowrap;flex-shrink:0;
+}
+.sub-item-input{
+  flex:1;border:none;background:none;font-size:13px;
+  color:var(--text);outline:none;padding:2px 4px;
+}
+.sub-item-add{
+  display:flex;align-items:center;gap:6px;
+  padding:9px 12px;border-top:1px solid var(--border);
+  cursor:pointer;font-size:12.5px;color:var(--text-3);
+  transition:background .12s;background:none;border-top:1px solid var(--border);
+}
+.sub-item-add:hover{background:var(--surface2);color:var(--text)}
+.sub-item-add svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2.5}
+
+/* Toast */
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:#1a1a1a;color:white;padding:11px 20px;
+  border-radius:8px;font-size:13px;opacity:0;
+  transition:all .25s;z-index:9999;pointer-events:none;white-space:nowrap;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* Empty state */
+.empty-state{
+  text-align:center;padding:48px 20px;
+  color:var(--text-3);
+}
+.empty-state svg{width:40px;height:40px;stroke:var(--border);fill:none;stroke-width:1.5;margin-bottom:12px}
+.empty-state p{font-size:14px}
+
+/* History specific */
+.history-row{
+  display:grid;grid-template-columns:180px 1fr auto;
+  gap:10px;align-items:center;
+  padding:10px 14px;border-bottom:1px solid var(--border-2);
+  background:var(--surface);
+}
+.history-row:last-child{border-bottom:none}
+.history-year-cell{font-size:12.5px;color:var(--text-3);font-family:'Noto Sans JP',sans-serif}
+.history-event-cell{font-size:13.5px;color:var(--text-2)}
+
+/* Loading */
+.loading-spinner{
+  display:flex;align-items:center;justify-content:center;
+  padding:40px;gap:10px;color:var(--text-3);font-size:13px;
+}
+.spinner{
+  width:20px;height:20px;border:2px solid var(--border);
+  border-top-color:var(--navy);border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Dashboard */
+.dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:28px}
+.dash-card{
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--r);padding:18px 20px;
+  display:flex;flex-direction:column;gap:6px;
+}
+.dash-card-num{font-size:28px;font-weight:700;color:var(--navy);font-family:'Noto Serif JP',serif}
+.dash-card-label{font-size:12px;color:var(--text-3)}
+.dash-card-link{
+  font-size:11.5px;color:var(--enjii);cursor:pointer;
+  margin-top:4px;display:inline-block;
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="login-crest">校章</div>
+      <div class="login-title">管理者ポータル</div>
+      <div class="login-sub">水戸第一高等学校 デジタル生徒手帳</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">メールアドレス</label>
+      <input type="email" class="form-input" id="loginEmail" placeholder="admin@example.com">
+    </div>
+    <div class="form-group">
+      <label class="form-label">パスワード</label>
+      <input type="password" class="form-input" id="loginPass" placeholder="••••••••"
+        onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="btn-primary" id="loginBtn" onclick="doLogin()">ログイン</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appShell">
+  <header class="adm-header">
+    <div class="adm-header-brand">
+      <div class="adm-crest">校章</div>
+      <span class="adm-brand-name">デジタル生徒手帳</span>
+      <span class="adm-brand-badge">管理者</span>
+    </div>
+    <span class="adm-header-user" id="headerUser"></span>
+    <button class="adm-logout-btn" onclick="doLogout()">ログアウト</button>
+  </header>
+
+  <div class="adm-body">
+    <!-- SIDEBAR -->
+    <aside class="adm-sidebar">
+      <div class="sb-section-label">概要</div>
+      <button class="adm-sb-item on" data-sec="dashboard" onclick="switchSec('dashboard')">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        ダッシュボード
+      </button>
+      <div class="sb-section-label">学校について</div>
+      <button class="adm-sb-item" data-sec="history" onclick="switchSec('history')">
+        <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        本校の沿革
+      </button>
+      <button class="adm-sb-item" data-sec="principals" onclick="switchSec('principals')">
+        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        歴代校長一覧
+      </button>
+      <button class="adm-sb-item" data-sec="goals" onclick="switchSec('goals')">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+        就学の目標
+      </button>
+      <button class="adm-sb-item" data-sec="songs" onclick="switchSec('songs')">
+        <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        歌詞
+      </button>
+      <div class="sb-section-label">諸規定</div>
+      <button class="adm-sb-item" data-sec="rules" onclick="switchSec('rules')">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        諸規定（本則）
+      </button>
+      <button class="adm-sb-item" data-sec="special" onclick="switchSec('special')">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        特別教育活動
+      </button>
+      <div class="sb-section-label">学校生活</div>
+      <button class="adm-sb-item" data-sec="curriculum" onclick="switchSec('curriculum')">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        教育課程
+      </button>
+      <button class="adm-sb-item" data-sec="events" onclick="switchSec('events')">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        年間主要行事
+      </button>
+      <div class="sb-section-label">生徒会</div>
+      <button class="adm-sb-item" data-sec="council-activities" onclick="switchSec('council-activities')">
+        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        生徒会活動
+      </button>
+      <button class="adm-sb-item" data-sec="council-charter" onclick="switchSec('council-charter')">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        知道生徒会憲章
+      </button>
+      <button class="adm-sb-item" data-sec="council-rules" onclick="switchSec('council-rules')">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        生徒会関係諸規定
+      </button>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="adm-main">
+
+      <!-- DASHBOARD -->
+      <section class="adm-section on" id="sec-dashboard">
+        <div class="adm-section-header">
+          <div>
+            <div class="adm-section-title">ダッシュボード</div>
+            <div class="adm-section-sub">各セクションのコンテンツ状況</div>
+          </div>
+        </div>
+        <div class="dash-grid" id="dashGrid">
+          <div class="loading-spinner"><div class="spinner"></div>読み込み中...</div>
+        </div>
+      </section>
+
+      <!-- HISTORY -->
+      <section class="adm-section" id="sec-history">
+        <div class="adm-section-header">
+          <div>
+            <div class="adm-section-title">本校の沿革</div>
+            <div class="adm-section-sub">年号と出来事を管理</div>
+          </div>
+          <button class="btn-add" onclick="openModal('history')">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            追加
+          </button>
+        </div>
+        <div class="item-card" style="overflow:hidden">
+          <div id="historyList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+        </div>
+      </section>
+
+      <!-- PRINCIPALS -->
+      <section class="adm-section" id="sec-principals">
+        <div class="adm-section-header">
+          <div>
+            <div class="adm-section-title">歴代校長一覧</div>
+            <div class="adm-section-sub">代数・氏名・在任期間を管理</div>
+          </div>
+          <button class="btn-add" onclick="openModal('principals')">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            追加
+          </button>
+        </div>
+        <div class="item-card" style="overflow:hidden">
+          <div id="principalsList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+        </div>
+      </section>
+
+      <!-- GOALS -->
+      <section class="adm-section" id="sec-goals">
+        <div class="adm-section-header">
+          <div>
+            <div class="adm-section-title">就学の目標</div>
+            <div class="adm-section-sub">目標の文章と校是の画像URLを管理</div>
+          </div>
+        </div>
+        <div class="item-card" style="padding:20px 22px">
+          <div id="goalsForm"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+        </div>
+      </section>
+
+      <!-- SONGS -->
+      <section class="adm-section" id="sec-songs">
+        <div class="adm-section-header">
+          <div>
+            <div class="adm-section-title">歌詞</div>
+            <div class="adm-section-sub">校歌・応援歌の歌詞を管理</div>
+          </div>
+          <button class="btn-add" onclick="openModal('songs')">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            追加
+          </button>
+        </div>
+        <div id="songsList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+      </section>
+
+      <!-- RULES -->
+      <section class="adm-section" id="sec-rules">
+        <div class="adm-section-header">
+          <div>
+            <div class="adm-section-title">諸規定（本則）</div>
+            <div class="adm-section-sub">条文を章ごとに管理</div>
+          </div>
+          <button class="btn-add" onclick="openModal('rules')">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            条文を追加
+          </button>
+        </div>
+        <div id="rulesList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+      </section>
+
+      <!-- SPECIAL -->
+      <section class="adm-section" id="sec-special">
+        <div class="adm-section-header">
+          <div>
+            <div class="adm-section-title">特別教育活動</div>
+            <div class="adm-section-sub">条文を管理</div>
+          </div>
+          <button class="btn-add" onclick="openModal('special')">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            条文を追加
+          </button>
+        </div>
+        <div id="specialList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+      </section>
+
+      <!-- CURRICULUM -->
+      <section class="adm-section" id="sec-curriculum">
+        <div class="adm-section-header">
+          <div>
+            <div class="adm-section-title">教育課程</div>
+            <div class="adm-section-sub">入学年度別・科目・単位数を管理</div>
+          </div>
+          <button class="btn-add" onclick="openModal('curriculum')">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            科目を追加
+          </button>
+        </div>
+        <div id="curriculumList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+      </section>
+
+      <!-- EVENTS -->
+      <section class="adm-section" id="sec-events">
+        <div class="adm-section-header">
+          <div>
+            <div class="adm-section-title">年間主要行事</div>
+            <div class="adm-section-sub">月別の行事を管理</div>
+          </div>
+          <button class="btn-add" onclick="openModal('events')">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            行事を追加
+          </button>
+        </div>
+        <div id="eventsList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+      </section>
+
+      <!-- COUNCIL ACTIVITIES -->
+      <section class="adm-section" id="sec-council-activities">
+        <div class="adm-section-header">
+          <div>
+            <div class="adm-section-title">生徒会活動</div>
+            <div class="adm-section-sub">活動内容の文章を管理</div>
+          </div>
+        </div>
+        <div class="item-card" style="padding:20px 22px">
+          <div id="councilActivitiesForm"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+        </div>
+      </section>
+
+      <!-- COUNCIL CHARTER -->
+      <section class="adm-section" id="sec-council-charter">
+        <div class="adm-section-header">
+          <div>
+            <div class="adm-section-title">知道生徒会憲章</div>
+            <div class="adm-section-sub">条文を管理</div>
+          </div>
+          <button class="btn-add" onclick="openModal('council-charter')">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            条文を追加
+          </button>
+        </div>
+        <div id="councilCharterList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+      </section>
+
+      <!-- COUNCIL RULES -->
+      <section class="adm-section" id="sec-council-rules">
+        <div class="adm-section-header">
+          <div>
+            <div class="adm-section-title">生徒会関係諸規定</div>
+            <div class="adm-section-sub">条文を管理</div>
+          </div>
+          <button class="btn-add" onclick="openModal('council-rules')">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            条文を追加
+          </button>
+        </div>
+        <div id="councilRulesList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitle">追加</span>
+      <button class="modal-close" onclick="closeModal()">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+      <button class="btn-save" id="modalSaveBtn" onclick="saveModal()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module" src="../src/admin/main.js"></script>
+</body>
+</html>
