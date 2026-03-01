@@ -6,7 +6,12 @@
 <meta name="theme-color" content="#1a2744">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="水一手帳">
 <title>デジタル生徒手帳 - 水戸第一高等学校</title>
+<link rel="manifest" href="/mito1-digital-studenthandbook/manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="/mito1-digital-studenthandbook/icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/mito1-digital-studenthandbook/icons/icon-32.png">
+<link rel="apple-touch-icon" href="/mito1-digital-studenthandbook/icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -36,7 +41,10 @@
   --header-h: 58px;
   --sidebar-w: 256px;
   --bn-h: 62px;
+  --safe-t: env(safe-area-inset-top,0px);
   --safe-b: env(safe-area-inset-bottom,0px);
+  --safe-l: env(safe-area-inset-left,0px);
+  --safe-r: env(safe-area-inset-right,0px);
 }
 [data-theme="dark"] {
   --bg: #0e0e11;
@@ -214,6 +222,16 @@ a{text-decoration:none;color:inherit}
   transition:background .3s,border-color .3s;
 }
 [data-theme="dark"] .header{background:rgba(14,14,17,.92)}
+
+/* PWA standalone: ヘッダーをDynamic Island/ノッチ分押し下げ */
+@media(display-mode:standalone){
+  .header{
+    height:calc(var(--header-h) + var(--safe-t));
+    padding-top:var(--safe-t);
+  }
+  .layout{padding-top:calc(var(--header-h) + var(--safe-t))}
+  .sidebar{top:calc(var(--header-h) + var(--safe-t))}
+}
 
 .menu-btn{
   width:36px;height:36px;border:none;background:none;
@@ -446,9 +464,9 @@ a{text-decoration:none;color:inherit}
 /* ===========================
    HOME PAGE
 =========================== */
-.home-wrap{max-width:900px;margin:0 auto;padding:32px 0 20px}
+.home-wrap{max-width:900px;margin:0 auto;padding:52px 0 20px}
 
-.home-brand{text-align:center;margin-bottom:36px}
+.home-brand{text-align:center;margin-bottom:44px}
 .home-book{
   width:100px;height:144px;margin:0 auto 22px;
   background:linear-gradient(148deg,#1e3a6e 0%,#1a2744 48%,#0c1628 100%);
@@ -482,7 +500,6 @@ a{text-decoration:none;color:inherit}
 .cat-grid{
   display:grid;
   grid-template-columns:repeat(3,1fr);
-  grid-template-rows:140px 110px 90px;
   grid-template-areas:
     "rules    events   council"
     "curric   curric   songs"
@@ -498,7 +515,8 @@ a{text-decoration:none;color:inherit}
 
 .cat-card{
   position:relative;border-radius:12px;overflow:hidden;
-  cursor:pointer;min-height:0;/* allow grid to control height */
+  cursor:pointer;
+  min-height:130px;
   transition:transform .2s,box-shadow .2s;
   box-shadow:var(--shadow-sm);
 }
@@ -528,42 +546,48 @@ a{text-decoration:none;color:inherit}
 
 .cat-card-inner{
   position:relative;z-index:1;
-  width:100%;height:100%;padding:18px 18px 16px;
-  display:flex;flex-direction:column;justify-content:space-between;
+  width:100%;height:100%;
+  padding:18px 18px 16px;
+  display:flex;flex-direction:column;
+  justify-content:space-between;
+  min-height:inherit;
+  box-sizing:border-box;
 }
 
-/* Landscape (wide) inner layout for curric & about */
+/* curric & about: 横レイアウト (デスクトップ) */
 .cat-card-curriculum .cat-card-inner,
 .cat-card-about .cat-card-inner {
-  flex-direction:row;align-items:center;gap:24px;
+  flex-direction:row;align-items:center;gap:20px;min-height:110px;
 }
 .cat-card-curriculum .cat-text,
-.cat-card-about .cat-text { flex:1; }
+.cat-card-about .cat-text { flex:1;min-width:0; }
 .cat-card-curriculum .cat-card-line,
 .cat-card-about .cat-card-line {
-  margin-bottom:0;align-self:flex-start;margin-top:2px;flex-shrink:0;
+  margin-bottom:0;align-self:flex-start;margin-top:4px;flex-shrink:0;
 }
 
 .cat-card-line{
   width:28px;height:2px;background:rgba(255,255,255,.4);border-radius:1px;
-  margin-bottom:8px;
+  margin-bottom:8px;flex-shrink:0;
 }
 .cat-card-title{
   font-family:'Noto Serif JP',serif;font-size:15px;font-weight:600;
-  color:white;line-height:1.4;
+  color:white;line-height:1.5;
+  word-break:keep-all;overflow-wrap:break-word;
 }
 .cat-card-sub{
   font-size:10.5px;color:rgba(255,255,255,.6);margin-top:4px;letter-spacing:.04em;
+  line-height:1.5;
 }
 .cat-card-arrow{
   display:flex;align-items:center;font-size:10px;
-  color:rgba(255,255,255,.5);gap:4px;margin-top:auto;
+  color:rgba(255,255,255,.5);gap:4px;margin-top:auto;flex-shrink:0;
 }
 .cat-card-curriculum .cat-card-arrow,
 .cat-card-about .cat-card-arrow { margin-top:10px; }
 .cat-card-arrow svg{
   width:12px;height:12px;stroke:rgba(255,255,255,.5);
-  fill:none;stroke-width:2;transition:transform .18s;
+  fill:none;stroke-width:2;transition:transform .18s;flex-shrink:0;
 }
 .cat-card:hover .cat-card-arrow svg{transform:translateX(3px)}
 
@@ -885,16 +909,16 @@ tr:last-child td{border-bottom:none}
 @media(max-width:860px){
   .cat-grid{
     grid-template-columns:repeat(2,1fr);
-    grid-template-rows:130px 130px 110px 90px;
     grid-template-areas:
       "rules    events"
       "council  songs"
       "curric   curric"
       "about    about";
   }
+  /* タブレット以下では横レイアウトを維持しつつ縦でも可 */
   .cat-card-curriculum .cat-card-inner,
   .cat-card-about .cat-card-inner {
-    flex-direction:row;
+    flex-direction:row;align-items:flex-start;
   }
 }
 @media(max-width:768px){
@@ -913,7 +937,6 @@ tr:last-child td{border-bottom:none}
 @media(max-width:500px){
   .cat-grid{
     grid-template-columns:1fr;
-    grid-template-rows:repeat(6,100px);
     grid-template-areas:"rules""events""council""curric""songs""about";
   }
   .cat-card-curriculum .cat-card-inner,
@@ -922,8 +945,9 @@ tr:last-child td{border-bottom:none}
   }
   .cat-card-curriculum .cat-card-line,
   .cat-card-about .cat-card-line { margin-bottom:8px; }
+  .cat-card{min-height:100px}
   .song-verses{grid-template-columns:1fr}
-  .home-wrap{padding:20px 0 10px}
+  .home-wrap{padding:36px 0 10px}
 }
 @media(display-mode:standalone){
   .sidebar{display:none!important}
@@ -1212,7 +1236,7 @@ tr:last-child td{border-bottom:none}
             <div>
               <div class="cat-card-line"></div>
               <div class="cat-card-title">諸規定・<br>校則</div>
-              <div class="cat-card-sub">条文検索・全24条</div>
+              <div class="cat-card-sub" id="rulesCardCount">条文検索</div>
             </div>
             <div class="cat-card-arrow">開く<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
           </div>
@@ -1290,7 +1314,7 @@ tr:last-child td{border-bottom:none}
           </span>
           <input type="text" class="search-page-input" id="spInput"
             placeholder="キーワードまたは自然言語で質問..."
-            oninput="runSearchPage(this.value)"
+            oninput="onSearchPageInput(this.value)"
             autocomplete="off">
         </div>
         <div class="search-toggle">
@@ -1368,7 +1392,7 @@ tr:last-child td{border-bottom:none}
     <div class="pg-header">
       <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>諸規定</span></div>
       <h1 class="pg-title">諸規定</h1>
-      <div class="pg-meta"><span>2024年度版</span><span>全24条（サンプル）</span></div>
+      <div class="pg-meta"><span id="rulesMetaCount">読み込み中...</span></div>
     </div>
     <div class="rules-wrap">
       <div class="rules-toc" id="rulesToc">
@@ -1700,14 +1724,7 @@ const SEARCH_INDEX=[
   {path:'教育課程 › 英語',title:'英語科目',snip:'英語コミュニケーションⅠ Ⅱ 単位数',page:'curriculum',tags:'英語 コミュニケーション 単位'},
 ];
 
-function doSearch(q){
-  if(!q.trim()) return [];
-  const kws=q.toLowerCase().replace(/[　\s]+/g,' ').split(' ').filter(Boolean);
-  return SEARCH_INDEX.filter(item=>{
-    const hay=(item.path+' '+item.title+' '+item.snip+' '+(item.tags||'')).toLowerCase();
-    return kws.every(k=>hay.includes(k));
-  }).slice(0,8);
-}
+// doSearch is defined below with dynamic index support
 
 function openSD(){document.getElementById('srchDD').classList.add('open')}
 function closeSD(){document.getElementById('srchDD').classList.remove('open')}
@@ -1763,6 +1780,7 @@ function goToSearchWithQuery(q){
    SEARCH PAGE
 ================================= */
 let searchMode='text';
+let _searchTimer=null;
 
 function setSearchMode(mode){
   searchMode=mode;
@@ -1770,6 +1788,41 @@ function setSearchMode(mode){
   document.getElementById('stToggleAI').classList.toggle('on',mode==='ai');
   const q=document.getElementById('spInput').value;
   if(q) runSearchPage(q);
+}
+
+function onSearchPageInput(q){
+  clearTimeout(_searchTimer);
+  if(!q.trim()){document.getElementById('spResults').innerHTML='';return;}
+  if(searchMode==='text'){
+    // 全文検索はリアルタイムでOK
+    runSearchPage(q);
+  } else {
+    // AI検索はデバウンス800ms
+    document.getElementById('spResults').innerHTML=`
+      <div style="padding:16px 0;text-align:center;color:var(--text-3);font-size:13px">
+        入力が止まったら検索します...
+      </div>`;
+    _searchTimer=setTimeout(()=>runSearchPage(q),800);
+  }
+}
+
+function doSearch(q){
+  if(!q.trim()) return [];
+  const kws=q.toLowerCase().replace(/[　\s]+/g,' ').split(' ').filter(Boolean);
+  // Dynamicインデックスとstaticインデックスをマージ
+  const idx=[...(window.DYNAMIC_SEARCH_INDEX||[]),...SEARCH_INDEX];
+  // 重複排除（pathとtitleで）
+  const seen=new Set();
+  const deduped=idx.filter(item=>{
+    const key=item.path+'|'+item.title;
+    if(seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return deduped.filter(item=>{
+    const hay=(item.path+' '+item.title+' '+item.snip+' '+(item.tags||'')).toLowerCase();
+    return kws.every(k=>hay.includes(k));
+  }).slice(0,8);
 }
 
 function runSearchPage(q){
@@ -1819,35 +1872,41 @@ function runSearchPage(q){
    本番: この関数をCloudflare Workersプロキシに差し替え
 ================================= */
 function _ep(){
-  // ※本番環境ではここをCloudflare WorkersのURLに差し替えてください
-  // return 'https://your-worker.workers.dev/api/ai';
-  const _s=[
-    'aHR0cHM6Ly9nZW5lcmF0aXZlbGFuZ3VhZ2U=',
-    'Lmdvb2dsZWFwaXMuY29tL3YxYmV0YQ==',
-    'L21vZGVscy9nZW1pbmktMi41LWZsYXNo',
-    'OmdlbmVyYXRlQ29udGVudD9rZXk9'
-  ].map(s=>atob(s)).join('');
-  // APIキーは管理者が設定（本番はWorkers側で注入）
-  const _k=sessionStorage.getItem('_hbk')||'';
-  return _s+_k;
+  // Cloudflare WorkersプロキシURL
+  return 'https://mito1-hundbook.asanuma-ryuto.workers.dev';
 }
 
 async function callGemini(q){
   const sys=`あなたは茨城県立水戸第一高等学校デジタル生徒手帳のAIアシスタントです。
 在校生の質問に対して手帳の内容に基づき、丁寧・簡潔に日本語で答えてください（200字以内目安）。
-主な内容：諸規定（第一〜第八条）、特別教育活動、生徒会憲章・活動・関係規定、
+主な内容：諸規定（校内生活・服装・登下校・欠席遅刻・公欠等）、特別教育活動、生徒会憲章・活動・関係規定、
 年間行事（4月始業式・入学式、9月水一祭・体育祭、3月卒業式等）、
 就学の目標、教育課程。`;
   try{
     const res=await fetch(_ep(),{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contents:[{parts:[{text:sys+'\n\n質問：'+q}]}]})
+      body:JSON.stringify({
+        model:'gemini-2.5-flash',
+        max_tokens:1000,
+        messages:[{role:'user',content:sys+'\n\n質問：'+q}]
+      })
     });
+    if(!res.ok){
+      const errText=await res.text();
+      console.error('Gemini API error:',res.status,errText);
+      return '回答を生成できませんでした（ステータス:'+res.status+'）';
+    }
     const d=await res.json();
-    return d.candidates?.[0]?.content?.parts?.[0]?.text||'回答を生成できませんでした。';
+    // Cloudflare Workers経由のAnthropicAPI形式
+    if(d.content?.[0]?.text) return d.content[0].text;
+    // GeminiAPI直接形式
+    if(d.candidates?.[0]?.content?.parts?.[0]?.text) return d.candidates[0].content.parts[0].text;
+    console.error('Unexpected response shape:',d);
+    return '回答を生成できませんでした。';
   }catch(e){
-    return 'AIに接続できません。\n管理者によるAPIキーの設定が必要です。Cloudflare Workers経由で接続してください。';
+    console.error('callGemini error:',e);
+    return 'AIに接続できません（'+e.message+'）';
   }
 }
 
@@ -1928,6 +1987,12 @@ function rmLoading(id){const el=document.getElementById(id);if(el)el.remove()}
 const style = document.createElement('style');
 style.textContent = '.hidden-yr{display:none}';
 document.head.appendChild(style);
+
+// Service Worker 登録
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/mito1-digital-studenthandbook/sw.js')
+    .catch(e=>console.warn('SW registration failed:',e));
+}
 </script>
 
 <script type="module">

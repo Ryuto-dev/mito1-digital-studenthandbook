@@ -177,7 +177,16 @@ function renderArticles(items, containerId, tocId) {
 
 async function loadArticles(col, containerId, tocId) {
   const items = await fetchOrdered(col)
-  if (items.length) renderArticles(items, containerId, tocId)
+  if (items.length) {
+    renderArticles(items, containerId, tocId)
+    // 諸規定の条数を動的更新
+    if (col === 'rules') {
+      const metaEl = document.getElementById('rulesMetaCount')
+      const cardEl = document.getElementById('rulesCardCount')
+      if (metaEl) metaEl.textContent = `全${items.length}条`
+      if (cardEl) cardEl.textContent = `条文検索・全${items.length}条`
+    }
+  }
 }
 
 // =============================================
