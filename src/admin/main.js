@@ -76,7 +76,7 @@ onAuthStateChanged(auth, user => {
     document.getElementById('loginScreen').classList.add('hide')
     document.getElementById('appShell').classList.add('show')
     document.getElementById('headerUser').textContent = user.email
-    loadSection('dashboard')
+    loadSection('dashboard').catch(e => console.error('loadSection error:', e))
   } else {
     document.getElementById('loginScreen').classList.remove('hide')
     document.getElementById('appShell').classList.remove('show')
@@ -173,27 +173,39 @@ function emptyState(msg = 'まだデータがありません') {
 // =============================================
 async function loadDashboard() {
   const grid = document.getElementById('dashGrid')
+  if (!grid) { console.error('dashGrid not found'); return }
+
   const sections = [
-    { col: 'rules',           label: '諸規定（本則）',     sec: 'rules' },
-    { col: 'special',         label: '特別教育活動',       sec: 'special' },
-    { col: 'events',          label: '年間主要行事',       sec: 'events' },
-    { col: 'history',         label: '本校の沿革',         sec: 'history' },
-    { col: 'principals',      label: '歴代校長',           sec: 'principals' },
-    { col: 'songs',           label: '歌詞',               sec: 'songs' },
-    { col: 'curriculum',      label: '教育課程',           sec: 'curriculum' },
-    { col: 'council-charter', label: '知道生徒会憲章',     sec: 'council-charter' },
-    { col: 'council-rules',   label: '生徒会関係諸規定',   sec: 'council-rules' },
+    { col: 'rules',           label: '諸規定（本則）',   sec: 'rules' },
+    { col: 'special',         label: '特別教育活動',     sec: 'special' },
+    { col: 'events',          label: '年間主要行事',     sec: 'events' },
+    { col: 'history',         label: '本校の沿革',       sec: 'history' },
+    { col: 'principals',      label: '歴代校長',         sec: 'principals' },
+    { col: 'songs',           label: '歌詞',             sec: 'songs' },
+    { col: 'curriculum',      label: '教育課程',         sec: 'curriculum' },
+    { col: 'council-charter', label: '知道生徒会憲章',   sec: 'council-charter' },
+    { col: 'council-rules',   label: '生徒会関係諸規定', sec: 'council-rules' },
   ]
-  const counts = await Promise.all(
-    sections.map(s => getDocs(collection(db, s.col)).then(sn => sn.size).catch(() => 0))
-  )
-  grid.innerHTML = sections.map((s, i) => `
-    <div class="dash-card">
-      <div class="dash-card-num">${counts[i]}</div>
-      <div class="dash-card-label">${s.label}</div>
-      <span class="dash-card-link" data-nav="${s.sec}">管理する →</span>
-    </div>
-  `).join('')
+
+  try {
+    const counts = await Promise.all(
+      sections.map(s =>
+        getDocs(collection(db, s.col))
+          .then(sn => sn.size)
+          .catch(e => { console.warn(s.col, e.message); return 0 })
+      )
+    )
+    grid.innerHTML = sections.map((s, i) => `
+      <div class="dash-card">
+        <div class="dash-card-num">${counts[i]}</div>
+        <div class="dash-card-label">${s.label}</div>
+        <span class="dash-card-link" data-nav="${s.sec}">管理する →</span>
+      </div>
+    `).join('')
+  } catch (e) {
+    console.error('loadDashboard error:', e)
+    grid.innerHTML = `<div style="padding:20px;color:red">エラー: ${e.message}</div>`
+  }
 }
 
 // =============================================
