@@ -1950,16 +1950,15 @@ async function submitContact(){
   const catLabels = {bug:'バグ・不具合',feature:'機能要望',content:'内容修正依頼',other:'その他'};
 
   try {
-    // Firestoreに保存
-    const { collection: col, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
-    const { db } = await import('/src/firebase.js');
-    await addDoc(col(db, 'inquiries'), {
+    // モジュールスクリプトから公開されたFirestoreヘルパーを使用
+    if(!window._db){ throw new Error('Firestoreが初期化されていません。ページを再読み込みしてから試してください。'); }
+    await window._fsAddDoc(window._fsCollection(window._db, 'inquiries'), {
       name, email,
       category: cat,
       categoryLabel: catLabels[cat] || cat,
       subject, body,
       status: 'new',
-      createdAt: serverTimestamp()
+      createdAt: window._fsServerTimestamp()
     });
     document.getElementById('contactFormWrap').style.display = 'none';
     document.getElementById('contactDone').style.display = 'block';
@@ -2067,10 +2066,19 @@ if('serviceWorker' in navigator){
 }
 </script>
 
-<!-- Firestoreデータ読み込み -->
+<!-- Firestoreデータ読み込み＋グローバルDB公開 -->
 <script type="module">
 import { loadAllData } from '/src/main.js'
+import { db } from '/src/firebase.js'
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
+
 loadAllData().catch(e => console.error('[Firestore]', e))
+
+// 通常スクリプトからFirestoreを使えるようにグローバル公開
+window._db = db
+window._fsAddDoc       = addDoc
+window._fsCollection   = collection
+window._fsServerTimestamp = serverTimestamp
 </script>
 </body>
 </html>
