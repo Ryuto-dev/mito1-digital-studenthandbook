@@ -447,16 +447,14 @@ a{text-decoration:none;color:inherit}
 /* ===========================
    PWA (standalone) safe-area
    Dynamic Island / ノッチ対応
-   ※ 全レイアウト定義の後に置く
+   JSで .pwa-mode クラスを html に付与して制御
 =========================== */
-@media(display-mode:standalone){
-  .header{
-    height:calc(var(--header-h) + var(--safe-t));
-    padding-top:var(--safe-t);
-  }
-  .layout{padding-top:calc(var(--header-h) + var(--safe-t))!important}
-  .sidebar{top:calc(var(--header-h) + var(--safe-t))}
+.pwa-mode .header{
+  height:calc(var(--header-h) + var(--safe-t));
+  padding-top:var(--safe-t);
 }
+.pwa-mode .layout{padding-top:calc(var(--header-h) + var(--safe-t))!important}
+.pwa-mode .sidebar{top:calc(var(--header-h) + var(--safe-t))}
 
 .pg-header{margin-bottom:24px;padding-bottom:18px;border-bottom:1.5px solid var(--border)}
 .breadcrumb{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--text-3);margin-bottom:8px}
@@ -931,13 +929,16 @@ tr:last-child td{border-bottom:none}
   .sidebar.open{transform:translateX(0)}
   .sidebar-overlay.open{display:block}
   .menu-btn{display:flex}
-  .main{margin-left:0;padding:20px 16px 100px}
+  .main{margin-left:0;padding:24px 16px 100px}
   .rules-wrap{grid-template-columns:1fr}
   .rules-toc{position:static;max-height:none;display:none}
   .brand-names{display:none}
   .search-wrap{max-width:100%}
   .bottom-nav{display:block}
   .ai-float{bottom:calc(var(--bn-h) + var(--safe-b) + 10px)}
+  /* ヘッダーの下にコンテンツが隠れないよう明示的に余白確保 */
+  .pg-header{scroll-margin-top:calc(var(--header-h) + 16px)}
+  .home-wrap{padding-top:32px}
 }
 @media(max-width:500px){
   .cat-grid{
@@ -961,6 +962,11 @@ tr:last-child td{border-bottom:none}
   .bottom-nav{display:block!important}
   .ai-float{bottom:calc(var(--bn-h) + var(--safe-b) + 10px)!important}
 }
+/* PWA: レイアウトがsafe-t分余分に下がるので、home-wrapは追加パディング不要 */
+.pwa-mode .home-wrap{padding-top:20px}
+.pwa-mode .menu-btn{display:none!important}
+.pwa-mode .bottom-nav{display:block!important}
+.pwa-mode .ai-float{bottom:calc(var(--bn-h) + var(--safe-b) + 10px)!important}
 </style>
 </head>
 <body>
@@ -1025,23 +1031,7 @@ tr:last-child td{border-bottom:none}
       </button>
     </div>
     <div class="search-dd" id="srchDD">
-      <div class="sd-results" id="sdResults">
-        <div class="sd-item" onclick="nav('rules');closeSD()">
-          <div class="sd-path">諸規定 › 第三条</div>
-          <div class="sd-title">校内生活の基本</div>
-          <div class="sd-snip">生徒は学校の定める規則に従い...</div>
-        </div>
-        <div class="sd-item" onclick="nav('rules');closeSD()">
-          <div class="sd-path">諸規定 › 第七条</div>
-          <div class="sd-title">公欠の取扱い</div>
-          <div class="sd-snip">次に掲げる事由は公欠として取り扱う...</div>
-        </div>
-        <div class="sd-item" onclick="nav('events');closeSD()">
-          <div class="sd-path">年間主要行事</div>
-          <div class="sd-title">9月 — 水一祭・体育祭</div>
-          <div class="sd-snip">文化祭および体育祭が行われる...</div>
-        </div>
-      </div>
+      <div class="sd-results" id="sdResults"></div>
     </div>
   </div>
 
@@ -1654,16 +1644,13 @@ document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap')&&!e.t
 
 function onHeaderSearch(q){
   openSD();
-  const results=doSearch(q);
   const box=document.getElementById('sdResults');
   if(!q.trim()){
-    box.innerHTML=`
-      <div class="sd-item" onclick="nav('rules');closeSD()"><div class="sd-path">諸規定 › 第三条</div><div class="sd-title">校内生活の基本</div><div class="sd-snip">生徒は学校の定める規則に従い...</div></div>
-      <div class="sd-item" onclick="nav('rules');closeSD()"><div class="sd-path">諸規定 › 第七条</div><div class="sd-title">公欠の取扱い</div><div class="sd-snip">次に掲げる事由は公欠として取り扱う...</div></div>
-      <div class="sd-item" onclick="nav('events');closeSD()"><div class="sd-path">年間主要行事</div><div class="sd-title">9月 — 水一祭・体育祭</div><div class="sd-snip">文化祭および体育祭が行われる...</div></div>`;
+    // 空欄時は何も表示しない（サンプルデータ除去）
+    box.innerHTML='';
     return;
   }
-  if(results.length>0){
+  const results=doSearch(q);
     box.innerHTML=results.slice(0,5).map(r=>`
       <div class="sd-item" onclick="nav('${r.page}');${r.id?`scrollArt('${r.id}');`:''}closeSD()">
         <div class="sd-path">${r.path}</div>
@@ -1790,58 +1777,56 @@ function runSearchPage(q){
 }
 
 /* =================================
-   GEMINI AI 検索
-   WorkersのURLを下記に設定してください
+   AI 検索（Gemini API経由）
 ================================= */
 const AI_WORKERS_URL = 'https://mito1-hundbook.asanuma.ryuto.workers.dev';
 
-function _ep(){
-  return AI_WORKERS_URL || '';
-}
-
 async function callGemini(q){
-  if(!_ep()){
-    return 'AI検索を使用するにはCloudflare WorkersのURLの設定が必要です。\n管理者にお問い合わせください。';
-  }
   const sys=`あなたは茨城県立水戸第一高等学校デジタル生徒手帳のAIアシスタントです。
 在校生の質問に対して手帳の内容に基づき、丁寧・簡潔に日本語で答えてください（200字以内目安）。
 主な内容：諸規定（校内生活・服装・登下校・欠席遅刻・公欠等）、特別教育活動、生徒会憲章・活動・関係規定、
 年間行事（4月始業式・入学式、9月水一祭・体育祭、3月卒業式等）、就学の目標、教育課程。`;
   try{
-    const res=await fetch(_ep(),{
+    const res=await fetch(AI_WORKERS_URL,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
+      // Gemini API形式で送信
       body:JSON.stringify({
-        system:sys,
-        prompt:q
+        contents:[{parts:[{text:sys+'\n\n質問：'+q}]}]
       })
     });
     const text=await res.text();
     if(!res.ok){
-      console.error('AI Workers error:',res.status,text);
-      return `AIサーバーからエラーが返されました（${res.status}）。\nサーバーログを確認してください。`;
+      console.error('[AI] HTTP',res.status,text);
+      return `AIサーバーエラー（${res.status}）`;
+    }
+    if(!text.trim().startsWith('{')){
+      return text.trim()||'回答を生成できませんでした。';
     }
     let d;
-    try{ d=JSON.parse(text); }catch(e){
-      // レスポンスがそのままテキストの場合
-      return text||'回答を生成できませんでした。';
-    }
-    // Anthropic Claude API 形式
-    if(d.content?.[0]?.text) return d.content[0].text;
-    // シンプルなtext返却形式
+    try{ d=JSON.parse(text); }catch(e){ return text; }
+
+    // Gemini API形式
+    if(d.candidates?.[0]?.content?.parts?.[0]?.text)
+      return d.candidates[0].content.parts[0].text;
+    // Anthropic形式（WorkersがClaude経由の場合）
+    if(Array.isArray(d.content)&&d.content[0]?.text)
+      return d.content[0].text;
+    // シンプル形式
     if(typeof d.text==='string') return d.text;
     if(typeof d.result==='string') return d.result;
-    if(typeof d.answer==='string') return d.answer;
-    // エラー形式
+    if(typeof d.response==='string') return d.response;
+    // エラー
     if(d.error){
-      console.error('AI response error:',d.error);
-      return `エラー: ${typeof d.error==='string'?d.error:JSON.stringify(d.error)}`;
+      const msg=typeof d.error==='string'?d.error:(d.error.message||JSON.stringify(d.error));
+      console.error('[AI] error:',d.error);
+      return `AIエラー: ${msg.slice(0,150)}`;
     }
-    console.error('Unexpected response shape:',d);
-    return '回答を生成できませんでした（予期しないレスポンス形式）。';
+    console.error('[AI] Unknown shape keys:',Object.keys(d),'body:',JSON.stringify(d).slice(0,300));
+    return '回答を生成できませんでした。（コンソールの[AI]ログを確認）';
   }catch(e){
-    console.error('callGemini fetch error:',e);
-    return `AIに接続できません（${e.message}）`;
+    console.error('[AI] fetch error:',e);
+    return `AIに接続できません: ${e.message}`;
   }
 }
 
@@ -1909,6 +1894,8 @@ function rmLoading(id){const el=document.getElementById(id);if(el)el.remove()}
 (function(){
   const sa=window.matchMedia('(display-mode:standalone)').matches||navigator.standalone===true;
   if(sa){
+    // クラスをhtmlに付与 → CSSで一元管理
+    document.documentElement.classList.add('pwa-mode');
     document.querySelector('.bottom-nav').style.display='block';
     const sb=document.querySelector('.sidebar');
     if(sb)sb.style.display='none';
@@ -1930,15 +1917,7 @@ if('serviceWorker' in navigator){
 }
 </script>
 
-<script type="module">
-import { loadAllData } from '/src/main.js'
-
-loadAllData().then(() => {
-  // 動的検索インデックスをメインの検索に統合
-  if (window.DYNAMIC_SEARCH_INDEX && window.DYNAMIC_SEARCH_INDEX.length) {
-    window.SEARCH_INDEX = [...window.DYNAMIC_SEARCH_INDEX, ...(window.SEARCH_INDEX || [])]
-  }
-}).catch(e => console.error('Firestore load error:', e))
-</script>
+<!-- Viteがバンドルするモジュールエントリ -->
+<script type="module" src="/src/main.js"></script>
 </body>
 </html>
