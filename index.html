@@ -1917,7 +1917,10 @@ if('serviceWorker' in navigator){
 }
 </script>
 
-<!-- Viteがバンドルするモジュールエントリ -->
-<script type="module" src="/src/main.js"></script>
+<!-- Firestoreデータ読み込み -->
+<script type="module">
+import { loadAllData } from '/src/main.js'
+loadAllData().catch(e => console.error('[Firestore]', e))
+</script>
 </body>
 </html>

@@ -405,7 +405,7 @@ async function buildSearchIndex() {
 }
 
 // =============================================
-// 全データ一括ロード（自己実行）
+// 全データ一括ロード
 // =============================================
 export async function loadAllData() {
   await Promise.all([
@@ -422,11 +422,4 @@ export async function loadAllData() {
     loadArticles('council-rules',   'councilRulesContentFront', 'councilRulesTocFront'),
     buildSearchIndex(),
   ])
-}
-
-// DOMが準備でき次第自動実行
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => loadAllData().catch(console.error))
-} else {
-  loadAllData().catch(console.error)
 }
