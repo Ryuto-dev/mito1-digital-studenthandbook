@@ -1654,14 +1654,14 @@ window.addEventListener('load',()=>{
 ================================= */
 const PAGES=['home','search','about','principals','goals','songs',
   'rules','special','curriculum','events',
-  'council-activities','council-charter','council-rules','coming'];
+  'council-activities','council-charter','council-rules','contact','coming'];
 const BN_MAP={
   home:'home',search:'search',
   about:'',principals:'',goals:'',songs:'',
   rules:'rules',special:'rules',
   curriculum:'',events:'events',
   'council-activities':'','council-charter':'','council-rules':'',
-  coming:''
+  contact:'',coming:''
 };
 
 function nav(page){
@@ -1871,67 +1871,57 @@ function runSearchPage(q){
 /* =================================
    AI 検索（Gemini API経由）
    
-   【現在のプロンプト構成】
-   1. システム指示（役割・回答形式・内容範囲）
-   2. キャッシュされた実データのサマリー（Firestore読込後に自動更新）
-   3. ユーザーの質問
-   
-   【最適化方針】
-   - 全条文を毎回送らず、検索でヒットした上位3件の本文のみ付加
-   - データは window._aiContext に1回だけキャッシュ
+   【プロンプト構成】
+   1. システム指示（役割・回答形式）
+   2. 全条文タイトル一覧（_aiContext: ページ読み込み時に1回キャッシュ）
+   3. 質問にヒットした条文の本文（doSearchで上位5件 → snipを付加）
+   4. ユーザーの質問
+   ※ 毎回全文を送らず、ヒット分のみ付加してAPIコストを最小化
 ================================= */
 const AI_WORKERS_URL = 'https://mito1-hundbook.asanuma-ryuto.workers.dev';
-
-// Firestoreデータから生成したAIコンテキスト（main.jsが設定）
 window._aiContext = '';
 
 async function callGemini(q){
-  // 全文検索の上位ヒットを取得して文脈として付加
-  const hits = doSearch(q).slice(0,3).map(r => `【${r.path}】${r.snip}`).join('\n');
+  // 検索ヒットした条文の本文を取得（最大5件）
+  const hits = doSearch(q).slice(0,5)
+    .map(r=>`■${r.path}「${r.title}」\n${r.snip}`)
+    .join('\n\n');
 
-  const sys = `あなたは茨城県立水戸第一高等学校デジタル生徒手帳のAIアシスタントです。
-在校生の質問に対して手帳の内容に基づき、丁寧・簡潔に日本語で答えてください（200字以内目安）。
-回答できない場合は「手帳に該当する情報が見つかりません」と答えてください。
+  const prompt =
+`あなたは茨城県立水戸第一高等学校デジタル生徒手帳のAIアシスタントです。
+以下の手帳データをもとに、在校生の質問に丁寧・簡潔な日本語で答えてください（200字以内目安）。
+データにない内容は「手帳に記載がないため確認できません」と答えてください。
 
-【手帳の実データ（抜粋）】
-${window._aiContext || '（データ読み込み中）'}
+【手帳の目次（全セクション）】
+${window._aiContext || '（読み込み中）'}
 
-【検索ヒット（質問に関連する条文）】
-${hits || '（該当なし）'}`;
+【質問に関連する条文・データ】
+${hits || '（該当条文なし）'}
+
+【質問】
+${q}`;
 
   try{
-    const res=await fetch(AI_WORKERS_URL,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        contents:[{parts:[{text:sys+'\n\n質問：'+q}]}]
-      })
+    const res = await fetch(AI_WORKERS_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ contents:[{ parts:[{ text: prompt }] }] })
     });
-    const text=await res.text();
-    if(!res.ok){
-      console.error('[AI] HTTP',res.status,text);
-      return `AIサーバーエラー（${res.status}）`;
-    }
-    if(!text.trim().startsWith('{')){
-      return text.trim()||'回答を生成できませんでした。';
-    }
-    let d;
-    try{ d=JSON.parse(text); }catch(e){ return text; }
-
-    if(d.candidates?.[0]?.content?.parts?.[0]?.text)
-      return d.candidates[0].content.parts[0].text;
-    if(Array.isArray(d.content)&&d.content[0]?.text)
-      return d.content[0].text;
+    const text = await res.text();
+    if(!res.ok){ console.error('[AI] HTTP',res.status,text); return `AIサーバーエラー（${res.status}）`; }
+    if(!text.trim().startsWith('{')) return text.trim() || '回答を生成できませんでした。';
+    let d; try{ d=JSON.parse(text); }catch(e){ return text; }
+    if(d.candidates?.[0]?.content?.parts?.[0]?.text) return d.candidates[0].content.parts[0].text;
+    if(Array.isArray(d.content)&&d.content[0]?.text) return d.content[0].text;
     if(typeof d.text==='string') return d.text;
     if(typeof d.result==='string') return d.result;
-    if(typeof d.response==='string') return d.response;
     if(d.error){
-      const msg=typeof d.error==='string'?d.error:(d.error.message||JSON.stringify(d.error));
+      const msg = typeof d.error==='string'?d.error:(d.error.message||JSON.stringify(d.error));
       console.error('[AI] error:',d.error);
       return `AIエラー: ${msg.slice(0,150)}`;
     }
-    console.error('[AI] Unknown shape keys:',Object.keys(d),'body:',JSON.stringify(d).slice(0,300));
-    return '回答を生成できませんでした。（コンソールの[AI]ログを確認）';
+    console.error('[AI] Unknown shape:',JSON.stringify(d).slice(0,300));
+    return '回答を生成できませんでした。';
   }catch(e){
     console.error('[AI] fetch error:',e);
     return `AIに接続できません: ${e.message}`;

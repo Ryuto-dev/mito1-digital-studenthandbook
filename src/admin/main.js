@@ -427,23 +427,24 @@ async function loadCouncilActivitiesForm() {
   const el = document.getElementById('councilActivitiesForm')
   const snap = await getDoc(doc(db, 'content', 'council-activities')).catch(() => null)
   const data = snap?.data() || {}
+  // overview と committees を1つのフィールドに統合して表示
+  const merged = [data.overview, data.committees].filter(Boolean).join('\n\n')
   el.innerHTML = `
     <div class="form-row">
-      <label>生徒会概要（本文）</label>
-      <textarea id="caOverview" rows="5">${data.overview || ''}</textarea>
-    </div>
-    <div class="form-row">
-      <label>各委員会の活動（本文）</label>
-      <textarea id="caCommittees" rows="5">${data.committees || ''}</textarea>
+      <label>生徒会活動の内容（本文）</label>
+      <div style="font-size:11px;color:var(--text-3);margin-bottom:6px">
+        1枠でまとめて入力してください。段落は空行で区切られます。
+      </div>
+      <textarea id="caContent" rows="12" style="width:100%;font-size:13px">${merged}</textarea>
     </div>
     <button class="btn-save" style="margin-top:8px" data-save-action="council-activities">保存</button>
   `
 }
 
 async function saveCouncilActivities() {
-  const overview    = document.getElementById('caOverview').value.trim()
-  const committees  = document.getElementById('caCommittees').value.trim()
-  await setDoc(doc(db, 'content', 'council-activities'), { overview, committees })
+  const content = document.getElementById('caContent').value.trim()
+  // 後方互換のため overview に保存、committees は空にする
+  await setDoc(doc(db, 'content', 'council-activities'), { overview: content, committees: '' })
   showToast('生徒会活動を保存しました')
 }
 

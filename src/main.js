@@ -328,21 +328,18 @@ window.switchCurriculumYear = (year, btn) => {
 // =============================================
 async function loadCouncilActivities() {
   const data = await fetchDoc('content', 'council-activities')
-  if (!data) return
-
   const el = document.getElementById('councilActivitiesFront')
   if (!el) return
 
-  const parts = []
-  if (data.overview) {
-    parts.push(`<h3 style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:10px">生徒会の概要</h3>`)
-    parts.push(...data.overview.split('\n').filter(Boolean).map(l => `<p>${l}</p>`))
+  // overview を1枠で表示（committees は legacy フィールド）
+  const text = [data?.overview, data?.committees].filter(Boolean).join('\n\n')
+  if (!text) {
+    el.innerHTML = '<p style="color:var(--text-3)">データがありません</p>'
+    return
   }
-  if (data.committees) {
-    parts.push(`<h3 style="font-size:15px;font-weight:600;color:var(--text);margin:20px 0 10px">各委員会の活動</h3>`)
-    parts.push(...data.committees.split('\n').filter(Boolean).map(l => `<p>${l}</p>`))
-  }
-  el.innerHTML = parts.join('') || '<p style="color:var(--text-3)">データがありません</p>'
+  el.innerHTML = text.split('\n').filter(l => l !== undefined).map(line =>
+    line.trim() === '' ? '<br>' : `<p>${line}</p>`
+  ).join('')
 }
 
 // =============================================
@@ -460,9 +457,8 @@ export async function loadAllData() {
 
 // =============================================
 // AIコンテキスト生成
-// 全条文を毎回渡すとAPI消費が多くなるため、
-// 条文のタイトル一覧と行事リストのみキャッシュし、
-// 質問時にdoSearch()でヒットした上位3件の本文を付加する
+// タイトル+本文冒頭をセクションごとにキャッシュ
+// 質問時にdoSearch()のヒット条文本文を追加付加
 // =============================================
 function buildAIContext() {
   if (!window.DYNAMIC_SEARCH_INDEX || !window.DYNAMIC_SEARCH_INDEX.length) return
@@ -472,16 +468,16 @@ function buildAIContext() {
   idx.forEach(item => {
     const section = item.path.split(' › ')[0]
     if (!bySection[section]) bySection[section] = []
-    bySection[section].push(item.title || item.snip?.slice(0,30))
+    // タイトルと本文冒頭50文字をペアで保持
+    const title = item.title || ''
+    const snip  = (item.snip || '').slice(0, 50)
+    bySection[section].push(snip ? `${title}（${snip}）` : title)
   })
 
-  const lines = Object.entries(bySection).map(([sec, titles]) => {
-    // 重複排除 & 最大8件
-    const uniq = [...new Set(titles)].slice(0, 8)
-    return `▼${sec}：${uniq.join('、')}`
-  })
-
-  window._aiContext = lines.join('\n')
+  window._aiContext = Object.entries(bySection).map(([sec, entries]) => {
+    const uniq = [...new Set(entries)].slice(0, 12)
+    return `▼${sec}\n${uniq.map(e=>`  ・${e}`).join('\n')}`
+  }).join('\n\n')
 }
 
 // =============================================
