@@ -1,48 +1,77 @@
-const CACHE = 'mito1-handbook-v1';
+// ================================================
+// Service Worker - mito1 Digital Handbook
+// 戦略:
+//   index.html      → ネットワーク優先（Viteのハッシュ変更に追従）
+//   /assets/* (JS/CSS) → キャッシュ優先（ハッシュ付きで不変）
+//   その他          → ネットワーク優先
+// ================================================
+const CACHE = 'mito1-v2';
 const BASE  = '/mito1-digital-studenthandbook';
 
-const PRECACHE = [
-  BASE + '/',
-  BASE + '/index.html',
-];
-
-self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(PRECACHE)).then(() => self.skipWaiting())
-  );
-});
+self.addEventListener('install', () => self.skipWaiting());
 
 self.addEventListener('activate', e => {
+  // 古いバージョンのキャッシュをすべて削除
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', e => {
-  // Firebase・AI APIはキャッシュしない
-  if (e.request.url.includes('firestore') ||
-      e.request.url.includes('firebase') ||
-      e.request.url.includes('workers.dev') ||
-      e.request.method !== 'GET') {
+  const url = e.request.url;
+
+  // GETのみ対象
+  if (e.request.method !== 'GET') return;
+
+  // Firebase / Workers API はSWをバイパス
+  if (url.includes('firestore.googleapis') ||
+      url.includes('firebase') ||
+      url.includes('workers.dev') ||
+      url.includes('googleapis.com')) {
     return;
   }
 
+  // /assets/ 配下のハッシュ付きファイル → キャッシュ優先
+  // (ハッシュが変われば別URLなので古い版が返ることはない)
+  if (url.includes('/assets/')) {
+    e.respondWith(
+      caches.open(CACHE).then(cache =>
+        cache.match(e.request).then(cached => {
+          if (cached) return cached;
+          return fetch(e.request).then(res => {
+            if (res.ok) cache.put(e.request, res.clone());
+            return res;
+          });
+        })
+      )
+    );
+    return;
+  }
+
+  // index.html → ネットワーク優先（必ず最新を取得してキャッシュ更新）
+  if (url.endsWith('.html') || url.endsWith('/') || url === BASE || url === BASE + '/') {
+    e.respondWith(
+      fetch(e.request)
+        .then(res => {
+          if (res.ok) {
+            caches.open(CACHE).then(cache => cache.put(e.request, res.clone()));
+          }
+          return res;
+        })
+        .catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  // その他 → ネットワーク優先、失敗時キャッシュ
   e.respondWith(
-    caches.match(e.request).then(cached => {
-      if (cached) return cached;
-      return fetch(e.request).then(res => {
-        // HTMLとJSのみキャッシュ
-        if (res.ok && (
-          e.request.url.includes(BASE) &&
-          (e.request.url.endsWith('.js') || e.request.url.endsWith('.html') || e.request.url.endsWith('.css'))
-        )) {
-          const clone = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clone));
-        }
+    fetch(e.request)
+      .then(res => {
+        if (res.ok) caches.open(CACHE).then(cache => cache.put(e.request, res.clone()));
         return res;
-      }).catch(() => caches.match(BASE + '/'));
-    })
+      })
+      .catch(() => caches.match(e.request))
   );
 });

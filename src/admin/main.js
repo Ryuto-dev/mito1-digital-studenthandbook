@@ -845,6 +845,10 @@ window.loadInquiries = async function() {
               style="font-size:11px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text)">
               ${Object.entries(STATUS_LABELS).map(([k,v])=>`<option value="${k}"${item.status===k?' selected':''}>${v}</option>`).join('')}
             </select>
+            <button onclick="deleteInquiry('${item.id}')"
+              style="font-size:11px;padding:6px 12px;border:1px solid #e74c3c;border-radius:6px;background:transparent;cursor:pointer;color:#e74c3c;margin-top:4px">
+              削除
+            </button>
           </div>
         </div>
       </div>
@@ -893,5 +897,12 @@ window.saveReply = async function(id) {
 window.changeStatus = async function(id, status) {
   await updateDoc(doc(db, 'inquiries', id), { status })
   showToast('ステータスを変更しました')
+  loadInquiries()
+}
+
+window.deleteInquiry = async function(id) {
+  if (!confirm('このお問い合わせを削除しますか？\nこの操作は取り消せません。')) return
+  await deleteDoc(doc(db, 'inquiries', id))
+  showToast('削除しました')
   loadInquiries()
 }
