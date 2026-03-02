@@ -177,15 +177,41 @@ function renderArticles(items, containerId, tocId) {
 
 async function loadArticles(col, containerId, tocId) {
   const items = await fetchOrdered(col)
-  if (items.length) {
-    renderArticles(items, containerId, tocId)
-    // 諸規定の条数を動的更新
-    if (col === 'rules') {
-      const metaEl = document.getElementById('rulesMetaCount')
-      const cardEl = document.getElementById('rulesCardCount')
-      if (metaEl) metaEl.textContent = `全${items.length}条`
-      if (cardEl) cardEl.textContent = `条文検索・全${items.length}条`
-    }
+  if (!items.length) return
+  renderArticles(items, containerId, tocId)
+
+  const label = `全${items.length}条`
+
+  // サイドバーバッジ
+  const badgeIds = {
+    'rules':          'sbBadgeRules',
+    'special':        'sbBadgeSpecial',
+    'council-charter':'sbBadgeCharter',
+    'council-rules':  'sbBadgeCouncilRules',
+  }
+  const bid = badgeIds[col]
+  if (bid) {
+    const el = document.getElementById(bid)
+    if (el) { el.textContent = label; el.style.display = '' }
+  }
+
+  // ページのpg-meta
+  const metaIds = {
+    'rules':          'rulesMetaCount',
+    'special':        'specialMetaCount',
+    'council-charter':'charterMetaCount',
+    'council-rules':  'councilRulesMetaCount',
+  }
+  const mid = metaIds[col]
+  if (mid) {
+    const el = document.getElementById(mid)
+    if (el) el.textContent = label
+  }
+
+  // ホームカード（rulesのみ）
+  if (col === 'rules') {
+    const ce = document.getElementById('rulesCardCount')
+    if (ce) ce.textContent = `条文検索・${label}`
   }
 }
 
@@ -298,23 +324,25 @@ window.switchCurriculumYear = (year, btn) => {
 }
 
 // =============================================
-// 生徒会活動
+// 生徒会活動（1枠統合）
 // =============================================
 async function loadCouncilActivities() {
   const data = await fetchDoc('content', 'council-activities')
   if (!data) return
 
-  const overviewEl    = document.getElementById('councilOverviewFront')
-  const committeesEl  = document.getElementById('councilCommitteesFront')
+  const el = document.getElementById('councilActivitiesFront')
+  if (!el) return
 
-  if (overviewEl && data.overview) {
-    overviewEl.innerHTML = data.overview
-      .split('\n').filter(Boolean).map(l => `<p>${l}</p>`).join('')
+  const parts = []
+  if (data.overview) {
+    parts.push(`<h3 style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:10px">生徒会の概要</h3>`)
+    parts.push(...data.overview.split('\n').filter(Boolean).map(l => `<p>${l}</p>`))
   }
-  if (committeesEl && data.committees) {
-    committeesEl.innerHTML = data.committees
-      .split('\n').filter(Boolean).map(l => `<p>${l}</p>`).join('')
+  if (data.committees) {
+    parts.push(`<h3 style="font-size:15px;font-weight:600;color:var(--text);margin:20px 0 10px">各委員会の活動</h3>`)
+    parts.push(...data.committees.split('\n').filter(Boolean).map(l => `<p>${l}</p>`))
   }
+  el.innerHTML = parts.join('') || '<p style="color:var(--text-3)">データがありません</p>'
 }
 
 // =============================================
@@ -396,12 +424,16 @@ async function buildSearchIndex() {
     })
   })
 
-  // グローバルの検索インデックスを動的データで上書き
-  if (window._handbookSearchReady) {
-    window.DYNAMIC_SEARCH_INDEX = index
-  } else {
-    window.DYNAMIC_SEARCH_INDEX = index
-  }
+  // グローバルの検索インデックスを動的データで更新
+  window.DYNAMIC_SEARCH_INDEX = index
+
+  // AIコンテキスト：条文の要約を compact にキャッシュ（全文はAPIコール時に検索ヒット分のみ付加）
+  const ctxLines = []
+  rules.forEach(r    => ctxLines.push(`[諸規定 ${r.number}]${r.title}：${(r.body||'').slice(0,80)}`))
+  special.forEach(r  => ctxLines.push(`[特別活動 ${r.number}]${r.title}：${(r.body||'').slice(0,60)}`))
+  charter.forEach(r  => ctxLines.push(`[憲章 ${r.number}]${r.title}：${(r.body||'').slice(0,60)}`))
+  councilRules.forEach(r => ctxLines.push(`[会規定 ${r.number}]${r.title}：${(r.body||'').slice(0,60)}`))
+  window._aiContext = ctxLines.join('\n')
 }
 
 // =============================================
@@ -422,4 +454,49 @@ export async function loadAllData() {
     loadArticles('council-rules',   'councilRulesContentFront', 'councilRulesTocFront'),
     buildSearchIndex(),
   ])
+  // AIコンテキスト生成（Firestoreデータの圧縮サマリー）
+  buildAIContext()
+}
+
+// =============================================
+// AIコンテキスト生成
+// 全条文を毎回渡すとAPI消費が多くなるため、
+// 条文のタイトル一覧と行事リストのみキャッシュし、
+// 質問時にdoSearch()でヒットした上位3件の本文を付加する
+// =============================================
+function buildAIContext() {
+  if (!window.DYNAMIC_SEARCH_INDEX || !window.DYNAMIC_SEARCH_INDEX.length) return
+
+  const idx = window.DYNAMIC_SEARCH_INDEX
+  const bySection = {}
+  idx.forEach(item => {
+    const section = item.path.split(' › ')[0]
+    if (!bySection[section]) bySection[section] = []
+    bySection[section].push(item.title || item.snip?.slice(0,30))
+  })
+
+  const lines = Object.entries(bySection).map(([sec, titles]) => {
+    // 重複排除 & 最大8件
+    const uniq = [...new Set(titles)].slice(0, 8)
+    return `▼${sec}：${uniq.join('、')}`
+  })
+
+  window._aiContext = lines.join('\n')
+}
+
+// =============================================
+// お問い合わせ送信（Firestoreへ保存）
+// =============================================
+export async function submitContactToFirestore(data) {
+  const { addDoc, serverTimestamp } = await import('firebase/firestore')
+  await addDoc(collection(db, 'contacts'), {
+    name:     data.name     || '',
+    email:    data.email    || '',
+    category: data.category || 'other',
+    subject:  data.subject  || '',
+    body:     data.body     || '',
+    status:   'new',
+    reply:    '',
+    createdAt: serverTimestamp(),
+  })
 }

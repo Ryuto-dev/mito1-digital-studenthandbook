@@ -362,7 +362,8 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
     </div>
     <div class="form-group">
       <label class="form-label">パスワード</label>
-      <input type="password" class="form-input" id="loginPass" placeholder="••••••••">
+      <input type="password" class="form-input" id="loginPass" placeholder="••••••••"
+        onkeydown="if(event.key==='Enter')doLogin()">
     </div>
     <button class="btn-primary" id="loginBtn">ログイン</button>
     <div class="login-err" id="loginErr"></div>
@@ -436,6 +437,12 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
       <button class="adm-sb-item" data-sec="council-rules">
         <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         生徒会関係諸規定
+      </button>
+      <div class="sb-section-label">サポート</div>
+      <button class="adm-sb-item" data-sec="inquiries" id="sbInquiries">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        お問い合わせ
+        <span id="inquiryBadge" style="display:none;background:#c0392b;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:auto"></span>
       </button>
     </aside>
 
@@ -618,6 +625,25 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
           </button>
         </div>
         <div id="councilRulesList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+      </section>
+
+      <!-- INQUIRIES -->
+      <section class="adm-section" id="sec-inquiries">
+        <div class="adm-section-header">
+          <div>
+            <div class="adm-section-title">お問い合わせ管理</div>
+            <div class="adm-section-sub">生徒からの問い合わせ・要望・バグ報告</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <select id="inquiryFilter" class="cf-input" style="font-size:12px;padding:6px 10px;border-radius:7px;border:1px solid var(--border)" onchange="loadInquiries()">
+              <option value="all">すべて</option>
+              <option value="new">未対応</option>
+              <option value="replied">返信済</option>
+              <option value="closed">完了</option>
+            </select>
+          </div>
+        </div>
+        <div id="inquiriesList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
       </section>
 
     </main>

@@ -967,6 +967,31 @@ tr:last-child td{border-bottom:none}
 .pwa-mode .menu-btn{display:none!important}
 .pwa-mode .bottom-nav{display:block!important}
 .pwa-mode .ai-float{bottom:calc(var(--bn-h) + var(--safe-b) + 10px)!important}
+
+/* ===========================
+   CONTACT FORM
+=========================== */
+.contact-form{display:flex;flex-direction:column;gap:18px}
+.cf-field{display:flex;flex-direction:column;gap:6px}
+.cf-label{font-size:13px;font-weight:600;color:var(--text-2)}
+.cf-req{font-size:10px;color:var(--enjii);background:var(--enjii-bg);padding:1px 6px;border-radius:4px;margin-left:4px}
+.cf-input{
+  padding:10px 13px;border:1.5px solid var(--border);border-radius:var(--r);
+  background:var(--surface);color:var(--text);font-size:14px;font-family:inherit;
+  transition:border-color .15s;outline:none;width:100%;box-sizing:border-box;
+}
+.cf-input:focus{border-color:var(--navy)}
+[data-theme="dark"] .cf-input{background:var(--surface2)}
+.cf-textarea{min-height:120px;resize:vertical;line-height:1.6}
+select.cf-input{cursor:pointer}
+.cf-submit{
+  padding:12px 28px;background:var(--navy);color:#fff;border:none;
+  border-radius:var(--r);font-size:14px;font-weight:600;cursor:pointer;
+  transition:background .15s;align-self:flex-start;
+}
+.cf-submit:hover{background:var(--navy-light)}
+.cf-submit:disabled{opacity:.5;cursor:not-allowed}
+.cf-error{font-size:12px;color:var(--enjii);margin-top:2px}
 </style>
 </head>
 <body>
@@ -1084,11 +1109,12 @@ tr:last-child td{border-bottom:none}
     <button class="sb-item" data-p="rules" onclick="nav('rules')">
       <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
       諸規定（本則）
-      <span class="sb-badge">24条</span>
+      <span class="sb-badge" id="sbBadgeRules">…</span>
     </button>
     <button class="sb-item sb-sub" data-p="special" onclick="nav('special')">
       <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
       特別教育活動
+      <span class="sb-badge" id="sbBadgeSpecial" style="display:none"></span>
     </button>
   </div>
   <div class="sb-section">
@@ -1111,10 +1137,12 @@ tr:last-child td{border-bottom:none}
     <button class="sb-item" data-p="council-charter" onclick="nav('council-charter')">
       <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
       知道生徒会憲章
+      <span class="sb-badge" id="sbBadgeCharter" style="display:none"></span>
     </button>
     <button class="sb-item" data-p="council-rules" onclick="nav('council-rules')">
       <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
       生徒会関係諸規定
+      <span class="sb-badge" id="sbBadgeCouncilRules" style="display:none"></span>
     </button>
   </div>
   <div class="sb-section">
@@ -1122,6 +1150,13 @@ tr:last-child td{border-bottom:none}
     <button class="sb-item dim"><span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></span>諸届・許可申請<span class="sb-dim-badge">準備中</span></button>
     <button class="sb-item dim"><span class="sb-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>時間割<span class="sb-dim-badge">準備中</span></button>
     <button class="sb-item dim"><span class="sb-icon"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>デジタル身分証<span class="sb-dim-badge">準備中</span></button>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">サポート</div>
+    <button class="sb-item" data-p="contact" onclick="nav('contact')">
+      <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+      お問い合わせ
+    </button>
   </div>
 </aside>
 
@@ -1204,6 +1239,10 @@ tr:last-child td{border-bottom:none}
     <button class="more-item dim">
       <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
       <div class="more-lbl">身分証</div>
+    </button>
+    <button class="more-item" onclick="nav('contact');closeMore()">
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <div class="more-lbl">お問い合わせ</div>
     </button>
   </div>
 </div>
@@ -1405,6 +1444,7 @@ tr:last-child td{border-bottom:none}
     <div class="pg-header">
       <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>特別教育活動</span></div>
       <h1 class="pg-title">特別教育活動</h1>
+      <div class="pg-meta"><span id="specialMetaCount">読み込み中...</span></div>
     </div>
     <div class="rules-wrap">
       <div class="rules-toc">
@@ -1447,8 +1487,57 @@ tr:last-child td{border-bottom:none}
       <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>生徒会活動</span></div>
       <h1 class="pg-title">生徒会活動</h1>
     </div>
-    <div class="card"><div class="card-h2">生徒会の概要</div><div class="card-body" id="councilOverviewFront"><p style="color:var(--text-3);font-size:12.5px">読み込み中...</p></div></div>
-    <div class="card"><div class="card-h2">各委員会の活動</div><div class="card-body" id="councilCommitteesFront"><p style="color:var(--text-3);font-size:12.5px">読み込み中...</p></div></div>
+    <div class="card">
+      <div class="card-body" id="councilActivitiesFront">
+        <p style="color:var(--text-3);font-size:12.5px">読み込み中...</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- お問い合わせ -->
+  <section class="pg" id="pg-contact">
+    <div class="pg-header">
+      <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>お問い合わせ</span></div>
+      <h1 class="pg-title">お問い合わせ</h1>
+      <div class="pg-meta"><span>機能要望・バグ報告・その他</span></div>
+    </div>
+    <div class="card">
+      <div class="card-h2">お問い合わせフォーム</div>
+      <div class="contact-form" id="contactFormWrap">
+        <div class="cf-field">
+          <label class="cf-label">お名前 <span class="cf-req">必須</span></label>
+          <input class="cf-input" id="cfName" type="text" placeholder="山田 太郎">
+        </div>
+        <div class="cf-field">
+          <label class="cf-label">メールアドレス <span class="cf-req">必須</span></label>
+          <input class="cf-input" id="cfEmail" type="email" placeholder="example@ibaraki.ed.jp">
+        </div>
+        <div class="cf-field">
+          <label class="cf-label">種別</label>
+          <select class="cf-input" id="cfCategory">
+            <option value="bug">バグ・不具合報告</option>
+            <option value="feature">機能要望</option>
+            <option value="content">内容の誤り・修正依頼</option>
+            <option value="other">その他</option>
+          </select>
+        </div>
+        <div class="cf-field">
+          <label class="cf-label">件名 <span class="cf-req">必須</span></label>
+          <input class="cf-input" id="cfSubject" type="text" placeholder="件名を入力してください">
+        </div>
+        <div class="cf-field">
+          <label class="cf-label">内容 <span class="cf-req">必須</span></label>
+          <textarea class="cf-input cf-textarea" id="cfBody" placeholder="詳細をご記入ください"></textarea>
+        </div>
+        <button class="cf-submit" onclick="submitContact()">送信する</button>
+      </div>
+      <div id="contactDone" style="display:none;text-align:center;padding:32px 0">
+        <svg viewBox="0 0 24 24" style="width:48px;height:48px;stroke:var(--enjii);fill:none;stroke-width:1.5;margin-bottom:12px"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px">送信しました</div>
+        <p style="font-size:13px;color:var(--text-3)">お問い合わせを受け付けました。<br>回答は入力いただいたメールアドレスに送信されます。</p>
+        <button class="btn-navy" style="margin-top:20px" onclick="resetContact()">新しいお問い合わせ</button>
+      </div>
+    </div>
   </section>
 
   <!-- 知道生徒会憲章 -->
@@ -1456,6 +1545,7 @@ tr:last-child td{border-bottom:none}
     <div class="pg-header">
       <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>知道生徒会憲章</span></div>
       <h1 class="pg-title">知道生徒会憲章</h1>
+      <div class="pg-meta"><span id="charterMetaCount">読み込み中...</span></div>
     </div>
     <div class="rules-wrap">
       <div class="rules-toc">
@@ -1473,6 +1563,7 @@ tr:last-child td{border-bottom:none}
     <div class="pg-header">
       <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>生徒会関係諸規定</span></div>
       <h1 class="pg-title">生徒会関係諸規定</h1>
+      <div class="pg-meta"><span id="councilRulesMetaCount">読み込み中...</span></div>
     </div>
     <div class="rules-wrap">
       <div class="rules-toc">
@@ -1779,19 +1870,39 @@ function runSearchPage(q){
 
 /* =================================
    AI 検索（Gemini API経由）
+   
+   【現在のプロンプト構成】
+   1. システム指示（役割・回答形式・内容範囲）
+   2. キャッシュされた実データのサマリー（Firestore読込後に自動更新）
+   3. ユーザーの質問
+   
+   【最適化方針】
+   - 全条文を毎回送らず、検索でヒットした上位3件の本文のみ付加
+   - データは window._aiContext に1回だけキャッシュ
 ================================= */
 const AI_WORKERS_URL = 'https://mito1-hundbook.asanuma-ryuto.workers.dev';
 
+// Firestoreデータから生成したAIコンテキスト（main.jsが設定）
+window._aiContext = '';
+
 async function callGemini(q){
-  const sys=`あなたは茨城県立水戸第一高等学校デジタル生徒手帳のAIアシスタントです。
+  // 全文検索の上位ヒットを取得して文脈として付加
+  const hits = doSearch(q).slice(0,3).map(r => `【${r.path}】${r.snip}`).join('\n');
+
+  const sys = `あなたは茨城県立水戸第一高等学校デジタル生徒手帳のAIアシスタントです。
 在校生の質問に対して手帳の内容に基づき、丁寧・簡潔に日本語で答えてください（200字以内目安）。
-主な内容：諸規定（校内生活・服装・登下校・欠席遅刻・公欠等）、特別教育活動、生徒会憲章・活動・関係規定、
-年間行事（4月始業式・入学式、9月水一祭・体育祭、3月卒業式等）、就学の目標、教育課程。`;
+回答できない場合は「手帳に該当する情報が見つかりません」と答えてください。
+
+【手帳の実データ（抜粋）】
+${window._aiContext || '（データ読み込み中）'}
+
+【検索ヒット（質問に関連する条文）】
+${hits || '（該当なし）'}`;
+
   try{
     const res=await fetch(AI_WORKERS_URL,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      // Gemini API形式で送信
       body:JSON.stringify({
         contents:[{parts:[{text:sys+'\n\n質問：'+q}]}]
       })
@@ -1807,17 +1918,13 @@ async function callGemini(q){
     let d;
     try{ d=JSON.parse(text); }catch(e){ return text; }
 
-    // Gemini API形式
     if(d.candidates?.[0]?.content?.parts?.[0]?.text)
       return d.candidates[0].content.parts[0].text;
-    // Anthropic形式（WorkersがClaude経由の場合）
     if(Array.isArray(d.content)&&d.content[0]?.text)
       return d.content[0].text;
-    // シンプル形式
     if(typeof d.text==='string') return d.text;
     if(typeof d.result==='string') return d.result;
     if(typeof d.response==='string') return d.response;
-    // エラー
     if(d.error){
       const msg=typeof d.error==='string'?d.error:(d.error.message||JSON.stringify(d.error));
       console.error('[AI] error:',d.error);
@@ -1829,6 +1936,58 @@ async function callGemini(q){
     console.error('[AI] fetch error:',e);
     return `AIに接続できません: ${e.message}`;
   }
+}
+
+/* =================================
+   CONTACT FORM
+================================= */
+async function submitContact(){
+  const name    = document.getElementById('cfName').value.trim();
+  const email   = document.getElementById('cfEmail').value.trim();
+  const cat     = document.getElementById('cfCategory').value;
+  const subject = document.getElementById('cfSubject').value.trim();
+  const body    = document.getElementById('cfBody').value.trim();
+
+  if(!name){ alert('お名前を入力してください'); return; }
+  if(!email || !email.includes('@')){ alert('有効なメールアドレスを入力してください'); return; }
+  if(!subject){ alert('件名を入力してください'); return; }
+  if(!body){ alert('内容を入力してください'); return; }
+
+  const btn = document.querySelector('.cf-submit');
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+
+  const catLabels = {bug:'バグ・不具合',feature:'機能要望',content:'内容修正依頼',other:'その他'};
+
+  try {
+    // Firestoreに保存
+    const { collection: col, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+    const { db } = await import('/src/firebase.js');
+    await addDoc(col(db, 'inquiries'), {
+      name, email,
+      category: cat,
+      categoryLabel: catLabels[cat] || cat,
+      subject, body,
+      status: 'new',
+      createdAt: serverTimestamp()
+    });
+    document.getElementById('contactFormWrap').style.display = 'none';
+    document.getElementById('contactDone').style.display = 'block';
+  } catch(e) {
+    console.error('Contact submit error:', e);
+    alert('送信に失敗しました。しばらくしてから再度お試しください。\n' + e.message);
+    btn.disabled = false;
+    btn.textContent = '送信する';
+  }
+}
+
+function resetContact(){
+  ['cfName','cfEmail','cfSubject','cfBody'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('cfCategory').selectedIndex = 0;
+  document.getElementById('contactFormWrap').style.display = '';
+  document.getElementById('contactDone').style.display = 'none';
+  document.querySelector('.cf-submit').disabled = false;
+  document.querySelector('.cf-submit').textContent = '送信する';
 }
 
 /* =================================

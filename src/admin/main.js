@@ -76,7 +76,7 @@ onAuthStateChanged(auth, user => {
     document.getElementById('loginScreen').classList.add('hide')
     document.getElementById('appShell').classList.add('show')
     document.getElementById('headerUser').textContent = user.email
-    loadSection('dashboard').catch(e => console.error('loadSection error:', e))
+    loadSection('dashboard')
   } else {
     document.getElementById('loginScreen').classList.remove('hide')
     document.getElementById('appShell').classList.remove('show')
@@ -134,6 +134,7 @@ async function loadSection(sec) {
     case 'council-activities': return loadCouncilActivitiesForm()
     case 'council-charter':  return loadList('council-charter', renderArticleList('councilCharterList'))
     case 'council-rules':    return loadList('council-rules', renderArticleList('councilRulesList'))
+    case 'inquiries':        return loadInquiries()
   }
 }
 
@@ -173,39 +174,27 @@ function emptyState(msg = 'まだデータがありません') {
 // =============================================
 async function loadDashboard() {
   const grid = document.getElementById('dashGrid')
-  if (!grid) { console.error('dashGrid not found'); return }
-
   const sections = [
-    { col: 'rules',           label: '諸規定（本則）',   sec: 'rules' },
-    { col: 'special',         label: '特別教育活動',     sec: 'special' },
-    { col: 'events',          label: '年間主要行事',     sec: 'events' },
-    { col: 'history',         label: '本校の沿革',       sec: 'history' },
-    { col: 'principals',      label: '歴代校長',         sec: 'principals' },
-    { col: 'songs',           label: '歌詞',             sec: 'songs' },
-    { col: 'curriculum',      label: '教育課程',         sec: 'curriculum' },
-    { col: 'council-charter', label: '知道生徒会憲章',   sec: 'council-charter' },
-    { col: 'council-rules',   label: '生徒会関係諸規定', sec: 'council-rules' },
+    { col: 'rules',           label: '諸規定（本則）',     sec: 'rules' },
+    { col: 'special',         label: '特別教育活動',       sec: 'special' },
+    { col: 'events',          label: '年間主要行事',       sec: 'events' },
+    { col: 'history',         label: '本校の沿革',         sec: 'history' },
+    { col: 'principals',      label: '歴代校長',           sec: 'principals' },
+    { col: 'songs',           label: '歌詞',               sec: 'songs' },
+    { col: 'curriculum',      label: '教育課程',           sec: 'curriculum' },
+    { col: 'council-charter', label: '知道生徒会憲章',     sec: 'council-charter' },
+    { col: 'council-rules',   label: '生徒会関係諸規定',   sec: 'council-rules' },
   ]
-
-  try {
-    const counts = await Promise.all(
-      sections.map(s =>
-        getDocs(collection(db, s.col))
-          .then(sn => sn.size)
-          .catch(e => { console.warn(s.col, e.message); return 0 })
-      )
-    )
-    grid.innerHTML = sections.map((s, i) => `
-      <div class="dash-card">
-        <div class="dash-card-num">${counts[i]}</div>
-        <div class="dash-card-label">${s.label}</div>
-        <span class="dash-card-link" data-nav="${s.sec}">管理する →</span>
-      </div>
-    `).join('')
-  } catch (e) {
-    console.error('loadDashboard error:', e)
-    grid.innerHTML = `<div style="padding:20px;color:red">エラー: ${e.message}</div>`
-  }
+  const counts = await Promise.all(
+    sections.map(s => getDocs(collection(db, s.col)).then(sn => sn.size).catch(() => 0))
+  )
+  grid.innerHTML = sections.map((s, i) => `
+    <div class="dash-card">
+      <div class="dash-card-num">${counts[i]}</div>
+      <div class="dash-card-label">${s.label}</div>
+      <span class="dash-card-link" data-nav="${s.sec}">管理する →</span>
+    </div>
+  `).join('')
 }
 
 // =============================================
@@ -796,4 +785,112 @@ async function deleteItem(col, id) {
   await deleteDoc(doc(db, col, id))
   showToast('削除しました')
   loadSection(currentSection)
+}
+
+// =============================================
+// お問い合わせ管理
+// =============================================
+const AI_URL = 'https://mito1-hundbook.asanuma-ryuto.workers.dev'
+const CATEGORY_LABELS = { bug:'バグ・不具合', feature:'機能要望', content:'内容修正依頼', other:'その他' }
+const STATUS_LABELS   = { new:'未対応', replied:'返信済', closed:'完了' }
+const STATUS_COLORS   = { new:'#c0392b', replied:'#2980b9', closed:'#27ae60' }
+
+window.loadInquiries = async function() {
+  const el = document.getElementById('inquiriesList')
+  if (!el) return
+  el.innerHTML = '<div class="loading-spinner"><div class="spinner"></div>読み込み中...</div>'
+  const filter = document.getElementById('inquiryFilter')?.value || 'all'
+
+  try {
+    const snap = await getDocs(query(collection(db, 'inquiries'), orderBy('createdAt', 'desc')))
+    let items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    if (filter !== 'all') items = items.filter(i => i.status === filter)
+
+    // バッジ更新
+    const newCount = snap.docs.filter(d => d.data().status === 'new').length
+    const badge = document.getElementById('inquiryBadge')
+    if (badge) { badge.textContent = newCount; badge.style.display = newCount ? '' : 'none' }
+
+    if (!items.length) { el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3)">該当するお問い合わせはありません</div>'; return }
+
+    el.innerHTML = items.map(item => `
+      <div class="item-card" id="inq-${item.id}" style="margin-bottom:12px">
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:18px 20px">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+              <span style="font-size:10px;font-weight:700;color:${STATUS_COLORS[item.status]||'#888'};background:${STATUS_COLORS[item.status]||'#888'}18;border-radius:4px;padding:2px 8px">${STATUS_LABELS[item.status]||item.status}</span>
+              <span style="font-size:10px;color:var(--text-3);background:var(--surface2);border-radius:4px;padding:2px 8px">${CATEGORY_LABELS[item.category]||item.category||'その他'}</span>
+              <span style="font-size:11px;color:var(--text-3);margin-left:auto">${item.createdAt?.toDate ? item.createdAt.toDate().toLocaleString('ja') : ''}</span>
+            </div>
+            <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px">${escHtml(item.subject||'（件名なし）')}</div>
+            <div style="font-size:12px;color:var(--text-3);margin-bottom:6px">差出人: ${escHtml(item.name||'不明')} &lt;${escHtml(item.email||'')}&gt;</div>
+            <div style="font-size:13px;color:var(--text-2);white-space:pre-wrap;border-left:3px solid var(--border);padding-left:10px;margin-bottom:12px">${escHtml(item.body||'')}</div>
+            ${item.reply ? `<div style="font-size:12px;color:var(--text-3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface2)"><strong>返信済み内容:</strong><br><span style="white-space:pre-wrap">${escHtml(item.reply)}</span></div>` : ''}
+          </div>
+        </div>
+        <div style="padding:0 20px 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <textarea id="reply-${item.id}" rows="3" placeholder="返信内容を入力（メールで送信する文章）"
+            style="flex:1;min-width:200px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;resize:vertical;background:var(--surface);color:var(--text)">${escHtml(item.reply||'')}</textarea>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <button onclick="draftReply('${item.id}','${escAttr(item.subject)}','${escAttr(item.body)}')"
+              style="font-size:11px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);cursor:pointer;color:var(--text-2)">
+              ✦ AIで下書き
+            </button>
+            <button onclick="saveReply('${item.id}')"
+              style="font-size:11px;padding:6px 12px;border:none;border-radius:6px;background:var(--navy);cursor:pointer;color:#fff">
+              返信内容を保存
+            </button>
+            <select onchange="changeStatus('${item.id}',this.value)"
+              style="font-size:11px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text)">
+              ${Object.entries(STATUS_LABELS).map(([k,v])=>`<option value="${k}"${item.status===k?' selected':''}>${v}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+      </div>
+    `).join('')
+  } catch(e) {
+    el.innerHTML = `<div style="padding:20px;color:#c0392b">読み込みエラー: ${e.message}</div>`
+  }
+}
+
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
+function escAttr(s){ return String(s).replace(/'/g,"\\'").replace(/\n/g,' ').slice(0,100) }
+
+window.draftReply = async function(id, subject, body) {
+  const ta = document.getElementById('reply-'+id)
+  if (!ta) return
+  ta.value = 'AI生成中...'
+  try {
+    const prompt = `以下のお問い合わせに対する丁寧な返信メール文を日本語で作成してください。
+学校名：茨城県立水戸第一高等学校
+件名：${subject}
+内容：${body}
+---
+・200字程度・生徒への敬意ある丁寧な文体・回答がない場合は確認中と書く`
+    const res = await fetch(AI_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    })
+    const text = await res.text()
+    const d = JSON.parse(text)
+    const answer = d.candidates?.[0]?.content?.parts?.[0]?.text || d.text || d.result || '生成できませんでした'
+    ta.value = answer
+  } catch(e) {
+    ta.value = `エラー: ${e.message}`
+  }
+}
+
+window.saveReply = async function(id) {
+  const ta = document.getElementById('reply-'+id)
+  if (!ta) return
+  await updateDoc(doc(db, 'inquiries', id), { reply: ta.value, status: 'replied' })
+  showToast('返信内容を保存しました')
+  loadInquiries()
+}
+
+window.changeStatus = async function(id, status) {
+  await updateDoc(doc(db, 'inquiries', id), { status })
+  showToast('ステータスを変更しました')
+  loadInquiries()
 }
