@@ -2211,9 +2211,27 @@ let _currentUser    = null
 let _currentProfile = null
 
 onAuth(async user => {
-  _currentUser    = user
-  // userを直接渡してauth.currentUserのタイミング問題を回避
-  _currentProfile = user ? await getCurrentProfile(user) : null
+  _currentUser = user
+  if (user) {
+    // Firestoreドキュメントが存在するまで最大3回リトライ
+    for (let i = 0; i < 3; i++) {
+      _currentProfile = await getCurrentProfile(user)
+      if (_currentProfile) break
+      await new Promise(r => setTimeout(r, 400))
+    }
+    // それでもnullなら Firebase Authのuserから最低限のプロフィールを組み立てる
+    if (!_currentProfile) {
+      _currentProfile = {
+        uid:   user.uid,
+        email: user.email,
+        name:  user.displayName || user.email,
+        role:  'student',
+        grade: '', class: '', number: ''
+      }
+    }
+  } else {
+    _currentProfile = null
+  }
   updateAuthUI()
 })
 
