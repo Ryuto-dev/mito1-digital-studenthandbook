@@ -444,6 +444,11 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
         お問い合わせ
         <span id="inquiryBadge" style="display:none;background:#c0392b;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:auto"></span>
       </button>
+      <button class="adm-sb-item" data-sec="cases">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        公欠申請ケース
+        <span id="casesBadge" style="display:none;background:#856404;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:auto"></span>
+      </button>
     </aside>
 
     <!-- MAIN -->
@@ -644,6 +649,26 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
           </div>
         </div>
         <div id="inquiriesList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+      </section>
+
+      <!-- CASES -->
+      <section class="adm-section" id="sec-cases">
+        <div class="adm-section-header">
+          <div>
+            <div class="adm-section-title">公欠申請ケース管理</div>
+            <div class="adm-section-sub">すべての公欠申請の閲覧・管理</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <select id="casesFilter" style="font-size:12px;padding:6px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)" onchange="loadAdminCases()">
+              <option value="all">すべて</option>
+              <option value="pending_supervisor">顧問承認待ち</option>
+              <option value="pending_homeroom">担任承認待ち</option>
+              <option value="approved">承認済み</option>
+              <option value="rejected">差し戻し</option>
+            </select>
+          </div>
+        </div>
+        <div id="adminCasesList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
       </section>
 
     </main>

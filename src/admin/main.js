@@ -135,6 +135,7 @@ async function loadSection(sec) {
     case 'council-charter':  return loadList('council-charter', renderArticleList('councilCharterList'))
     case 'council-rules':    return loadList('council-rules', renderArticleList('councilRulesList'))
     case 'inquiries':        return loadInquiries()
+    case 'cases':            return loadAdminCases()
   }
 }
 
@@ -905,4 +906,65 @@ window.deleteInquiry = async function(id) {
   await deleteDoc(doc(db, 'inquiries', id))
   showToast('削除しました')
   loadInquiries()
+}
+
+// =============================================
+// 公欠申請ケース管理
+// =============================================
+const CASE_STATUS_LABEL = { pending_supervisor:'顧問承認待ち', pending_homeroom:'担任承認待ち', approved:'承認済み', rejected:'差し戻し' }
+const CASE_STATUS_COLOR = { pending_supervisor:'#856404', pending_homeroom:'#004085', approved:'#155724', rejected:'#721c24' }
+const CASE_STATUS_BG    = { pending_supervisor:'#fff3cd', pending_homeroom:'#cce5ff', approved:'#d4edda', rejected:'#f8d7da' }
+
+window.loadAdminCases = async function() {
+  const el = document.getElementById('adminCasesList')
+  if (!el) return
+  el.innerHTML = '<div class="loading-spinner"><div class="spinner"></div>読み込み中...</div>'
+  const filter = document.getElementById('casesFilter')?.value || 'all'
+
+  try {
+    const { getDocs: gds, query: qr, collection: col, orderBy: ob } = await import('firebase/firestore')
+    let snap = await gds(qr(col(db, 'cases'), ob('createdAt', 'desc')))
+    let items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    if (filter !== 'all') items = items.filter(c => c.status === filter)
+
+    // バッジ（承認待ち件数）
+    const pending = snap.docs.filter(d => ['pending_supervisor','pending_homeroom'].includes(d.data().status)).length
+    const badge = document.getElementById('casesBadge')
+    if (badge) { badge.textContent = pending; badge.style.display = pending ? '' : 'none' }
+
+    if (!items.length) { el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3)">該当するケースはありません</div>'; return }
+
+    el.innerHTML = items.map(c => {
+      const datesStr = (c.dates||[]).join('、')
+      const st = c.status
+      const steps = [
+        { label:'申請',   done:true },
+        { label:'顧問承認', done:['pending_homeroom','approved'].includes(st), active:st==='pending_supervisor' },
+        { label:'担任承認', done:st==='approved', active:st==='pending_homeroom' },
+        { label:'完了',   done:st==='approved' },
+      ]
+      const progressBar = st === 'rejected'
+        ? `<span style="font-size:11px;color:#721c24">❌ 差し戻し${c.rejectedReason?'：'+c.rejectedReason:''}</span>`
+        : `<div style="display:flex;gap:0;margin-top:8px">${steps.map(s=>`
+            <div style="flex:1;text-align:center">
+              <div style="height:3px;border-radius:2px;margin-bottom:4px;background:${s.done?'#1a2744':s.active?'#ffc107':'#e0e0e0'}"></div>
+              <span style="font-size:9.5px;color:${s.done?'#1a2744':s.active?'#856404':'#aaa'};font-weight:${s.done||s.active?700:400}">${s.label}</span>
+            </div>`).join('')}</div>`
+
+      return `
+        <div class="item-card" style="margin-bottom:12px;padding:18px 20px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+            <span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:4px;color:${CASE_STATUS_COLOR[st]||'#888'};background:${CASE_STATUS_BG[st]||'#eee'}">${CASE_STATUS_LABEL[st]||st}</span>
+            <span style="font-size:11px;color:var(--text-3);margin-left:auto">${c.createdAt?.toDate ? c.createdAt.toDate().toLocaleString('ja') : ''}</span>
+          </div>
+          <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px">${escHtml(c.title||'')}</div>
+          <div style="font-size:12px;color:var(--text-3);margin-bottom:2px">申請者: <strong>${escHtml(c.studentName||'')}</strong> &lt;${escHtml(c.studentEmail||'')}&gt;</div>
+          <div style="font-size:12px;color:var(--text-3);margin-bottom:2px">公欠日: ${escHtml(datesStr)} ／ 事由: ${escHtml(c.reason||'')}</div>
+          <div style="font-size:11.5px;color:var(--text-3)">顧問: ${escHtml(c.supervisorEmail||'')} ／ 担任: ${escHtml(c.homeRoomEmail||'')}</div>
+          ${progressBar}
+        </div>`
+    }).join('')
+  } catch(e) {
+    el.innerHTML = `<div style="padding:20px;color:#c0392b">読み込みエラー: ${e.message}</div>`
+  }
 }

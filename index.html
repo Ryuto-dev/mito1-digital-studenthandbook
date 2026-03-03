@@ -1146,8 +1146,18 @@ select.cf-input{cursor:pointer}
     </button>
   </div>
   <div class="sb-section">
+    <div class="sb-label">申請・マイページ</div>
+    <button class="sb-item" data-p="apply" onclick="nav('apply')">
+      <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></span>
+      公欠申請
+    </button>
+    <button class="sb-item" data-p="mypage" onclick="nav('mypage')">
+      <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+      マイページ
+    </button>
+  </div>
+  <div class="sb-section">
     <div class="sb-label">近日公開</div>
-    <button class="sb-item dim"><span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></span>諸届・許可申請<span class="sb-dim-badge">準備中</span></button>
     <button class="sb-item dim"><span class="sb-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>時間割<span class="sb-dim-badge">準備中</span></button>
     <button class="sb-item dim"><span class="sb-icon"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>デジタル身分証<span class="sb-dim-badge">準備中</span></button>
   </div>
@@ -1179,9 +1189,13 @@ select.cf-input{cursor:pointer}
       <div class="bn-icon-wrap"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg></div>
       <span class="bn-label">検索</span>
     </button>
-    <button class="bn-item" onclick="openMore()">
-      <div class="bn-icon-wrap"><svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></div>
-      <span class="bn-label">メニュー</span>
+    <button class="bn-item" data-bp="apply" onclick="nav('apply')">
+      <div class="bn-icon-wrap"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></div>
+      <span class="bn-label">公欠申請</span>
+    </button>
+    <button class="bn-item" data-bp="mypage" onclick="nav('mypage')">
+      <div class="bn-icon-wrap"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+      <span class="bn-label">マイページ</span>
     </button>
   </div>
 </nav>
@@ -1585,9 +1599,116 @@ select.cf-input{cursor:pointer}
       <h1 class="coming-ttl">近日公開予定</h1>
       <p class="coming-sub">以下の機能を鋭意開発中です。公開をお待ちください。</p>
       <div class="coming-cards">
-        <div class="coming-card"><div class="coming-card-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></div><div class="coming-card-ttl">諸届・許可申請</div><div class="coming-card-desc">公欠届・外出許可などをデジタルで申請</div></div>
         <div class="coming-card"><div class="coming-card-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div class="coming-card-ttl">時間割</div><div class="coming-card-desc">クラス別時間割の確認</div></div>
         <div class="coming-card"><div class="coming-card-icon"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div><div class="coming-card-ttl">デジタル身分証</div><div class="coming-card-desc">生徒証をスマートフォンで提示</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 公欠申請 -->
+  <section class="pg" id="pg-apply">
+    <div class="pg-header">
+      <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>公欠申請</span></div>
+      <h1 class="pg-title">公欠申請</h1>
+      <div class="pg-meta"><span>部活・生徒会活動等による公欠届け出</span></div>
+    </div>
+    <!-- 未ログイン時 -->
+    <div id="applyLoginRequired" style="display:none">
+      <div class="card" style="text-align:center;padding:40px 24px">
+        <svg viewBox="0 0 24 24" style="width:48px;height:48px;stroke:var(--text-3);fill:none;stroke-width:1.5;margin-bottom:16px"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px">ログインが必要です</div>
+        <p style="font-size:13px;color:var(--text-3);margin-bottom:20px">公欠申請を行うにはアカウントが必要です。</p>
+        <a href="/mito1-digital-studenthandbook/auth.html" class="btn-navy" style="display:inline-block;padding:11px 28px;border-radius:8px;font-weight:600;font-size:14px;background:var(--navy);color:#fff">ログイン / 新規登録</a>
+      </div>
+    </div>
+    <!-- ログイン済みフォーム -->
+    <div id="applyForm" style="display:none">
+      <div class="card">
+        <div class="card-h2">申請内容の入力</div>
+        <div style="margin-top:20px;display:flex;flex-direction:column;gap:18px">
+          <div class="cf-field">
+            <label class="cf-label">件名（大会・活動名）<span class="cf-req">必須</span></label>
+            <input class="cf-input" id="applyTitle" type="text" placeholder="例: 関東大会・生徒会執行部会">
+          </div>
+          <div class="cf-field">
+            <label class="cf-label">事由<span class="cf-req">必須</span></label>
+            <select class="cf-input" id="applyReason">
+              <option value="部活動">部活動</option>
+              <option value="生徒会活動">生徒会活動</option>
+              <option value="学校行事">学校行事</option>
+              <option value="その他">その他</option>
+            </select>
+          </div>
+          <div class="cf-field">
+            <label class="cf-label">公欠日<span class="cf-req">必須</span>
+              <span style="font-size:10.5px;color:var(--text-3);font-weight:400;margin-left:6px">複数日可・＋ボタンで追加</span>
+            </label>
+            <div id="applyDatesWrap" style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;gap:8px;align-items:center">
+                <input class="cf-input apply-date" type="date" style="flex:1">
+                <button onclick="addDateField()" style="padding:9px 13px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text-2);cursor:pointer;font-size:16px;font-weight:600">＋</button>
+              </div>
+            </div>
+          </div>
+          <div class="cf-field">
+            <label class="cf-label">顧問のメールアドレス<span class="cf-req">必須</span></label>
+            <input class="cf-input" id="applySupervisorEmail" type="email" placeholder="supervisor@ibaraki.ed.jp">
+            <div style="font-size:11px;color:var(--text-3);margin-top:4px">承認依頼メールが送信されます</div>
+          </div>
+          <div class="cf-field">
+            <label class="cf-label">担任のメールアドレス<span class="cf-req">必須</span></label>
+            <input class="cf-input" id="applyHomeRoomEmail" type="email" placeholder="homeroom@ibaraki.ed.jp">
+            <div style="font-size:11px;color:var(--text-3);margin-top:4px">顧問承認後に依頼メールが送信されます</div>
+          </div>
+        </div>
+        <div id="applyErrMsg" style="display:none;font-size:12px;color:var(--enjii);background:var(--enjii-bg);padding:10px 12px;border-radius:8px;margin-top:16px"></div>
+        <button class="cf-submit" id="applySubmitBtn" style="margin-top:24px" onclick="submitApply()">申請する</button>
+      </div>
+    </div>
+    <!-- 送信完了 -->
+    <div id="applyDone" style="display:none">
+      <div class="card" style="text-align:center;padding:40px 24px">
+        <svg viewBox="0 0 24 24" style="width:56px;height:56px;stroke:#27ae60;fill:none;stroke-width:1.5;margin-bottom:16px"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:8px">申請を送信しました</div>
+        <p style="font-size:13px;color:var(--text-3);margin-bottom:24px">顧問の先生に承認依頼メールを送信しました。<br>進捗はマイページで確認できます。</p>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+          <button class="btn-navy" style="padding:10px 22px;border-radius:8px;font-size:13px;font-weight:600;background:var(--navy);color:#fff;border:none;cursor:pointer" onclick="nav('mypage')">マイページで確認</button>
+          <button style="padding:10px 22px;border-radius:8px;font-size:13px;font-weight:600;background:var(--surface2);color:var(--text-2);border:1px solid var(--border);cursor:pointer" onclick="resetApply()">新しい申請</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- マイページ -->
+  <section class="pg" id="pg-mypage">
+    <div class="pg-header">
+      <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>マイページ</span></div>
+      <h1 class="pg-title">マイページ</h1>
+    </div>
+    <!-- 未ログイン -->
+    <div id="mypageLoginRequired" style="display:none">
+      <div class="card" style="text-align:center;padding:40px 24px">
+        <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px">ログインが必要です</div>
+        <a href="/mito1-digital-studenthandbook/auth.html" class="btn-navy" style="display:inline-block;padding:11px 28px;border-radius:8px;font-weight:600;font-size:14px;background:var(--navy);color:#fff">ログイン</a>
+      </div>
+    </div>
+    <!-- ログイン済み -->
+    <div id="mypageContent" style="display:none">
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <div>
+            <div style="font-size:15px;font-weight:600;color:var(--text)" id="mypageName">---</div>
+            <div style="font-size:12px;color:var(--text-3)" id="mypageInfo">---</div>
+          </div>
+          <button onclick="doLogoutFront()" style="padding:7px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;font-size:12px;cursor:pointer;color:var(--text-2)">ログアウト</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="font-size:14px;font-weight:600;color:var(--text)">公欠申請の履歴</div>
+        <button onclick="nav('apply')" style="font-size:12px;padding:6px 14px;background:var(--navy);color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:inherit">＋ 新しい申請</button>
+      </div>
+      <div id="mypageCaseList">
+        <div style="padding:32px;text-align:center;color:var(--text-3);font-size:13px">読み込み中...</div>
       </div>
     </div>
   </section>
@@ -1654,14 +1775,15 @@ window.addEventListener('load',()=>{
 ================================= */
 const PAGES=['home','search','about','principals','goals','songs',
   'rules','special','curriculum','events',
-  'council-activities','council-charter','council-rules','contact','coming'];
+  'council-activities','council-charter','council-rules',
+  'contact','apply','mypage','coming'];
 const BN_MAP={
   home:'home',search:'search',
   about:'',principals:'',goals:'',songs:'',
   rules:'rules',special:'rules',
   curriculum:'',events:'events',
   'council-activities':'','council-charter':'','council-rules':'',
-  contact:'',coming:''
+  contact:'',apply:'apply',mypage:'mypage',coming:''
 };
 
 function nav(page){
@@ -2071,14 +2193,225 @@ if('serviceWorker' in navigator){
 import { loadAllData } from '/src/main.js'
 import { db } from '/src/firebase.js'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
+import { onAuth, getCurrentProfile, logout } from '/src/auth.js'
+import { createCase, getMyCases } from '/src/cases.js'
 
 loadAllData().catch(e => console.error('[Firestore]', e))
 
 // 通常スクリプトからFirestoreを使えるようにグローバル公開
 window._db = db
-window._fsAddDoc       = addDoc
-window._fsCollection   = collection
-window._fsServerTimestamp = serverTimestamp
+window._fsAddDoc            = addDoc
+window._fsCollection        = collection
+window._fsServerTimestamp   = serverTimestamp
+
+// =============================================
+// 認証状態管理
+// =============================================
+let _currentUser    = null
+let _currentProfile = null
+
+onAuth(async user => {
+  _currentUser = user
+  _currentProfile = user ? await getCurrentProfile() : null
+  updateAuthUI()
+})
+
+function updateAuthUI() {
+  const loggedIn = !!_currentProfile
+
+  // 公欠申請ページ
+  const applyLogin = document.getElementById('applyLoginRequired')
+  const applyForm  = document.getElementById('applyForm')
+  if (applyLogin) applyLogin.style.display = loggedIn ? 'none' : ''
+  if (applyForm)  applyForm.style.display  = loggedIn ? ''     : 'none'
+
+  // マイページ
+  const mpLogin   = document.getElementById('mypageLoginRequired')
+  const mpContent = document.getElementById('mypageContent')
+  if (mpLogin)   mpLogin.style.display   = loggedIn ? 'none' : ''
+  if (mpContent) mpContent.style.display = loggedIn ? ''     : 'none'
+
+  if (loggedIn && _currentProfile) {
+    const name = document.getElementById('mypageName')
+    const info = document.getElementById('mypageInfo')
+    if (name) name.textContent = _currentProfile.name || _currentProfile.email
+    if (info) info.textContent =
+      `${_currentProfile.grade || ''}年${_currentProfile.class || ''}組` +
+      `${_currentProfile.number ? ' ' + _currentProfile.number + '番' : ''}`
+  }
+}
+
+// =============================================
+// 公欠申請送信
+// =============================================
+window.addDateField = function() {
+  const wrap = document.getElementById('applyDatesWrap')
+  const div = document.createElement('div')
+  div.style.cssText = 'display:flex;gap:8px;align-items:center'
+  div.innerHTML = `
+    <input class="cf-input apply-date" type="date" style="flex:1">
+    <button onclick="this.parentElement.remove()" style="padding:9px 13px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--enjii);cursor:pointer;font-size:16px;font-weight:600">−</button>
+  `
+  wrap.appendChild(div)
+}
+
+window.submitApply = async function() {
+  if (!_currentProfile) { alert('ログインが必要です'); return }
+
+  const title           = document.getElementById('applyTitle').value.trim()
+  const reason          = document.getElementById('applyReason').value
+  const supervisorEmail = document.getElementById('applySupervisorEmail').value.trim()
+  const homeRoomEmail   = document.getElementById('applyHomeRoomEmail').value.trim()
+  const dates = [...document.querySelectorAll('.apply-date')]
+    .map(i => i.value).filter(Boolean)
+
+  const errEl = document.getElementById('applyErrMsg')
+  const showErr = msg => { errEl.textContent = msg; errEl.style.display = '' }
+  errEl.style.display = 'none'
+
+  if (!title)                         { showErr('件名を入力してください'); return }
+  if (dates.length === 0)             { showErr('公欠日を1日以上入力してください'); return }
+  if (!supervisorEmail.includes('@')) { showErr('顧問のメールアドレスを正しく入力してください'); return }
+  if (!homeRoomEmail.includes('@'))   { showErr('担任のメールアドレスを正しく入力してください'); return }
+
+  // 確認ダイアログ
+  const datesStr = dates.join('、')
+  const ok = confirm(
+    `以下の内容で申請します。\n\n` +
+    `件名: ${title}\n公欠日: ${datesStr}\n事由: ${reason}\n` +
+    `顧問: ${supervisorEmail}\n担任: ${homeRoomEmail}\n\nよろしいですか？`
+  )
+  if (!ok) return
+
+  const btn = document.getElementById('applySubmitBtn')
+  btn.disabled = true
+  btn.textContent = '送信中...'
+
+  try {
+    await createCase({
+      studentId:      _currentProfile.uid || _currentUser.uid,
+      studentName:    _currentProfile.name || '',
+      studentEmail:   _currentProfile.email || _currentUser.email,
+      title, reason, dates, supervisorEmail, homeRoomEmail,
+    })
+    document.getElementById('applyForm').style.display = 'none'
+    document.getElementById('applyDone').style.display = ''
+  } catch(e) {
+    showErr('送信に失敗しました: ' + e.message)
+    btn.disabled = false
+    btn.textContent = '申請する'
+  }
+}
+
+window.resetApply = function() {
+  document.getElementById('applyTitle').value = ''
+  document.getElementById('applySupervisorEmail').value = ''
+  document.getElementById('applyHomeRoomEmail').value   = ''
+  // 日付フィールドを1つにリセット
+  const wrap = document.getElementById('applyDatesWrap')
+  wrap.innerHTML = `
+    <div style="display:flex;gap:8px;align-items:center">
+      <input class="cf-input apply-date" type="date" style="flex:1">
+      <button onclick="addDateField()" style="padding:9px 13px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text-2);cursor:pointer;font-size:16px;font-weight:600">＋</button>
+    </div>`
+  document.getElementById('applyForm').style.display = ''
+  document.getElementById('applyDone').style.display = 'none'
+  document.getElementById('applyErrMsg').style.display = 'none'
+  const btn = document.getElementById('applySubmitBtn')
+  btn.disabled = false
+  btn.textContent = '申請する'
+}
+
+// =============================================
+// マイページ：ケース一覧
+// =============================================
+window.loadMyCases = async function() {
+  if (!_currentProfile) return
+  const el = document.getElementById('mypageCaseList')
+  if (!el) return
+  el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-3);font-size:13px">読み込み中...</div>'
+
+  const STATUS_LABEL = {
+    pending_supervisor: '顧問承認待ち',
+    pending_homeroom:   '担任承認待ち',
+    approved:           '承認完了',
+    rejected:           '差し戻し',
+  }
+  const STATUS_COLOR = {
+    pending_supervisor: '#856404',
+    pending_homeroom:   '#004085',
+    approved:           '#155724',
+    rejected:           '#721c24',
+  }
+  const STATUS_BG = {
+    pending_supervisor: '#fff3cd',
+    pending_homeroom:   '#cce5ff',
+    approved:           '#d4edda',
+    rejected:           '#f8d7da',
+  }
+
+  try {
+    const uid = _currentProfile.uid || _currentUser.uid
+    const cases = await getMyCases(uid)
+    if (!cases.length) {
+      el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3);font-size:13px">申請履歴はありません</div>'
+      return
+    }
+
+    el.innerHTML = cases.map(c => {
+      const datesStr = (c.dates || []).join('、')
+      const st = c.status
+      const steps = [
+        { label:'申請',     done: true,                                             active: false },
+        { label:'顧問承認', done: ['pending_homeroom','approved'].includes(st),     active: st==='pending_supervisor' },
+        { label:'担任承認', done: st==='approved',                                  active: st==='pending_homeroom' },
+        { label:'完了',     done: st==='approved',                                  active: false },
+      ]
+      const rejected = st === 'rejected'
+
+      const progressBar = rejected
+        ? `<div style="margin:12px 0;font-size:11.5px;color:#721c24;background:#f8d7da;padding:8px 12px;border-radius:6px">
+             ❌ 差し戻されました${c.rejectedReason ? '：' + c.rejectedReason : ''}
+           </div>`
+        : `<div style="display:flex;margin:14px 0 4px;gap:0">
+             ${steps.map(s=>`
+               <div style="flex:1;text-align:center">
+                 <div style="height:4px;border-radius:2px;margin-bottom:5px;background:${s.done?'var(--navy)':s.active?'#ffc107':'var(--border)'}"></div>
+                 <span style="font-size:10px;font-weight:${s.done||s.active?'700':'400'};color:${s.done?'var(--navy)':s.active?'#856404':'var(--text-3)'}">${s.label}</span>
+               </div>`).join('')}
+           </div>`
+
+      return `
+        <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:18px 20px;margin-bottom:12px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+            <span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:4px;color:${STATUS_COLOR[st]||'#888'};background:${STATUS_BG[st]||'#eee'}">${STATUS_LABEL[st]||st}</span>
+            <span style="font-size:11px;color:var(--text-3);margin-left:auto">${c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString('ja') : ''}</span>
+          </div>
+          <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px">${c.title||''}</div>
+          <div style="font-size:12px;color:var(--text-3);margin-bottom:2px">${c.reason||''} ／ 📅 ${datesStr}</div>
+          ${progressBar}
+        </div>`
+    }).join('')
+  } catch(e) {
+    el.innerHTML = `<div style="padding:16px;color:var(--enjii);font-size:12px">読み込みエラー: ${e.message}</div>`
+  }
+}
+
+// マイページ表示時に自動読み込み
+const origNav = window.nav
+window.nav = function(page) {
+  origNav(page)
+  if (page === 'mypage') window.loadMyCases()
+}
+
+// ログアウト
+window.doLogoutFront = async function() {
+  await logout()
+  _currentUser    = null
+  _currentProfile = null
+  updateAuthUI()
+  nav('home')
+}
 </script>
 </body>
 </html>
