@@ -2238,6 +2238,12 @@ function updateAuthUI() {
     if (info) info.textContent =
       `${_currentProfile.grade || ''}年${_currentProfile.class || ''}組` +
       `${_currentProfile.number ? ' ' + _currentProfile.number + '番' : ''}`
+
+    // 現在マイページを表示中なら即座にケース一覧を読み込む
+    const mypageSec = document.getElementById('pg-mypage')
+    if (mypageSec && mypageSec.classList.contains('on')) {
+      window.loadMyCases()
+    }
   }
 }
 
