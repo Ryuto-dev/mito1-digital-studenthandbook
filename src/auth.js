@@ -69,13 +69,14 @@ export async function logout() {
 
 // =============================================
 // 現在のユーザープロフィール取得
+// user引数を渡すとauth.currentUserに依存しない
 // =============================================
-export async function getCurrentProfile() {
-  const user = auth.currentUser
-  if (!user) return null
-  const snap = await getDoc(doc(db, 'users', user.uid))
+export async function getCurrentProfile(user) {
+  const u = user || auth.currentUser
+  if (!u) return null
+  const snap = await getDoc(doc(db, 'users', u.uid))
   if (!snap.exists()) return null
-  return { uid: user.uid, ...snap.data() }
+  return { uid: u.uid, email: u.email, ...snap.data() }
 }
 
 // =============================================

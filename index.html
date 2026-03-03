@@ -2211,8 +2211,9 @@ let _currentUser    = null
 let _currentProfile = null
 
 onAuth(async user => {
-  _currentUser = user
-  _currentProfile = user ? await getCurrentProfile() : null
+  _currentUser    = user
+  // userを直接渡してauth.currentUserのタイミング問題を回避
+  _currentProfile = user ? await getCurrentProfile(user) : null
   updateAuthUI()
 })
 
