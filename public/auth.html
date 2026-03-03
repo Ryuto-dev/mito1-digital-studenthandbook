@@ -9,17 +9,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@600;700&family=Noto+Sans+JP:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
-  --navy:#1a2744;--navy-mid:#1e3060;--navy-light:#253a78;
+  --navy:#1a2744;--navy-light:#253a78;
   --enjii:#8b1a2c;--enjii-bg:rgba(139,26,44,.08);
   --bg:#f6f6f4;--surface:#fff;--surface2:#f0f0ed;
   --text:#111;--text-2:#444;--text-3:#888;
   --border:#e2e2de;--r:10px;
   --shadow-md:0 4px 16px rgba(0,0,0,.09),0 2px 4px rgba(0,0,0,.05);
-}
-[data-theme="dark"]{
-  --bg:#0e0e11;--surface:#18181d;--surface2:#202026;
-  --text:#e4e4e0;--text-2:#989894;--text-3:#565656;--border:#2a2a32;
-  --navy-dim:rgba(80,110,200,.1);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
@@ -28,8 +23,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .logo-jp{font-family:'Noto Serif JP',serif;font-size:20px;font-weight:700;color:var(--navy)}
 .logo-sub{font-size:12px;color:var(--text-3);margin-top:3px}
 .card{background:var(--surface);border-radius:14px;box-shadow:var(--shadow-md);padding:32px 36px;width:100%;max-width:440px}
-.tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:28px}
-.tab{flex:1;padding:10px;text-align:center;font-size:13px;font-weight:600;color:var(--text-3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .15s,border-color .15s}
+.tabs{display:flex;border-bottom:2px solid var(--border);margin-bottom:28px}
+.tab{flex:1;padding:10px;text-align:center;font-size:13px;font-weight:600;color:var(--text-3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:.15s}
 .tab.on{color:var(--navy);border-bottom-color:var(--navy)}
 .section{display:none}.section.on{display:block}
 .form-group{margin-bottom:18px}
@@ -39,19 +34,17 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .form-input:focus{border-color:var(--navy)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-.btn-primary{width:100%;padding:13px;background:var(--navy);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer;transition:background .15s;margin-top:8px}
+.btn-primary{width:100%;padding:13px;background:var(--navy);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer;transition:background .15s;margin-top:8px;font-family:inherit}
 .btn-primary:hover{background:var(--navy-light)}
 .btn-primary:disabled{opacity:.5;cursor:not-allowed}
 .err{font-size:12px;color:var(--enjii);background:var(--enjii-bg);padding:10px 12px;border-radius:8px;margin-bottom:16px;display:none}
 .err.show{display:block}
 .hint{font-size:11.5px;color:var(--text-3);text-align:center;margin-top:16px}
-.hint a{color:var(--navy);font-weight:500}
+.hint a{color:var(--navy);font-weight:500;cursor:pointer}
 .role-tabs{display:flex;gap:8px;margin-bottom:20px}
-.role-tab{flex:1;padding:10px;text-align:center;border:1.5px solid var(--border);border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--text-3);transition:.15s}
-.role-tab.on{border-color:var(--navy);color:var(--navy);background:var(--navy-dim,rgba(26,39,68,.06))}
-.divider{text-align:center;font-size:11px;color:var(--text-3);margin:16px 0;position:relative}
-.divider::before,.divider::after{content:'';position:absolute;top:50%;width:calc(50% - 24px);height:1px;background:var(--border)}
-.divider::before{left:0}.divider::after{right:0}
+.role-tab{flex:1;padding:10px;text-align:center;border:1.5px solid var(--border);border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--text-3);transition:.15s;background:var(--surface)}
+.role-tab.on{border-color:var(--navy);color:var(--navy);background:rgba(26,39,68,.06)}
+.spinner-wrap{text-align:center;padding:20px;color:var(--text-3);font-size:13px}
 </style>
 </head>
 <body>
@@ -62,14 +55,45 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
   <div class="logo-sub">公欠申請システム</div>
 </div>
 
-<div class="card">
-  <!-- タブ -->
-  <div class="tabs">
-    <div class="tab on" onclick="switchTab('login')">ログイン</div>
-    <div class="tab" onclick="switchTab('register')">新規登録</div>
-  </div>
+<div class="card" id="mainCard">
+  <div class="spinner-wrap">読み込み中...</div>
+</div>
 
-  <!-- エラー表示 -->
+<script type="module">
+// Firebase CDN から直接インポート（Viteビルド不要）
+import { initializeApp, getApps }
+  from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js'
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+         onAuthStateChanged, sendPasswordResetEmail }
+  from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js'
+import { getFirestore, doc, setDoc, getDoc, serverTimestamp }
+  from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'
+
+// ──────────────────────────────────────────────────
+// ★ここにsrc/firebase.jsと同じ設定値を記入してください
+// ──────────────────────────────────────────────────
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyDJAL3jmKe1WXqptIs5jPA3MtJsE21U59o",
+  authDomain:        "timer-c0ed3.firebaseapp.com",
+  projectId:         "timer-c0ed3",
+  storageBucket:     "timer-c0ed3.firebasestorage.app",
+  messagingSenderId: "955167611710",
+  appId:             "1:955167611710:web:6472cb4ce3ecb6c232aa6f",
+}
+
+const BASE = '/mito1-digital-studenthandbook'
+
+// 重複初期化を防ぐ
+const app  = getApps().find(a => a.name === 'auth-page') || initializeApp(FIREBASE_CONFIG, 'auth-page')
+const auth = getAuth(app)
+const db   = getFirestore(app)
+
+// ── UIを描画 ──────────────────────────────────────
+document.getElementById('mainCard').innerHTML = `
+  <div class="tabs">
+    <div class="tab on" id="tabLogin" onclick="switchTab('login')">ログイン</div>
+    <div class="tab" id="tabRegister" onclick="switchTab('register')">新規登録</div>
+  </div>
   <div class="err" id="authErr"></div>
 
   <!-- ログイン -->
@@ -82,10 +106,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
       <label class="form-label">パスワード <span class="req">必須</span></label>
       <input class="form-input" id="loginPass" type="password" placeholder="パスワード" autocomplete="current-password">
     </div>
-    <button class="btn-primary" id="loginBtn" onclick="doLogin()">ログイン</button>
-    <div class="hint">
-      <a href="#" onclick="showReset()">パスワードを忘れた方</a>
-    </div>
+    <button class="btn-primary" id="loginBtn">ログイン</button>
+    <div class="hint"><a id="resetLink">パスワードを忘れた方</a></div>
   </div>
 
   <!-- 新規登録 -->
@@ -95,7 +117,6 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
       <div class="role-tab" id="roleTeacher" onclick="switchRole('teacher')">先生</div>
     </div>
 
-    <!-- 生徒登録フォーム -->
     <div id="formStudent">
       <div class="form-group">
         <label class="form-label">氏名 <span class="req">必須</span></label>
@@ -105,17 +126,14 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
         <div class="form-group">
           <label class="form-label">学年 <span class="req">必須</span></label>
           <select class="form-input" id="regGrade">
-            <option value="1">1年</option>
-            <option value="2">2年</option>
-            <option value="3">3年</option>
+            <option value="1">1年</option><option value="2">2年</option><option value="3">3年</option>
           </select>
         </div>
         <div class="form-group">
           <label class="form-label">クラス <span class="req">必須</span></label>
           <select class="form-input" id="regClass">
-            <option>A</option><option>B</option><option>C</option>
-            <option>D</option><option>E</option><option>F</option>
-            <option>G</option><option>H</option>
+            <option value="1">1組</option><option value="2">2組</option><option value="3">3組</option>
+            <option value="4">4組</option><option value="5">5組</option><option value="6">6組</option>
           </select>
         </div>
         <div class="form-group">
@@ -137,10 +155,9 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
           <input class="form-input" id="regPass2" type="password" placeholder="再入力">
         </div>
       </div>
-      <button class="btn-primary" id="regBtn" onclick="doRegister()">登録して始める</button>
+      <button class="btn-primary" id="regStudentBtn">登録して始める</button>
     </div>
 
-    <!-- 先生登録フォーム -->
     <div id="formTeacher" style="display:none">
       <div class="form-group">
         <label class="form-label">氏名 <span class="req">必須</span></label>
@@ -160,42 +177,81 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
           <input class="form-input" id="regTeacherPass2" type="password" placeholder="再入力">
         </div>
       </div>
-      <button class="btn-primary" onclick="doRegisterTeacher()">登録して始める</button>
+      <button class="btn-primary" id="regTeacherBtn">登録して始める</button>
     </div>
   </div>
-</div>
+`
 
-<script type="module">
-import { login, registerStudent, registerTeacher, onAuth, resetPassword } from '/src/auth.js'
-import { getCurrentProfile } from '/src/auth.js'
+// ── イベントリスナーを動的に追加（onclickではなくaddEventListener）
+document.getElementById('loginBtn').addEventListener('click', doLogin)
+document.getElementById('regStudentBtn').addEventListener('click', doRegisterStudent)
+document.getElementById('regTeacherBtn').addEventListener('click', doRegisterTeacher)
+document.getElementById('resetLink').addEventListener('click', showReset)
 
-// Auth状態を監視してリダイレクト
-onAuth(async user => {
+// ── Auth状態監視 → ログイン済みならリダイレクト ──────────────────
+onAuthStateChanged(auth, async user => {
   if (!user) return
-  const profile = await getCurrentProfile()
-  if (!profile) return
-  if (profile.role === 'teacher') {
-    location.href = '/mito1-digital-studenthandbook/teacher.html'
-  } else {
-    location.href = '/mito1-digital-studenthandbook/'
+  try {
+    const snap = await getDoc(doc(db, 'users', user.uid))
+    const profile = snap.exists() ? snap.data() : null
+    if (profile?.role === 'teacher') {
+      location.href = BASE + '/teacher.html'
+    } else if (profile?.role === 'admin') {
+      location.href = BASE + '/admin/'
+    } else {
+      location.href = BASE + '/'
+    }
+  } catch(e) {
+    console.warn('[auth] redirect check failed:', e.message)
   }
 })
 
-window.doLogin = async function() {
+// ── ユーティリティ ────────────────────────────────────────────────
+function fbErr(code) {
+  const map = {
+    'auth/user-not-found':       'このメールアドレスは登録されていません',
+    'auth/wrong-password':       'パスワードが正しくありません',
+    'auth/invalid-credential':   'メールアドレスまたはパスワードが正しくありません',
+    'auth/email-already-in-use': 'このメールアドレスはすでに使用されています',
+    'auth/weak-password':        'パスワードは6文字以上にしてください',
+    'auth/invalid-email':        'メールアドレスの形式が正しくありません',
+    'auth/too-many-requests':    'しばらく時間をおいてから再試行してください',
+  }
+  return map[code] || 'エラー（' + code + '）'
+}
+function showErr(msgOrEvent) {
+  const msg = typeof msgOrEvent === 'string' ? msgOrEvent : null
+  if (!msg) return  // resetLinkのクリックイベントが来た場合は別処理
+  const el = document.getElementById('authErr')
+  if (el) { el.textContent = msg; el.classList.add('show') }
+}
+function clearErr() {
+  const el = document.getElementById('authErr')
+  if (el) el.classList.remove('show')
+}
+function setBtn(id, loading, text) {
+  const btn = document.getElementById(id)
+  if (btn) { btn.disabled = loading; btn.textContent = loading ? '処理中...' : text }
+}
+
+// ── ログイン ──────────────────────────────────────────────────────
+async function doLogin() {
+  clearErr()
   const email = document.getElementById('loginEmail').value.trim()
   const pass  = document.getElementById('loginPass').value
   if (!email || !pass) { showErr('メールアドレスとパスワードを入力してください'); return }
-  setLoading('loginBtn', true)
+  setBtn('loginBtn', true, 'ログイン')
   try {
-    await login(email, pass)
-    // onAuth が拾ってリダイレクト
+    await signInWithEmailAndPassword(auth, email, pass)
   } catch(e) {
-    showErr(firebaseErrMsg(e.code))
-    setLoading('loginBtn', false)
+    showErr(fbErr(e.code))
+    setBtn('loginBtn', false, 'ログイン')
   }
 }
 
-window.doRegister = async function() {
+// ── 生徒新規登録 ──────────────────────────────────────────────────
+async function doRegisterStudent() {
+  clearErr()
   const name  = document.getElementById('regName').value.trim()
   const grade = document.getElementById('regGrade').value
   const cls   = document.getElementById('regClass').value
@@ -204,83 +260,74 @@ window.doRegister = async function() {
   const pass  = document.getElementById('regPass').value
   const pass2 = document.getElementById('regPass2').value
   if (!name || !email || !pass) { showErr('必須項目を入力してください'); return }
-  if (pass !== pass2) { showErr('パスワードが一致しません'); return }
-  if (pass.length < 6) { showErr('パスワードは6文字以上にしてください'); return }
-  setLoading('regBtn', true)
+  if (pass !== pass2)           { showErr('パスワードが一致しません'); return }
+  if (pass.length < 6)          { showErr('パスワードは6文字以上にしてください'); return }
+  setBtn('regStudentBtn', true, '登録して始める')
   try {
-    await registerStudent({ email, password: pass, name, grade, classLabel: cls, number: num || 0 })
+    const cred = await createUserWithEmailAndPassword(auth, email, pass)
+    await setDoc(doc(db, 'users', cred.user.uid), {
+      role: 'student', name,
+      grade: Number(grade), class: Number(cls),
+      number: num ? Number(num) : 0,
+      email, createdAt: serverTimestamp(),
+    })
+    // onAuthStateChanged がリダイレクト
   } catch(e) {
-    showErr(firebaseErrMsg(e.code))
-    setLoading('regBtn', false)
+    showErr(fbErr(e.code))
+    setBtn('regStudentBtn', false, '登録して始める')
   }
 }
 
-window.doRegisterTeacher = async function() {
+// ── 先生新規登録 ──────────────────────────────────────────────────
+async function doRegisterTeacher() {
+  clearErr()
   const name  = document.getElementById('regTeacherName').value.trim()
   const email = document.getElementById('regTeacherEmail').value.trim()
   const pass  = document.getElementById('regTeacherPass').value
   const pass2 = document.getElementById('regTeacherPass2').value
   if (!name || !email || !pass) { showErr('必須項目を入力してください'); return }
-  if (pass !== pass2) { showErr('パスワードが一致しません'); return }
-  if (pass.length < 6) { showErr('パスワードは6文字以上にしてください'); return }
+  if (pass !== pass2)           { showErr('パスワードが一致しません'); return }
+  if (pass.length < 6)          { showErr('パスワードは6文字以上にしてください'); return }
+  setBtn('regTeacherBtn', true, '登録して始める')
   try {
-    await registerTeacher({ email, password: pass, name })
+    const cred = await createUserWithEmailAndPassword(auth, email, pass)
+    await setDoc(doc(db, 'users', cred.user.uid), {
+      role: 'teacher', name, email, createdAt: serverTimestamp(),
+    })
+    // onAuthStateChanged がリダイレクト
   } catch(e) {
-    showErr(firebaseErrMsg(e.code))
+    showErr(fbErr(e.code))
+    setBtn('regTeacherBtn', false, '登録して始める')
   }
 }
 
-window.showReset = async function() {
+// ── パスワードリセット ─────────────────────────────────────────────
+async function showReset() {
   const email = prompt('登録時のメールアドレスを入力してください')
   if (!email) return
   try {
-    await resetPassword(email)
+    await sendPasswordResetEmail(auth, email)
     alert('パスワードリセットメールを送信しました')
   } catch(e) {
-    alert('送信に失敗しました: ' + e.message)
+    alert('送信に失敗: ' + fbErr(e.code))
   }
-}
-
-function firebaseErrMsg(code) {
-  const map = {
-    'auth/user-not-found':       'このメールアドレスは登録されていません',
-    'auth/wrong-password':       'パスワードが正しくありません',
-    'auth/email-already-in-use': 'このメールアドレスはすでに使用されています',
-    'auth/weak-password':        'パスワードが弱すぎます（6文字以上）',
-    'auth/invalid-email':        'メールアドレスの形式が正しくありません',
-    'auth/invalid-credential':   'メールアドレスまたはパスワードが正しくありません',
-    'auth/too-many-requests':    'ログイン試行が多すぎます。しばらく後にお試しください',
-  }
-  return map[code] || 'エラーが発生しました (' + code + ')'
-}
-
-function showErr(msg) {
-  const el = document.getElementById('authErr')
-  el.textContent = msg
-  el.classList.add('show')
-}
-
-function setLoading(id, on) {
-  const btn = document.getElementById(id)
-  if (!btn) return
-  btn.disabled = on
-  btn.textContent = on ? '処理中...' : (id === 'loginBtn' ? 'ログイン' : '登録して始める')
 }
 </script>
 
+<!-- タブ・ロール切り替えは通常スクリプト（モジュールスコープ外に公開） -->
 <script>
 function switchTab(tab) {
-  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('on', ['login','register'][i] === tab))
-  document.getElementById('sec-login').classList.toggle('on', tab === 'login')
-  document.getElementById('sec-register').classList.toggle('on', tab === 'register')
-  document.getElementById('authErr').classList.remove('show')
+  ['login','register'].forEach(t => {
+    document.getElementById('tab' + (t==='login'?'Login':'Register'))?.classList.toggle('on', t===tab)
+    document.getElementById('sec-' + t)?.classList.toggle('on', t===tab)
+  })
+  document.getElementById('authErr')?.classList.remove('show')
 }
-
 function switchRole(role) {
-  document.getElementById('roleStudent').classList.toggle('on', role === 'student')
-  document.getElementById('roleTeacher').classList.toggle('on', role === 'teacher')
-  document.getElementById('formStudent').style.display = role === 'student' ? '' : 'none'
-  document.getElementById('formTeacher').style.display = role === 'teacher' ? '' : 'none'
+  document.getElementById('roleStudent')?.classList.toggle('on', role==='student')
+  document.getElementById('roleTeacher')?.classList.toggle('on', role==='teacher')
+  document.getElementById('formStudent').style.display = role==='student' ? '' : 'none'
+  document.getElementById('formTeacher').style.display = role==='teacher' ? '' : 'none'
 }
 </script>
 </body>
