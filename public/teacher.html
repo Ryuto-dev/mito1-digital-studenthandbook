@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#1a2744">
+<title>先生用ダッシュボード — 水戸第一高等学校</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@600&family=Noto+Sans+JP:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#1a2744;--navy-light:#253a78;--enjii:#8b1a2c;--enjii-bg:rgba(139,26,44,.08);
+  --bg:#f6f6f4;--surface:#fff;--surface2:#f0f0ed;
+  --text:#111;--text-2:#444;--text-3:#888;--border:#e2e2de;
+  --r:10px;--shadow-md:0 4px 16px rgba(0,0,0,.09);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text)}
+.header{position:sticky;top:0;background:var(--navy);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;z-index:100}
+.header-title{color:#fff;font-size:15px;font-weight:600}
+.header-sub{color:rgba(255,255,255,.6);font-size:11px}
+.header-actions{display:flex;align-items:center;gap:12px}
+.btn-logout{background:rgba(255,255,255,.12);color:#fff;border:none;padding:7px 14px;border-radius:7px;font-size:12px;cursor:pointer;font-family:inherit}
+.btn-logout:hover{background:rgba(255,255,255,.2)}
+.main{max-width:900px;margin:0 auto;padding:32px 24px}
+.page-header{margin-bottom:28px}
+.page-title{font-size:22px;font-weight:700;color:var(--navy)}
+.page-sub{font-size:13px;color:var(--text-3);margin-top:4px}
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.filter-btn{padding:7px 16px;border:1.5px solid var(--border);border-radius:20px;font-size:12.5px;cursor:pointer;background:var(--surface);color:var(--text-3);font-family:inherit;transition:.15s}
+.filter-btn.on{border-color:var(--navy);color:var(--navy);background:rgba(26,39,68,.05);font-weight:600}
+.empty{text-align:center;padding:48px;color:var(--text-3);font-size:13px}
+.case-card{background:var(--surface);border-radius:var(--r);border:1.5px solid var(--border);margin-bottom:14px;overflow:hidden;box-shadow:var(--shadow-md)}
+.case-head{padding:16px 20px;display:flex;align-items:flex-start;gap:12px}
+.case-badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px}
+.badge-pending_supervisor{background:#fff3cd;color:#856404}
+.badge-pending_homeroom{background:#cce5ff;color:#004085}
+.badge-approved{background:#d4edda;color:#155724}
+.badge-rejected{background:#f8d7da;color:#721c24}
+.badge-role{background:rgba(26,39,68,.08);color:var(--navy)}
+.case-title{font-size:15px;font-weight:600;color:var(--text)}
+.case-meta{font-size:12px;color:var(--text-3);margin-top:4px;display:flex;gap:14px;flex-wrap:wrap}
+.case-dates{font-size:12.5px;color:var(--text-2);margin-top:6px}
+.case-actions{padding:12px 20px;border-top:1px solid var(--border);background:var(--surface2);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn-approve{padding:9px 20px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s}
+.btn-approve:hover{background:var(--navy-light)}
+.btn-reject{padding:9px 16px;background:#fff;color:var(--enjii);border:1.5px solid var(--enjii);border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;transition:.15s}
+.btn-reject:hover{background:#fff8f8}
+.progress{display:flex;gap:0;margin-top:4px}
+.prog-step{flex:1;text-align:center;font-size:10px;padding:4px 0;color:var(--text-3)}
+.prog-step.done{color:var(--navy);font-weight:600}
+.prog-step.active{color:#856404;font-weight:600}
+.prog-line{width:100%;height:3px;margin-bottom:4px;border-radius:2px;background:var(--border)}
+.prog-line.done{background:var(--navy)}
+.prog-line.active{background:#ffc107}
+.spinner{display:inline-block;width:20px;height:20px;border:2px solid #e0e0e0;border-top-color:var(--navy);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-wrap{padding:40px;text-align:center;color:var(--text-3);font-size:13px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-title">先生用ダッシュボード</div>
+    <div class="header-sub" id="headerName">読み込み中...</div>
+  </div>
+  <div class="header-actions">
+    <button class="btn-logout" onclick="doLogout()">ログアウト</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="page-header">
+    <div class="page-title">公欠申請 承認管理</div>
+    <div class="page-sub">自分宛の申請の一覧・承認・差し戻し</div>
+  </div>
+
+  <div class="filter-bar">
+    <button class="filter-btn on" onclick="setFilter('all',this)">すべて</button>
+    <button class="filter-btn" onclick="setFilter('pending_supervisor',this)">顧問承認待ち</button>
+    <button class="filter-btn" onclick="setFilter('pending_homeroom',this)">担任承認待ち</button>
+    <button class="filter-btn" onclick="setFilter('approved',this)">承認済み</button>
+    <button class="filter-btn" onclick="setFilter('rejected',this)">差し戻し</button>
+  </div>
+
+  <div id="caseList">
+    <div class="loading-wrap"><span class="spinner"></span>読み込み中...</div>
+  </div>
+</div>
+
+<script type="module">
+import { onAuth, getCurrentProfile, logout } from '/src/auth.js'
+import { getTeacherCases, approveByTeacher, rejectByTeacher } from '/src/cases.js'
+
+const STATUS_LABEL = {
+  pending_supervisor: '顧問承認待ち',
+  pending_homeroom:   '担任承認待ち',
+  approved:           '承認済み',
+  rejected:           '差し戻し',
+}
+
+let currentFilter = 'all'
+let allCases = []
+let myProfile = null
+
+onAuth(async user => {
+  if (!user) { location.href = '/mito1-digital-studenthandbook/auth.html'; return }
+  myProfile = await getCurrentProfile()
+  if (!myProfile) { location.href = '/mito1-digital-studenthandbook/auth.html'; return }
+  document.getElementById('headerName').textContent = `${myProfile.name} 先生`
+  await loadCases()
+})
+
+async function loadCases() {
+  document.getElementById('caseList').innerHTML =
+    '<div class="loading-wrap"><span class="spinner"></span>読み込み中...</div>'
+  allCases = await getTeacherCases(myProfile.email)
+  renderCases()
+}
+
+function renderCases() {
+  const filtered = currentFilter === 'all'
+    ? allCases
+    : allCases.filter(c => c.status === currentFilter)
+
+  const el = document.getElementById('caseList')
+  if (!filtered.length) {
+    el.innerHTML = '<div class="empty">該当する申請はありません</div>'
+    return
+  }
+
+  el.innerHTML = filtered.map(c => {
+    const datesStr = (c.dates || []).join('、')
+    const isSupervisor = c.supervisorEmail === myProfile.email
+    const myRole  = isSupervisor ? '顧問' : '担任'
+    const canApprove =
+      (isSupervisor && c.status === 'pending_supervisor') ||
+      (!isSupervisor && c.status === 'pending_homeroom')
+
+    const progress = renderProgress(c)
+    const actions  = canApprove ? `
+      <button class="btn-approve" onclick="handleApprove('${c.id}','${isSupervisor?'supervisor':'homeroom'}')">
+        ✓ 承認する
+      </button>
+      <button class="btn-reject" onclick="handleReject('${c.id}','${isSupervisor?'supervisor':'homeroom'}')">
+        差し戻す
+      </button>` : ''
+
+    return `
+      <div class="case-card">
+        <div class="case-head">
+          <div style="flex:1">
+            <div class="case-badges">
+              <span class="badge badge-${c.status}">${STATUS_LABEL[c.status]||c.status}</span>
+              <span class="badge badge-role">${myRole}として</span>
+            </div>
+            <div class="case-title">${esc(c.title)}</div>
+            <div class="case-meta">
+              <span>申請者: ${esc(c.studentName)}</span>
+              <span>${esc(c.reason||'')}</span>
+              <span>${c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString('ja') : ''}</span>
+            </div>
+            <div class="case-dates">📅 ${esc(datesStr)}</div>
+            ${progress}
+          </div>
+        </div>
+        ${actions ? `<div class="case-actions">${actions}</div>` : ''}
+      </div>`
+  }).join('')
+}
+
+function renderProgress(c) {
+  const steps = [
+    { label: '申請', done: true },
+    { label: '顧問承認', done: ['pending_homeroom','approved'].includes(c.status), active: c.status==='pending_supervisor' },
+    { label: '担任承認', done: c.status==='approved', active: c.status==='pending_homeroom' },
+    { label: '完了', done: c.status==='approved' },
+  ]
+  return `<div style="margin-top:12px">
+    <div class="progress">
+      ${steps.map(s=>`
+        <div class="prog-step ${s.done?'done':s.active?'active':''}">
+          <div class="prog-line ${s.done?'done':s.active?'active':''}"></div>
+          ${s.label}
+        </div>`).join('')}
+    </div>
+  </div>`
+}
+
+window.setFilter = function(filter, btn) {
+  currentFilter = filter
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('on'))
+  btn.classList.add('on')
+  renderCases()
+}
+
+window.handleApprove = async function(caseId, step) {
+  if (!confirm('この申請を承認しますか？')) return
+  try {
+    await approveByTeacher(caseId, step, myProfile.uid)
+    await loadCases()
+  } catch(e) {
+    alert('エラー: ' + e.message)
+  }
+}
+
+window.handleReject = async function(caseId, step) {
+  const reason = prompt('差し戻し理由を入力してください（任意）')
+  if (reason === null) return // キャンセル
+  try {
+    await rejectByTeacher(caseId, step, reason, myProfile.uid)
+    await loadCases()
+  } catch(e) {
+    alert('エラー: ' + e.message)
+  }
+}
+
+window.doLogout = async function() {
+  await logout()
+  location.href = '/mito1-digital-studenthandbook/auth.html'
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+</script>
+</body>
+</html>

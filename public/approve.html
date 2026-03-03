@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#1a2744">
+<title>公欠申請 承認処理 — 水戸第一高等学校</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#1a2744;--enjii:#8b1a2c;--bg:#f6f6f4;--surface:#fff;--text:#111;--text-3:#888;--border:#e2e2de;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.card{background:var(--surface);border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,.1);padding:40px 36px;width:100%;max-width:480px;text-align:center}
+.icon{font-size:56px;margin-bottom:16px}
+.ttl{font-size:20px;font-weight:700;color:var(--navy);margin-bottom:8px}
+.sub{font-size:13px;color:var(--text-3);line-height:1.7}
+.info-box{background:#f8f9fa;border-radius:10px;padding:18px;margin:20px 0;text-align:left;font-size:13px;color:#444}
+.info-row{display:flex;gap:8px;margin-bottom:6px}
+.info-row:last-child{margin-bottom:0}
+.info-key{font-weight:600;min-width:60px;color:var(--text)}
+.btn{display:block;width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px;font-family:inherit;transition:.15s}
+.btn-approve{background:var(--navy);color:#fff}
+.btn-approve:hover{background:#253a78}
+.btn-reject{background:#fff;color:var(--enjii);border:1.5px solid var(--enjii)}
+.btn-reject:hover{background:#fff8f8}
+.btn-back{background:#f0f0ed;color:#444}
+.spinner{width:40px;height:40px;border:3px solid #e0e0e0;border-top-color:var(--navy);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div class="spinner"></div>
+  <div style="font-size:14px;color:var(--text-3)">処理中...</div>
+</div>
+
+<script type="module">
+import { processToken } from '/src/cases.js'
+
+const params = new URLSearchParams(location.search)
+const token  = params.get('token')
+const action = params.get('action') || 'approve'
+
+const card = document.getElementById('card')
+
+function render(icon, title, sub, extra = '') {
+  card.innerHTML = `
+    <div class="icon">${icon}</div>
+    <div class="ttl">${title}</div>
+    <div class="sub">${sub}</div>
+    ${extra}
+  `
+}
+
+async function main() {
+  if (!token) {
+    render('❌', 'リンクが無効です', '承認リンクが正しくありません。<br>メールのリンクを再度ご確認ください。')
+    return
+  }
+
+  // 確認画面を先に表示（action=approve の場合）
+  if (action === 'approve') {
+    card.innerHTML = `
+      <div class="icon">📋</div>
+      <div class="ttl">公欠申請の承認確認</div>
+      <div class="sub">以下の申請を承認してよろしいですか？</div>
+      <div id="caseInfo" style="margin:16px 0;font-size:13px;color:var(--text-3)">確認中...</div>
+      <button class="btn btn-approve" id="btnApprove">✓ 承認する</button>
+      <button class="btn btn-reject" onclick="location.href=location.href.replace('action=approve','action=reject')">差し戻す</button>
+    `
+    document.getElementById('btnApprove').onclick = doProcess
+    // トークンからケース情報を取得して表示（processはまだしない）
+    // ここでは情報表示のみ、実際の処理はボタンクリックで行う
+  } else {
+    // reject は確認なしで処理
+    doProcess()
+  }
+}
+
+async function doProcess() {
+  const btn = document.getElementById('btnApprove')
+  if (btn) { btn.disabled = true; btn.textContent = '処理中...' }
+
+  try {
+    const result = await processToken(token, action)
+
+    if (!result.ok) {
+      if (result.reason === 'already_processed') {
+        render('⚠️', 'すでに処理済みです',
+          'この申請はすでに処理されています。<br>ダッシュボードで最新の状況をご確認ください。',
+          `<a class="btn btn-back" style="display:block;margin-top:16px;text-decoration:none;padding:13px;border-radius:10px" href="/mito1-digital-studenthandbook/auth.html">ダッシュボードへ</a>`)
+      } else {
+        render('❌', 'リンクが無効です', 'このリンクは有効期限切れか、すでに使用されています。')
+      }
+      return
+    }
+
+    const d = result.caseData
+    const datesStr = (d.dates || []).join('、')
+    const infoBox = `
+      <div class="info-box">
+        <div class="info-row"><span class="info-key">申請者</span><span>${d.studentName}</span></div>
+        <div class="info-row"><span class="info-key">件名</span><span>${d.title}</span></div>
+        <div class="info-row"><span class="info-key">公欠日</span><span>${datesStr}</span></div>
+      </div>`
+
+    if (result.result === 'rejected') {
+      render('🔴', '申請を差し戻しました', '生徒に通知されます。', infoBox)
+    } else if (result.result === 'supervisor_approved') {
+      render('✅', '顧問承認が完了しました',
+        '担任の先生に承認依頼メールを送信しました。', infoBox)
+    } else if (result.result === 'approved') {
+      render('🎉', '公欠申請が承認されました',
+        '顧問・担任の両方の承認が完了し、<br>生徒に完了通知を送信しました。', infoBox)
+    }
+  } catch(e) {
+    render('❌', 'エラーが発生しました', e.message)
+  }
+}
+
+main()
+</script>
+</body>
+</html>

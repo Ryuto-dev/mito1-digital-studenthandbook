@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#1a2744">
+<title>ログイン / 登録 — 水戸第一高等学校 デジタル生徒手帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@600;700&family=Noto+Sans+JP:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#1a2744;--navy-mid:#1e3060;--navy-light:#253a78;
+  --enjii:#8b1a2c;--enjii-bg:rgba(139,26,44,.08);
+  --bg:#f6f6f4;--surface:#fff;--surface2:#f0f0ed;
+  --text:#111;--text-2:#444;--text-3:#888;
+  --border:#e2e2de;--r:10px;
+  --shadow-md:0 4px 16px rgba(0,0,0,.09),0 2px 4px rgba(0,0,0,.05);
+}
+[data-theme="dark"]{
+  --bg:#0e0e11;--surface:#18181d;--surface2:#202026;
+  --text:#e4e4e0;--text-2:#989894;--text-3:#565656;--border:#2a2a32;
+  --navy-dim:rgba(80,110,200,.1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+.logo{text-align:center;margin-bottom:32px}
+.logo-en{font-size:11px;letter-spacing:.18em;color:var(--text-3);text-transform:uppercase;margin-bottom:4px}
+.logo-jp{font-family:'Noto Serif JP',serif;font-size:20px;font-weight:700;color:var(--navy)}
+.logo-sub{font-size:12px;color:var(--text-3);margin-top:3px}
+.card{background:var(--surface);border-radius:14px;box-shadow:var(--shadow-md);padding:32px 36px;width:100%;max-width:440px}
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:28px}
+.tab{flex:1;padding:10px;text-align:center;font-size:13px;font-weight:600;color:var(--text-3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .15s,border-color .15s}
+.tab.on{color:var(--navy);border-bottom-color:var(--navy)}
+.section{display:none}.section.on{display:block}
+.form-group{margin-bottom:18px}
+.form-label{display:block;font-size:12.5px;font-weight:600;color:var(--text-2);margin-bottom:6px}
+.req{font-size:10px;color:var(--enjii);background:var(--enjii-bg);padding:1px 6px;border-radius:4px;margin-left:4px}
+.form-input{width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text);font-size:14px;font-family:inherit;outline:none;transition:border-color .15s}
+.form-input:focus{border-color:var(--navy)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.btn-primary{width:100%;padding:13px;background:var(--navy);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer;transition:background .15s;margin-top:8px}
+.btn-primary:hover{background:var(--navy-light)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.err{font-size:12px;color:var(--enjii);background:var(--enjii-bg);padding:10px 12px;border-radius:8px;margin-bottom:16px;display:none}
+.err.show{display:block}
+.hint{font-size:11.5px;color:var(--text-3);text-align:center;margin-top:16px}
+.hint a{color:var(--navy);font-weight:500}
+.role-tabs{display:flex;gap:8px;margin-bottom:20px}
+.role-tab{flex:1;padding:10px;text-align:center;border:1.5px solid var(--border);border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--text-3);transition:.15s}
+.role-tab.on{border-color:var(--navy);color:var(--navy);background:var(--navy-dim,rgba(26,39,68,.06))}
+.divider{text-align:center;font-size:11px;color:var(--text-3);margin:16px 0;position:relative}
+.divider::before,.divider::after{content:'';position:absolute;top:50%;width:calc(50% - 24px);height:1px;background:var(--border)}
+.divider::before{left:0}.divider::after{right:0}
+</style>
+</head>
+<body>
+
+<div class="logo">
+  <div class="logo-en">Mito Daiichi High School</div>
+  <div class="logo-jp">デジタル生徒手帳</div>
+  <div class="logo-sub">公欠申請システム</div>
+</div>
+
+<div class="card">
+  <!-- タブ -->
+  <div class="tabs">
+    <div class="tab on" onclick="switchTab('login')">ログイン</div>
+    <div class="tab" onclick="switchTab('register')">新規登録</div>
+  </div>
+
+  <!-- エラー表示 -->
+  <div class="err" id="authErr"></div>
+
+  <!-- ログイン -->
+  <div class="section on" id="sec-login">
+    <div class="form-group">
+      <label class="form-label">メールアドレス <span class="req">必須</span></label>
+      <input class="form-input" id="loginEmail" type="email" placeholder="example@ibaraki.ed.jp" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label class="form-label">パスワード <span class="req">必須</span></label>
+      <input class="form-input" id="loginPass" type="password" placeholder="パスワード" autocomplete="current-password">
+    </div>
+    <button class="btn-primary" id="loginBtn" onclick="doLogin()">ログイン</button>
+    <div class="hint">
+      <a href="#" onclick="showReset()">パスワードを忘れた方</a>
+    </div>
+  </div>
+
+  <!-- 新規登録 -->
+  <div class="section" id="sec-register">
+    <div class="role-tabs">
+      <div class="role-tab on" id="roleStudent" onclick="switchRole('student')">生徒</div>
+      <div class="role-tab" id="roleTeacher" onclick="switchRole('teacher')">先生</div>
+    </div>
+
+    <!-- 生徒登録フォーム -->
+    <div id="formStudent">
+      <div class="form-group">
+        <label class="form-label">氏名 <span class="req">必須</span></label>
+        <input class="form-input" id="regName" type="text" placeholder="山田 太郎">
+      </div>
+      <div class="row3">
+        <div class="form-group">
+          <label class="form-label">学年 <span class="req">必須</span></label>
+          <select class="form-input" id="regGrade">
+            <option value="1">1年</option>
+            <option value="2">2年</option>
+            <option value="3">3年</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">クラス <span class="req">必須</span></label>
+          <select class="form-input" id="regClass">
+            <option>A</option><option>B</option><option>C</option>
+            <option>D</option><option>E</option><option>F</option>
+            <option>G</option><option>H</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">出席番号</label>
+          <input class="form-input" id="regNumber" type="number" min="1" max="50" placeholder="1">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">メールアドレス <span class="req">必須</span></label>
+        <input class="form-input" id="regEmail" type="email" placeholder="example@ibaraki.ed.jp">
+      </div>
+      <div class="row2">
+        <div class="form-group">
+          <label class="form-label">パスワード <span class="req">必須</span></label>
+          <input class="form-input" id="regPass" type="password" placeholder="6文字以上">
+        </div>
+        <div class="form-group">
+          <label class="form-label">確認</label>
+          <input class="form-input" id="regPass2" type="password" placeholder="再入力">
+        </div>
+      </div>
+      <button class="btn-primary" id="regBtn" onclick="doRegister()">登録して始める</button>
+    </div>
+
+    <!-- 先生登録フォーム -->
+    <div id="formTeacher" style="display:none">
+      <div class="form-group">
+        <label class="form-label">氏名 <span class="req">必須</span></label>
+        <input class="form-input" id="regTeacherName" type="text" placeholder="鈴木 先生">
+      </div>
+      <div class="form-group">
+        <label class="form-label">メールアドレス <span class="req">必須</span></label>
+        <input class="form-input" id="regTeacherEmail" type="email" placeholder="teacher@ibaraki.ed.jp">
+      </div>
+      <div class="row2">
+        <div class="form-group">
+          <label class="form-label">パスワード <span class="req">必須</span></label>
+          <input class="form-input" id="regTeacherPass" type="password" placeholder="6文字以上">
+        </div>
+        <div class="form-group">
+          <label class="form-label">確認</label>
+          <input class="form-input" id="regTeacherPass2" type="password" placeholder="再入力">
+        </div>
+      </div>
+      <button class="btn-primary" onclick="doRegisterTeacher()">登録して始める</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { login, registerStudent, registerTeacher, onAuth, resetPassword } from '/src/auth.js'
+import { getCurrentProfile } from '/src/auth.js'
+
+// Auth状態を監視してリダイレクト
+onAuth(async user => {
+  if (!user) return
+  const profile = await getCurrentProfile()
+  if (!profile) return
+  if (profile.role === 'teacher') {
+    location.href = '/mito1-digital-studenthandbook/teacher.html'
+  } else {
+    location.href = '/mito1-digital-studenthandbook/'
+  }
+})
+
+window.doLogin = async function() {
+  const email = document.getElementById('loginEmail').value.trim()
+  const pass  = document.getElementById('loginPass').value
+  if (!email || !pass) { showErr('メールアドレスとパスワードを入力してください'); return }
+  setLoading('loginBtn', true)
+  try {
+    await login(email, pass)
+    // onAuth が拾ってリダイレクト
+  } catch(e) {
+    showErr(firebaseErrMsg(e.code))
+    setLoading('loginBtn', false)
+  }
+}
+
+window.doRegister = async function() {
+  const name  = document.getElementById('regName').value.trim()
+  const grade = document.getElementById('regGrade').value
+  const cls   = document.getElementById('regClass').value
+  const num   = document.getElementById('regNumber').value
+  const email = document.getElementById('regEmail').value.trim()
+  const pass  = document.getElementById('regPass').value
+  const pass2 = document.getElementById('regPass2').value
+  if (!name || !email || !pass) { showErr('必須項目を入力してください'); return }
+  if (pass !== pass2) { showErr('パスワードが一致しません'); return }
+  if (pass.length < 6) { showErr('パスワードは6文字以上にしてください'); return }
+  setLoading('regBtn', true)
+  try {
+    await registerStudent({ email, password: pass, name, grade, classLabel: cls, number: num || 0 })
+  } catch(e) {
+    showErr(firebaseErrMsg(e.code))
+    setLoading('regBtn', false)
+  }
+}
+
+window.doRegisterTeacher = async function() {
+  const name  = document.getElementById('regTeacherName').value.trim()
+  const email = document.getElementById('regTeacherEmail').value.trim()
+  const pass  = document.getElementById('regTeacherPass').value
+  const pass2 = document.getElementById('regTeacherPass2').value
+  if (!name || !email || !pass) { showErr('必須項目を入力してください'); return }
+  if (pass !== pass2) { showErr('パスワードが一致しません'); return }
+  if (pass.length < 6) { showErr('パスワードは6文字以上にしてください'); return }
+  try {
+    await registerTeacher({ email, password: pass, name })
+  } catch(e) {
+    showErr(firebaseErrMsg(e.code))
+  }
+}
+
+window.showReset = async function() {
+  const email = prompt('登録時のメールアドレスを入力してください')
+  if (!email) return
+  try {
+    await resetPassword(email)
+    alert('パスワードリセットメールを送信しました')
+  } catch(e) {
+    alert('送信に失敗しました: ' + e.message)
+  }
+}
+
+function firebaseErrMsg(code) {
+  const map = {
+    'auth/user-not-found':       'このメールアドレスは登録されていません',
+    'auth/wrong-password':       'パスワードが正しくありません',
+    'auth/email-already-in-use': 'このメールアドレスはすでに使用されています',
+    'auth/weak-password':        'パスワードが弱すぎます（6文字以上）',
+    'auth/invalid-email':        'メールアドレスの形式が正しくありません',
+    'auth/invalid-credential':   'メールアドレスまたはパスワードが正しくありません',
+    'auth/too-many-requests':    'ログイン試行が多すぎます。しばらく後にお試しください',
+  }
+  return map[code] || 'エラーが発生しました (' + code + ')'
+}
+
+function showErr(msg) {
+  const el = document.getElementById('authErr')
+  el.textContent = msg
+  el.classList.add('show')
+}
+
+function setLoading(id, on) {
+  const btn = document.getElementById(id)
+  if (!btn) return
+  btn.disabled = on
+  btn.textContent = on ? '処理中...' : (id === 'loginBtn' ? 'ログイン' : '登録して始める')
+}
+</script>
+
+<script>
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('on', ['login','register'][i] === tab))
+  document.getElementById('sec-login').classList.toggle('on', tab === 'login')
+  document.getElementById('sec-register').classList.toggle('on', tab === 'register')
+  document.getElementById('authErr').classList.remove('show')
+}
+
+function switchRole(role) {
+  document.getElementById('roleStudent').classList.toggle('on', role === 'student')
+  document.getElementById('roleTeacher').classList.toggle('on', role === 'teacher')
+  document.getElementById('formStudent').style.display = role === 'student' ? '' : 'none'
+  document.getElementById('formTeacher').style.display = role === 'teacher' ? '' : 'none'
+}
+</script>
+</body>
+</html>
