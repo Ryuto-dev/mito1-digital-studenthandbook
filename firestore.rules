@@ -59,7 +59,7 @@ service cloud.firestore {
       // Helper function to check if the update request provides a valid token
       function isValidTokenUpdate() {
         let providedToken = request.resource.data.providedToken;
-        return providedToken != null && (
+        return providedToken != null && providedToken != '' && (
           providedToken == resource.data.approveToken ||
           providedToken == resource.data.rejectToken ||
           providedToken == resource.data.homeRoomApproveToken ||

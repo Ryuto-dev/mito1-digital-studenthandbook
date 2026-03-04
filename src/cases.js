@@ -215,7 +215,6 @@ export async function processToken(token, action, caseIdFromUrl = null) {
         return { ok: true, result: 'approved', caseData }
       }
     }
-  }
 
   return { ok: false, reason: 'token_not_found' }
 }
