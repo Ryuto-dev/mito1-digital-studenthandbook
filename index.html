@@ -2209,20 +2209,25 @@ window._fsServerTimestamp   = serverTimestamp
 // =============================================
 let _currentUser    = null
 let _currentProfile = null
-let _authReady      = false  // onAuth初回完了フラグ
+let _authReady      = false
 
 onAuth(async user => {
   _currentUser = user
+
   if (user) {
+    // Firestoreプロフィール取得（失敗してもAuthユーザーはある）
     for (let i = 0; i < 3; i++) {
-      _currentProfile = await getCurrentProfile(user)
-      if (_currentProfile) break
-      await new Promise(r => setTimeout(r, 400))
+      try {
+        _currentProfile = await getCurrentProfile(user)
+        if (_currentProfile) break
+      } catch(e) { /* ignore */ }
+      await new Promise(r => setTimeout(r, 500))
     }
+    // Firestoreから取れなくてもAuthユーザー情報でフォールバック
     if (!_currentProfile) {
       _currentProfile = {
         uid: user.uid, email: user.email,
-        name: user.displayName || user.email,
+        name: user.email.split('@')[0],
         role: 'student', grade: '', class: '', number: ''
       }
     }
@@ -2230,15 +2235,15 @@ onAuth(async user => {
     _currentProfile = null
   }
 
+  // ★ログイン判定は _currentUser（Authユーザー）の存在で行う
   updateAuthUI()
 
-  // auth.htmlから「マイページへ移動」の指示があれば実行
+  // sessionStorageに遷移指示があれば実行
   if (!_authReady) {
     _authReady = true
     const pending = sessionStorage.getItem('mito1_nav')
-    if (pending && _currentProfile) {
+    if (pending && _currentUser) {
       sessionStorage.removeItem('mito1_nav')
-      // nav関数が確実に定義されているタイミングで実行
       requestAnimationFrame(() => {
         if (typeof nav === 'function') nav(pending)
       })
@@ -2247,7 +2252,8 @@ onAuth(async user => {
 })
 
 function updateAuthUI() {
-  const loggedIn = !!_currentProfile
+  // ★ログイン判定はAuthユーザーの存在で行う（Firestoreプロフィール不要）
+  const loggedIn = !!_currentUser
 
   // 公欠申請ページ
   const applyLogin = document.getElementById('applyLoginRequired')
@@ -2261,13 +2267,15 @@ function updateAuthUI() {
   if (mpLogin)   mpLogin.style.display   = loggedIn ? 'none' : ''
   if (mpContent) mpContent.style.display = loggedIn ? ''     : 'none'
 
-  if (loggedIn && _currentProfile) {
+  if (loggedIn) {
+    const profile = _currentProfile || {}
     const name = document.getElementById('mypageName')
     const info = document.getElementById('mypageInfo')
-    if (name) name.textContent = _currentProfile.name || _currentProfile.email
-    if (info) info.textContent =
-      `${_currentProfile.grade || ''}年${_currentProfile.class || ''}組` +
-      `${_currentProfile.number ? ' ' + _currentProfile.number + '番' : ''}`
+    if (name) name.textContent = profile.name || _currentUser.email
+    if (info) {
+      const g = profile.grade, c = profile.class, n = profile.number
+      info.textContent = (g && c) ? `${g}年${c}組${n ? ' ' + n + '番' : ''}` : _currentUser.email
+    }
 
     // 現在マイページを表示中なら即座にケース一覧を読み込む
     const mypageSec = document.getElementById('pg-mypage')
@@ -2292,7 +2300,7 @@ window.addDateField = function() {
 }
 
 window.submitApply = async function() {
-  if (!_currentProfile) { alert('ログインが必要です'); return }
+  if (!_currentUser) { alert('ログインが必要です'); return }
 
   const title           = document.getElementById('applyTitle').value.trim()
   const reason          = document.getElementById('applyReason').value
@@ -2325,9 +2333,9 @@ window.submitApply = async function() {
 
   try {
     await createCase({
-      studentId:      _currentProfile.uid || _currentUser.uid,
-      studentName:    _currentProfile.name || '',
-      studentEmail:   _currentProfile.email || _currentUser.email,
+      studentId:      _currentUser.uid,
+      studentName:    (_currentProfile && _currentProfile.name) || _currentUser.email,
+      studentEmail:   _currentUser.email,
       title, reason, dates, supervisorEmail, homeRoomEmail,
     })
     document.getElementById('applyForm').style.display = 'none'
@@ -2362,7 +2370,7 @@ window.resetApply = function() {
 // マイページ：ケース一覧
 // =============================================
 window.loadMyCases = async function() {
-  if (!_currentProfile) return
+  if (!_currentUser) return
   const el = document.getElementById('mypageCaseList')
   if (!el) return
   el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-3);font-size:13px">読み込み中...</div>'
@@ -2387,7 +2395,7 @@ window.loadMyCases = async function() {
   }
 
   try {
-    const uid = _currentProfile.uid || _currentUser.uid
+    const uid = _currentUser.uid
     const cases = await getMyCases(uid)
     if (!cases.length) {
       el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3);font-size:13px">申請履歴はありません</div>'
@@ -2445,6 +2453,9 @@ window.doLogoutFront = async function() {
   await logout()
   _currentUser    = null
   _currentProfile = null
+  updateAuthUI()
+  nav('home')
+}
   updateAuthUI()
   nav('home')
 }
