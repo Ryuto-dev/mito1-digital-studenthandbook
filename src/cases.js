@@ -101,6 +101,19 @@ export async function createCase({ studentId, studentName, studentEmail, title, 
 // =============================================
 // トークンで承認・差し戻し処理
 // =============================================
+// =============================================
+// IDで単一ケース取得（承認画面用）
+// =============================================
+export async function getCaseById(caseId) {
+  const docRef = doc(db, 'cases', caseId)
+  const snap = await getDoc(docRef)
+  if (!snap.exists()) return null
+  return { id: snap.id, ...snap.data() }
+}
+
+// =============================================
+// トークンで承認・差し戻し処理
+// =============================================
 export async function processToken(token, action, caseIdFromUrl = null) {
   // 顧問トークン or 担任トークンを検索
   const fields = [
