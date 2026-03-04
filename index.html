@@ -2209,9 +2209,7 @@ window._fsServerTimestamp   = serverTimestamp
 // =============================================
 let _currentUser    = null
 let _currentProfile = null
-// ログイン後にauth.htmlから#mypageで飛んできた場合のフラグ
-const _openMypage = location.hash === '#mypage'
-if (_openMypage) history.replaceState(null, '', location.pathname)
+let _authReady      = false  // onAuth初回完了フラグ
 
 onAuth(async user => {
   _currentUser = user
@@ -2228,17 +2226,23 @@ onAuth(async user => {
         role: 'student', grade: '', class: '', number: ''
       }
     }
-    updateAuthUI()
-    // ログイン直後にマイページへ遷移
-    if (_openMypage) {
-      // nav関数が確実に使えるようDOMContentLoaded後に実行
-      const doNav = () => { if (typeof nav === 'function') nav('mypage') }
-      if (document.readyState === 'complete') { doNav() }
-      else { window.addEventListener('load', doNav, { once: true }) }
-    }
   } else {
     _currentProfile = null
-    updateAuthUI()
+  }
+
+  updateAuthUI()
+
+  // auth.htmlから「マイページへ移動」の指示があれば実行
+  if (!_authReady) {
+    _authReady = true
+    const pending = sessionStorage.getItem('mito1_nav')
+    if (pending && _currentProfile) {
+      sessionStorage.removeItem('mito1_nav')
+      // nav関数が確実に定義されているタイミングで実行
+      requestAnimationFrame(() => {
+        if (typeof nav === 'function') nav(pending)
+      })
+    }
   }
 })
 
@@ -2436,7 +2440,7 @@ window.nav = function(page) {
   if (page === 'mypage') window.loadMyCases()
 }
 
-// ログアウト 
+// ログアウト
 window.doLogoutFront = async function() {
   await logout()
   _currentUser    = null

@@ -204,8 +204,9 @@ async function redirectByRole(user) {
         const role = snap.data().role
         if (role === 'teacher') { location.href = BASE + '/teacher.html'; return }
         if (role === 'admin')   { location.href = BASE + '/admin/'; return }
-        // 生徒はマイページを直接開く
-        location.href = BASE + '/#mypage'
+        // sessionStorageでマイページへ遷移するよう伝達
+        sessionStorage.setItem('mito1_nav', 'mypage')
+        location.href = BASE + '/'
         return
       }
     } catch(e) {
@@ -213,7 +214,8 @@ async function redirectByRole(user) {
     }
     await new Promise(r => setTimeout(r, 300))
   }
-  location.href = BASE + '/#mypage'
+  sessionStorage.setItem('mito1_nav', 'mypage')
+  location.href = BASE + '/'
 }
 
 // ── ユーティリティ ─────────────────────────────────────────────────
