@@ -2198,18 +2198,6 @@ import { createCase, getMyCases } from '/src/cases.js'
 
 loadAllData().catch(e => console.error('[Firestore]', e))
 
-// ログイン後のリダイレクトでハッシュが指定されている場合は該当ページを開く
-if (location.hash) {
-  const target = location.hash.replace('#', '')
-  if (target && typeof nav === 'function') {
-    // DOMロード後に実行（nav関数がsetup済みになるまで少し待つ）
-    setTimeout(() => {
-      nav(target)
-      history.replaceState(null, '', location.pathname) // ハッシュを消す
-    }, 300)
-  }
-}
-
 // 通常スクリプトからFirestoreを使えるようにグローバル公開
 window._db = db
 window._fsAddDoc            = addDoc
@@ -2221,30 +2209,37 @@ window._fsServerTimestamp   = serverTimestamp
 // =============================================
 let _currentUser    = null
 let _currentProfile = null
+// ログイン後にauth.htmlから#mypageで飛んできた場合のフラグ
+const _openMypage = location.hash === '#mypage'
+if (_openMypage) history.replaceState(null, '', location.pathname)
 
 onAuth(async user => {
   _currentUser = user
   if (user) {
-    // Firestoreドキュメントが存在するまで最大3回リトライ
     for (let i = 0; i < 3; i++) {
       _currentProfile = await getCurrentProfile(user)
       if (_currentProfile) break
       await new Promise(r => setTimeout(r, 400))
     }
-    // それでもnullなら Firebase Authのuserから最低限のプロフィールを組み立てる
     if (!_currentProfile) {
       _currentProfile = {
-        uid:   user.uid,
-        email: user.email,
-        name:  user.displayName || user.email,
-        role:  'student',
-        grade: '', class: '', number: ''
+        uid: user.uid, email: user.email,
+        name: user.displayName || user.email,
+        role: 'student', grade: '', class: '', number: ''
       }
+    }
+    updateAuthUI()
+    // ログイン直後にマイページへ遷移
+    if (_openMypage) {
+      // nav関数が確実に使えるようDOMContentLoaded後に実行
+      const doNav = () => { if (typeof nav === 'function') nav('mypage') }
+      if (document.readyState === 'complete') { doNav() }
+      else { window.addEventListener('load', doNav, { once: true }) }
     }
   } else {
     _currentProfile = null
+    updateAuthUI()
   }
-  updateAuthUI()
 })
 
 function updateAuthUI() {
