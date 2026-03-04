@@ -171,8 +171,11 @@ function resend(env, { to, subject, html }) {
 
   // Use RESEND_FROM env var if set, otherwise fall back to sandbox address.
   // IMPORTANT: onboarding@resend.dev can ONLY deliver to the Resend account owner's email.
-  // To send to arbitrary recipients, verify your own domain in Resend and set RESEND_FROM.
-  const from = env.RESEND_FROM || 'mito1-handbook <onboarding@resend.dev>'
+  if (!env.RESEND_FROM) {
+    return new Response('RESEND_FROM is not set. onboarding@resend.dev can only send to the Resend account owner. Please verify your domain and set the RESEND_FROM environment variable.', { status: 403 })
+  }
+
+  const from = env.RESEND_FROM
 
   return fetch('https://api.resend.com/emails', {
     method:  'POST',

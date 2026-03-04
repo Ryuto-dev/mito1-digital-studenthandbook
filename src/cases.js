@@ -8,6 +8,7 @@ import {
   query, where, orderBy, serverTimestamp,
 } from 'firebase/firestore'
 
+// NOTE: "hundbook" might be a typo for "handbook". Please verify against the Worker deployment.
 const WORKERS_URL = 'https://mito1-hundbook.asanuma-ryuto.workers.dev'
 const APP_BASE    = 'https://ryuto-devs.github.io/mito1-digital-studenthandbook'
 
@@ -46,7 +47,7 @@ async function sendEmail(endpoint, payload) {
       console.warn(`[email] ${endpoint} failed (${res.status}):`, body)
       return { ok: false, status: res.status, detail: body }
     }
-    return { ok: true }
+    return { ok: true, detail: '' }
   } catch (e) {
     console.warn(`[email] ${endpoint} network error:`, e.message)
     return { ok: false, status: 0, detail: e.message }
@@ -94,7 +95,7 @@ export async function createCase({ studentId, studentName, studentEmail, title, 
     appBaseUrl: APP_BASE,
   })
 
-  return { caseId: ref.id, emailSent: emailResult.ok }
+  return { caseId: ref.id, emailSent: emailResult.ok, emailError: emailResult.detail }
 }
 
 // =============================================
