@@ -2198,6 +2198,18 @@ import { createCase, getMyCases } from '/src/cases.js'
 
 loadAllData().catch(e => console.error('[Firestore]', e))
 
+// ログイン後のリダイレクトでハッシュが指定されている場合は該当ページを開く
+if (location.hash) {
+  const target = location.hash.replace('#', '')
+  if (target && typeof nav === 'function') {
+    // DOMロード後に実行（nav関数がsetup済みになるまで少し待つ）
+    setTimeout(() => {
+      nav(target)
+      history.replaceState(null, '', location.pathname) // ハッシュを消す
+    }, 300)
+  }
+}
+
 // 通常スクリプトからFirestoreを使えるようにグローバル公開
 window._db = db
 window._fsAddDoc            = addDoc

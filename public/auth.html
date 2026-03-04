@@ -58,6 +58,9 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
   <div style="text-align:center;padding:20px;color:var(--text-3);font-size:13px">読み込み中...</div>
 </div>
 
+<!-- firebase-config.js を先に同期読み込み（モジュールより前に実行される） -->
+<script src="/mito1-digital-studenthandbook/firebase-config.js"></script>
+
 <script type="module">
 import { initializeApp, getApps }
   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js'
@@ -67,13 +70,13 @@ import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'
 
-// firebase-config.js から設定を動的に読み込む
-const configRes = await fetch('/mito1-digital-studenthandbook/firebase-config.js')
-const configText = await configRes.text()
-// window.FIREBASE_CONFIG をセット
-const configScript = document.createElement('script')
-configScript.textContent = configText
-document.head.appendChild(configScript)
+// window.FIREBASE_CONFIG は上の <script src="..."> で設定済み
+if (!window.FIREBASE_CONFIG || window.FIREBASE_CONFIG.apiKey.includes('YOUR_')) {
+  document.getElementById('mainCard').innerHTML =
+    '<div style="padding:32px;text-align:center;color:#8b1a2c;font-size:13px">' +
+    '⚠️ firebase-config.js が設定されていません。<br>public/firebase-config.js に正しいAPIキーを設定してください。</div>'
+  throw new Error('FIREBASE_CONFIG not set')
+}
 const FIREBASE_CONFIG = window.FIREBASE_CONFIG
 
 const BASE = '/mito1-digital-studenthandbook'
@@ -190,7 +193,6 @@ onAuthStateChanged(auth, async user => {
 })
 
 async function redirectByRole(user) {
-  // ユーザードキュメントが存在するまで最大5回リトライ（setDocの完了を待つ）
   for (let i = 0; i < 5; i++) {
     try {
       const snap = await getDoc(doc(db, 'users', user.uid))
@@ -198,17 +200,16 @@ async function redirectByRole(user) {
         const role = snap.data().role
         if (role === 'teacher') { location.href = BASE + '/teacher.html'; return }
         if (role === 'admin')   { location.href = BASE + '/admin/'; return }
-        location.href = BASE + '/'
+        // 生徒はマイページを直接開く
+        location.href = BASE + '/#mypage'
         return
       }
     } catch(e) {
       console.warn('[auth] getDoc failed:', e.message)
     }
-    // ドキュメントがまだなければ300ms待ってリトライ
     await new Promise(r => setTimeout(r, 300))
   }
-  // リトライ失敗でも生徒としてリダイレクト
-  location.href = BASE + '/'
+  location.href = BASE + '/#mypage'
 }
 
 // ── ユーティリティ ─────────────────────────────────────────────────
