@@ -2357,7 +2357,7 @@ window.submitApply = async function() {
         const warn = document.createElement('div')
         warn.className = 'email-warn'
         warn.style.cssText = 'font-size:12px;color:#856404;background:#fff3cd;padding:10px 14px;border-radius:8px;margin-top:12px;text-align:left'
-        warn.innerHTML = '⚠️ 顧問への承認依頼メールの自動送信に失敗しました。<br>申請データは保存済みです。顧問の先生に直接ご連絡ください。'
+        warn.innerHTML = '⚠️ 顧問への承認依頼メールの自動送信に失敗しました。<br>申請データは保存済みです。顧問の先生に直接ご連絡ください。<br><span style="font-size:11px;color:#666;margin-top:4px;display:block">※ Resendの送信元ドメインが未認証の可能性があります。Workers の RESEND_FROM 環境変数を確認してください。</span>'
         document.getElementById('applyDone').querySelector('.card').appendChild(warn)
       }
     }
@@ -2498,7 +2498,12 @@ window.deleteMyCaseBtn = async function(caseId) {
     await deleteCaseByStudent(caseId, _currentUser.uid)
     window.loadMyCases()
   } catch(e) {
-    alert('削除に失敗しました: ' + e.message)
+    const msg = e?.message || String(e)
+    if (msg.includes('Firestore') || msg.includes('permissions')) {
+      alert('削除に失敗しました: Firestoreのセキュリティルールで操作が拒否されました。\nFirebase Console でルールを更新してください。')
+    } else {
+      alert('削除に失敗しました: ' + msg)
+    }
   }
 }
 </script>

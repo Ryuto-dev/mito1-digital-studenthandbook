@@ -1,0 +1,115 @@
+rules_version = '2';
+
+/**
+ * Firestore Security Rules for mito1-digital-studenthandbook
+ *
+ * IMPORTANT: These rules must be deployed to Firebase Console.
+ *   1. Go to Firebase Console > Firestore Database > Rules
+ *   2. Paste the contents of this file
+ *   3. Click "Publish"
+ *
+ * Alternatively, install firebase-tools and run:
+ *   firebase deploy --only firestore:rules
+ */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =============================================
+    // Helper functions
+    // =============================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Check if the user's profile has a specific role
+    // NOTE: This reads from the 'users' collection
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isTeacher() {
+      return isAuthenticated() && getUserRole() == 'teacher';
+    }
+
+    function isStudent() {
+      return isAuthenticated() && getUserRole() == 'student';
+    }
+
+    // =============================================
+    // Users collection
+    // =============================================
+    match /users/{userId} {
+      // Users can read their own profile
+      allow read: if isOwner(userId);
+      // Users can create their own profile during registration
+      allow create: if isOwner(userId);
+      // Users can update their own profile
+      allow update: if isOwner(userId);
+    }
+
+    // =============================================
+    // Cases (absence applications) collection
+    // =============================================
+    match /cases/{caseId} {
+      // Anyone authenticated can read cases
+      // (filtered by query in the app - students see their own, teachers see theirs)
+      allow read: if isAuthenticated();
+
+      // Authenticated users can create cases
+      allow create: if isAuthenticated();
+
+      // Authenticated users can update cases
+      // (approval/rejection by teachers, token updates)
+      allow update: if isAuthenticated();
+
+      // DELETE: Allow authenticated users to delete cases
+      // - Students can delete their own pending cases (checked in app code)
+      // - Teachers/admins can delete any case (checked in app code)
+      allow delete: if isAuthenticated();
+    }
+
+    // =============================================
+    // Content collections (public read, authenticated write)
+    // These are the handbook content collections
+    // =============================================
+    match /content/{docId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Read-only collections for all users (handbook data)
+    match /{collection}/{docId} {
+      allow read: if collection in [
+        'history', 'principals', 'songs', 'rules', 'special',
+        'events', 'curriculum', 'council-charter', 'council-rules'
+      ];
+      // Write requires authentication (admin panel)
+      allow write: if isAuthenticated() && collection in [
+        'history', 'principals', 'songs', 'rules', 'special',
+        'events', 'curriculum', 'council-charter', 'council-rules'
+      ];
+    }
+
+    // =============================================
+    // Contacts / Inquiries collection
+    // =============================================
+    match /contacts/{contactId} {
+      allow read: if isAuthenticated();
+      allow create: if true;  // Anyone can submit a contact form
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    match /inquiries/{inquiryId} {
+      allow read: if isAuthenticated();
+      allow create: if true;  // Anyone can submit
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+  }
+}
