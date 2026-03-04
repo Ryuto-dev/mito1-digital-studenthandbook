@@ -1,10 +1,10 @@
 /**
  * src/cases.js
- * 公欠申請（ケース）の作成・取得・承認ロジック
+ * 公欠申請（ケース）の作成・取得・承認・削除ロジック
  */
 import { db } from './firebase.js'
 import {
-  collection, doc, addDoc, updateDoc, getDoc, getDocs,
+  collection, doc, addDoc, updateDoc, getDoc, getDocs, deleteDoc,
   query, where, orderBy, serverTimestamp,
 } from 'firebase/firestore'
 
@@ -18,6 +18,28 @@ function genToken() {
   const arr = new Uint8Array(24)
   crypto.getRandomValues(arr)
   return Array.from(arr, b => b.toString(16).padStart(2,'0')).join('')
+}
+
+// =============================================
+// メール送信ヘルパー（エラーをキャッチして返す）
+// =============================================
+async function sendEmail(endpoint, payload) {
+  try {
+    const res = await fetch(`${WORKERS_URL}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      console.warn(`[email] ${endpoint} failed (${res.status}):`, body)
+      return { ok: false, status: res.status, detail: body }
+    }
+    return { ok: true }
+  } catch (e) {
+    console.warn(`[email] ${endpoint} network error:`, e.message)
+    return { ok: false, status: 0, detail: e.message }
+  }
 }
 
 // =============================================
@@ -50,22 +72,18 @@ export async function createCase({ studentId, studentName, studentEmail, title, 
   })
 
   // 顧問へ承認依頼メール送信
-  await fetch(`${WORKERS_URL}/send-approval`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      caseId: ref.id,
-      studentName, title, dates, reason,
-      step: 'supervisor',
-      recipientEmail: supervisorEmail,
-      recipientRole: 'supervisor',
-      approveToken,
-      rejectToken,
-      appBaseUrl: APP_BASE,
-    }),
+  const emailResult = await sendEmail('/send-approval', {
+    caseId: ref.id,
+    studentName, title, dates, reason,
+    step: 'supervisor',
+    recipientEmail: supervisorEmail,
+    recipientRole: 'supervisor',
+    approveToken,
+    rejectToken,
+    appBaseUrl: APP_BASE,
   })
 
-  return ref.id
+  return { caseId: ref.id, emailSent: emailResult.ok }
 }
 
 // =============================================
@@ -122,23 +140,19 @@ export async function processToken(token, action) {
           homeRoomRejectToken:  hrRejectToken,
         })
         // 担任へ承認依頼メール
-        await fetch(`${WORKERS_URL}/send-approval`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            caseId,
-            studentName: caseData.studentName,
-            title: caseData.title,
-            dates: caseData.dates,
-            reason: caseData.reason,
-            step: 'homeroom',
-            recipientEmail: caseData.homeRoomEmail,
-            recipientRole: 'homeroom',
-            supervisorEmail: caseData.supervisorEmail,
-            approveToken: hrApproveToken,
-            rejectToken:  hrRejectToken,
-            appBaseUrl: APP_BASE,
-          }),
+        await sendEmail('/send-approval', {
+          caseId,
+          studentName: caseData.studentName,
+          title: caseData.title,
+          dates: caseData.dates,
+          reason: caseData.reason,
+          step: 'homeroom',
+          recipientEmail: caseData.homeRoomEmail,
+          recipientRole: 'homeroom',
+          supervisorEmail: caseData.supervisorEmail,
+          approveToken: hrApproveToken,
+          rejectToken:  hrRejectToken,
+          appBaseUrl: APP_BASE,
         })
         return { ok: true, result: 'supervisor_approved', caseData }
 
@@ -151,16 +165,12 @@ export async function processToken(token, action) {
           homeRoomRejectToken:  '',
         })
         // 生徒へ完了通知メール
-        await fetch(`${WORKERS_URL}/send-complete`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            studentEmail: caseData.studentEmail,
-            studentName:  caseData.studentName,
-            title: caseData.title,
-            dates: caseData.dates,
-            appBaseUrl: APP_BASE,
-          }),
+        await sendEmail('/send-complete', {
+          studentEmail: caseData.studentEmail,
+          studentName:  caseData.studentName,
+          title: caseData.title,
+          dates: caseData.dates,
+          appBaseUrl: APP_BASE,
         })
         return { ok: true, result: 'approved', caseData }
       }
@@ -191,23 +201,19 @@ export async function approveByTeacher(caseId, step, teacherUid) {
       homeRoomApproveToken: hrApproveToken,
       homeRoomRejectToken:  hrRejectToken,
     })
-    await fetch(`${WORKERS_URL}/send-approval`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        caseId,
-        studentName: caseData.studentName,
-        title: caseData.title,
-        dates: caseData.dates,
-        reason: caseData.reason,
-        step: 'homeroom',
-        recipientEmail: caseData.homeRoomEmail,
-        recipientRole: 'homeroom',
-        supervisorEmail: caseData.supervisorEmail,
-        approveToken: hrApproveToken,
-        rejectToken:  hrRejectToken,
-        appBaseUrl: APP_BASE,
-      }),
+    await sendEmail('/send-approval', {
+      caseId,
+      studentName: caseData.studentName,
+      title: caseData.title,
+      dates: caseData.dates,
+      reason: caseData.reason,
+      step: 'homeroom',
+      recipientEmail: caseData.homeRoomEmail,
+      recipientRole: 'homeroom',
+      supervisorEmail: caseData.supervisorEmail,
+      approveToken: hrApproveToken,
+      rejectToken:  hrRejectToken,
+      appBaseUrl: APP_BASE,
     })
   } else {
     await updateDoc(caseRef, {
@@ -217,16 +223,12 @@ export async function approveByTeacher(caseId, step, teacherUid) {
       homeRoomApproveToken: '',
       homeRoomRejectToken:  '',
     })
-    await fetch(`${WORKERS_URL}/send-complete`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        studentEmail: caseData.studentEmail,
-        studentName:  caseData.studentName,
-        title: caseData.title,
-        dates: caseData.dates,
-        appBaseUrl: APP_BASE,
-      }),
+    await sendEmail('/send-complete', {
+      studentEmail: caseData.studentEmail,
+      studentName:  caseData.studentName,
+      title: caseData.title,
+      dates: caseData.dates,
+      appBaseUrl: APP_BASE,
     })
   }
 }
@@ -238,6 +240,36 @@ export async function rejectByTeacher(caseId, step, reason, teacherUid) {
     rejectedReason: reason || '',
     rejectedByUid: teacherUid,
   })
+}
+
+// =============================================
+// ケース削除（生徒がマイページから取り下げ）
+// 顧問承認前（pending_supervisor）のみ許可
+// =============================================
+export async function deleteCaseByStudent(caseId, studentId) {
+  const caseRef  = doc(db, 'cases', caseId)
+  const caseSnap = await getDoc(caseRef)
+  if (!caseSnap.exists()) throw new Error('申請が見つかりません')
+
+  const caseData = caseSnap.data()
+  if (caseData.studentId !== studentId) {
+    throw new Error('この申請を削除する権限がありません')
+  }
+  if (caseData.status !== 'pending_supervisor') {
+    throw new Error('顧問承認後の申請は取り下げできません')
+  }
+
+  await deleteDoc(caseRef)
+}
+
+// =============================================
+// ケース削除（管理者用 — ステータス制限なし）
+// =============================================
+export async function deleteCaseByAdmin(caseId) {
+  const caseRef = doc(db, 'cases', caseId)
+  const caseSnap = await getDoc(caseRef)
+  if (!caseSnap.exists()) throw new Error('ケースが見つかりません')
+  await deleteDoc(caseRef)
 }
 
 // =============================================
