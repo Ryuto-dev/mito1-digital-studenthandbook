@@ -2186,6 +2186,17 @@ if('serviceWorker' in navigator){
   navigator.serviceWorker.register('/mito1-digital-studenthandbook/sw.js')
     .catch(e=>console.warn('SW registration failed:',e));
 }
+
+// ログイン後のページ遷移指示を監視（モジュールスクリプトが_pendingNavをセットする）
+;(function checkPendingNav(elapsed){
+  if(window._pendingNav){
+    var p = window._pendingNav;
+    window._pendingNav = null;
+    nav(p);
+  } else if(elapsed < 5000){
+    setTimeout(function(){ checkPendingNav(elapsed+100); }, 100);
+  }
+})(0);
 </script>
 
 <!-- Firestoreデータ読み込み＋グローバルDB公開 -->
@@ -2238,15 +2249,14 @@ onAuth(async user => {
   // ★ログイン判定は _currentUser（Authユーザー）の存在で行う
   updateAuthUI()
 
-  // sessionStorageに遷移指示があれば実行
+  // sessionStorageに遷移指示があれば window._pendingNav にセット
+  // （実際のnav()呼び出しは通常スクリプト側で行う）
   if (!_authReady) {
     _authReady = true
     const pending = sessionStorage.getItem('mito1_nav')
     if (pending && _currentUser) {
       sessionStorage.removeItem('mito1_nav')
-      requestAnimationFrame(() => {
-        if (typeof nav === 'function') nav(pending)
-      })
+      window._pendingNav = pending
     }
   }
 })
