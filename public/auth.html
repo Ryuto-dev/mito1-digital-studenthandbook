@@ -67,15 +67,14 @@ import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'
 
-// ★ src/firebase.js と同じ値を記入
-const FIREBASE_CONFIG = {
-  apiKey:            "__FIREBASE_API_KEY__",
-  authDomain:        "timer-c0ed3.firebaseapp.com",
-  projectId:         "timer-c0ed3",
-  storageBucket:     "timer-c0ed3.firebasestorage.app",
-  messagingSenderId: "__FIREBASE_SENDER_ID__",
-  appId:             "__FIREBASE_APP_ID__",
-}
+// firebase-config.js から設定を動的に読み込む
+const configRes = await fetch('/mito1-digital-studenthandbook/firebase-config.js')
+const configText = await configRes.text()
+// window.FIREBASE_CONFIG をセット
+const configScript = document.createElement('script')
+configScript.textContent = configText
+document.head.appendChild(configScript)
+const FIREBASE_CONFIG = window.FIREBASE_CONFIG
 
 const BASE = '/mito1-digital-studenthandbook'
 
