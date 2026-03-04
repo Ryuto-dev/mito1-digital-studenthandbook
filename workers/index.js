@@ -31,11 +31,16 @@ export default {
 
     // GET /approve -> redirect to approve.html
     if (request.method === 'GET' && url.pathname === '/approve') {
+      const caseId = url.searchParams.get('caseId')
       const token  = url.searchParams.get('token')
       const action = url.searchParams.get('action') || 'approve'
       const base   = env.APP_BASE_URL || 'https://ryuto-devs.github.io/mito1-digital-studenthandbook'
       if (!token) return new Response('Token is invalid', { status: 400 })
-      return Response.redirect(`${base}/approve.html?token=${encodeURIComponent(token)}&action=${action}`, 302)
+
+      let redirectUrl = `${base}/approve.html?token=${encodeURIComponent(token)}&action=${action}`
+      if (caseId) redirectUrl += `&caseId=${encodeURIComponent(caseId)}`
+
+      return Response.redirect(redirectUrl, 302)
     }
 
     if (request.method !== 'POST') {
