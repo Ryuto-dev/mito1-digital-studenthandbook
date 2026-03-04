@@ -784,9 +784,18 @@ async function saveModal() {
 
 async function deleteItem(col, id) {
   if (!confirm('削除しますか？')) return
-  await deleteDoc(doc(db, col, id))
-  showToast('削除しました')
-  loadSection(currentSection)
+  try {
+    await deleteDoc(doc(db, col, id))
+    showToast('削除しました')
+    loadSection(currentSection)
+  } catch (e) {
+    const msg = e?.message || String(e)
+    if (msg.includes('Missing or insufficient permissions')) {
+      alert('削除に失敗しました: Firestoreのセキュリティルールで操作が拒否されました。\nFirebase Console でルールを更新してください（firestore.rules を参照）。')
+    } else {
+      alert('削除に失敗しました: ' + msg)
+    }
+  }
 }
 
 // =============================================
@@ -984,6 +993,11 @@ window.deleteAdminCase = async function(caseId) {
     showToast('ケースを削除しました')
     loadAdminCases()
   } catch(e) {
-    alert('削除に失敗しました: ' + e.message)
+    const msg = e?.message || String(e)
+    if (msg.includes('Missing or insufficient permissions')) {
+      alert('削除に失敗しました: Firestoreのセキュリティルールで操作が拒否されました。\nFirebase Console > Firestore Database > Rules でルールを更新してください。\n\n詳細: リポジトリの firestore.rules ファイルの内容をコピーして反映してください。')
+    } else {
+      alert('削除に失敗しました: ' + msg)
+    }
   }
 }

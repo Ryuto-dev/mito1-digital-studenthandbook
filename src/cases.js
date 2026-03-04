@@ -12,6 +12,17 @@ const WORKERS_URL = 'https://mito1-hundbook.asanuma-ryuto.workers.dev'
 const APP_BASE    = 'https://ryuto-devs.github.io/mito1-digital-studenthandbook'
 
 // =============================================
+// エラーメッセージのマッピング
+// =============================================
+function friendlyError(e) {
+  const msg = e?.message || String(e)
+  if (msg.includes('Missing or insufficient permissions')) {
+    return 'Firestoreのセキュリティルールで操作が拒否されました。Firebase Console でルールを更新してください（firestore.rules を参照）。'
+  }
+  return msg
+}
+
+// =============================================
 // ランダムトークン生成
 // =============================================
 function genToken() {
@@ -259,7 +270,11 @@ export async function deleteCaseByStudent(caseId, studentId) {
     throw new Error('顧問承認後の申請は取り下げできません')
   }
 
-  await deleteDoc(caseRef)
+  try {
+    await deleteDoc(caseRef)
+  } catch (e) {
+    throw new Error(friendlyError(e))
+  }
 }
 
 // =============================================
@@ -269,7 +284,11 @@ export async function deleteCaseByAdmin(caseId) {
   const caseRef = doc(db, 'cases', caseId)
   const caseSnap = await getDoc(caseRef)
   if (!caseSnap.exists()) throw new Error('ケースが見つかりません')
-  await deleteDoc(caseRef)
+  try {
+    await deleteDoc(caseRef)
+  } catch (e) {
+    throw new Error(friendlyError(e))
+  }
 }
 
 // =============================================
