@@ -962,9 +962,28 @@ window.loadAdminCases = async function() {
           <div style="font-size:12px;color:var(--text-3);margin-bottom:2px">公欠日: ${escHtml(datesStr)} ／ 事由: ${escHtml(c.reason||'')}</div>
           <div style="font-size:11.5px;color:var(--text-3)">顧問: ${escHtml(c.supervisorEmail||'')} ／ 担任: ${escHtml(c.homeRoomEmail||'')}</div>
           ${progressBar}
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
+            <button onclick="deleteAdminCase('${c.id}')"
+              style="font-size:11px;padding:5px 12px;border:1px solid #e74c3c;border-radius:6px;background:transparent;cursor:pointer;color:#e74c3c;font-family:inherit;transition:background .15s"
+              onmouseover="this.style.background='#fdf0f0'" onmouseout="this.style.background='transparent'">
+              削除
+            </button>
+          </div>
         </div>`
     }).join('')
   } catch(e) {
     el.innerHTML = `<div style="padding:20px;color:#c0392b">読み込みエラー: ${e.message}</div>`
+  }
+}
+
+// 管理者：ケース削除
+window.deleteAdminCase = async function(caseId) {
+  if (!confirm('このケースを削除しますか？\nこの操作は取り消せません。')) return
+  try {
+    await deleteDoc(doc(db, 'cases', caseId))
+    showToast('ケースを削除しました')
+    loadAdminCases()
+  } catch(e) {
+    alert('削除に失敗しました: ' + e.message)
   }
 }

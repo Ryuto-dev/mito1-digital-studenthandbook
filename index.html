@@ -2205,7 +2205,7 @@ import { loadAllData } from '/src/main.js'
 import { db } from '/src/firebase.js'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { onAuth, getCurrentProfile, logout } from '/src/auth.js'
-import { createCase, getMyCases } from '/src/cases.js'
+import { createCase, getMyCases, deleteCaseByStudent } from '/src/cases.js'
 
 loadAllData().catch(e => console.error('[Firestore]', e))
 
@@ -2342,7 +2342,7 @@ window.submitApply = async function() {
   btn.textContent = '送信中...'
 
   try {
-    await createCase({
+    const result = await createCase({
       studentId:      _currentUser.uid,
       studentName:    (_currentProfile && _currentProfile.name) || _currentUser.email,
       studentEmail:   _currentUser.email,
@@ -2350,6 +2350,17 @@ window.submitApply = async function() {
     })
     document.getElementById('applyForm').style.display = 'none'
     document.getElementById('applyDone').style.display = ''
+    // メール送信失敗時の注意表示
+    if (!result.emailSent) {
+      const notice = document.getElementById('applyDone').querySelector('.email-warn')
+      if (!notice) {
+        const warn = document.createElement('div')
+        warn.className = 'email-warn'
+        warn.style.cssText = 'font-size:12px;color:#856404;background:#fff3cd;padding:10px 14px;border-radius:8px;margin-top:12px;text-align:left'
+        warn.innerHTML = '⚠️ 顧問への承認依頼メールの自動送信に失敗しました。<br>申請データは保存済みです。顧問の先生に直接ご連絡ください。'
+        document.getElementById('applyDone').querySelector('.card').appendChild(warn)
+      }
+    }
   } catch(e) {
     showErr('送信に失敗しました: ' + e.message)
     btn.disabled = false
@@ -2422,6 +2433,7 @@ window.loadMyCases = async function() {
         { label:'完了',     done: st==='approved',                                  active: false },
       ]
       const rejected = st === 'rejected'
+      const canDelete = st === 'pending_supervisor'
 
       const progressBar = rejected
         ? `<div style="margin:12px 0;font-size:11.5px;color:#721c24;background:#f8d7da;padding:8px 12px;border-radius:6px">
@@ -2435,6 +2447,16 @@ window.loadMyCases = async function() {
                </div>`).join('')}
            </div>`
 
+      const deleteBtn = canDelete
+        ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
+             <button onclick="deleteMyCaseBtn('${c.id}')"
+               style="font-size:11.5px;padding:6px 14px;border:1.5px solid var(--enjii);border-radius:7px;background:transparent;color:var(--enjii);cursor:pointer;font-family:inherit;font-weight:500;transition:background .15s"
+               onmouseover="this.style.background='var(--enjii-bg)'" onmouseout="this.style.background='transparent'">
+               申請を取り下げる
+             </button>
+           </div>`
+        : ''
+
       return `
         <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:18px 20px;margin-bottom:12px">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
@@ -2444,6 +2466,7 @@ window.loadMyCases = async function() {
           <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px">${c.title||''}</div>
           <div style="font-size:12px;color:var(--text-3);margin-bottom:2px">${c.reason||''} ／ 📅 ${datesStr}</div>
           ${progressBar}
+          ${deleteBtn}
         </div>`
     }).join('')
   } catch(e) {
@@ -2465,6 +2488,18 @@ window.doLogoutFront = async function() {
   _currentProfile = null
   updateAuthUI()
   nav('home')
+}
+
+// マイページ：申請取り下げ
+window.deleteMyCaseBtn = async function(caseId) {
+  if (!_currentUser) { alert('ログインが必要です'); return }
+  if (!confirm('この申請を取り下げますか？\nこの操作は取り消せません。')) return
+  try {
+    await deleteCaseByStudent(caseId, _currentUser.uid)
+    window.loadMyCases()
+  } catch(e) {
+    alert('削除に失敗しました: ' + e.message)
+  }
 }
 </script>
 </body>
