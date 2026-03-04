@@ -10,7 +10,7 @@ import {
 
 // NOTE: "hundbook" might be a typo for "handbook". Please verify against the Worker deployment.
 const WORKERS_URL = 'https://mito1-hundbook.asanuma-ryuto.workers.dev'
-const APP_BASE    = 'https://ryuto-devs.github.io/mito1-digital-studenthandbook'
+const APP_BASE    = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, '')
 
 // =============================================
 // エラーメッセージのマッピング

@@ -1,93 +1,6 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#1a2744">
-<title>ログイン / 登録 — 水戸第一高等学校 デジタル生徒手帳</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@600;700&family=Noto+Sans+JP:wght@300;400;500;600&display=swap" rel="stylesheet">
-<style>
-:root{
-  --navy:#1a2744;--navy-light:#253a78;
-  --enjii:#8b1a2c;--enjii-bg:rgba(139,26,44,.08);
-  --bg:#f6f6f4;--surface:#fff;--surface2:#f0f0ed;
-  --text:#111;--text-2:#444;--text-3:#888;
-  --border:#e2e2de;--r:10px;
-  --shadow-md:0 4px 16px rgba(0,0,0,.09),0 2px 4px rgba(0,0,0,.05);
-}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
-.logo{text-align:center;margin-bottom:32px}
-.logo-en{font-size:11px;letter-spacing:.18em;color:var(--text-3);text-transform:uppercase;margin-bottom:4px}
-.logo-jp{font-family:'Noto Serif JP',serif;font-size:20px;font-weight:700;color:var(--navy)}
-.logo-sub{font-size:12px;color:var(--text-3);margin-top:3px}
-.card{background:var(--surface);border-radius:14px;box-shadow:var(--shadow-md);padding:32px 36px;width:100%;max-width:440px}
-.tabs{display:flex;border-bottom:2px solid var(--border);margin-bottom:28px}
-.tab{flex:1;padding:10px;text-align:center;font-size:13px;font-weight:600;color:var(--text-3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:.15s}
-.tab.on{color:var(--navy);border-bottom-color:var(--navy)}
-.section{display:none}.section.on{display:block}
-.form-group{margin-bottom:18px}
-.form-label{display:block;font-size:12.5px;font-weight:600;color:var(--text-2);margin-bottom:6px}
-.req{font-size:10px;color:var(--enjii);background:var(--enjii-bg);padding:1px 6px;border-radius:4px;margin-left:4px}
-.form-input{width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text);font-size:14px;font-family:inherit;outline:none;transition:border-color .15s}
-.form-input:focus{border-color:var(--navy)}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-.btn-primary{width:100%;padding:13px;background:var(--navy);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer;transition:background .15s;margin-top:8px;font-family:inherit}
-.btn-primary:hover{background:var(--navy-light)}
-.btn-primary:disabled{opacity:.5;cursor:not-allowed}
-.err{font-size:12px;color:var(--enjii);background:var(--enjii-bg);padding:10px 12px;border-radius:8px;margin-bottom:16px;display:none}
-.err.show{display:block}
-.hint{font-size:11.5px;color:var(--text-3);text-align:center;margin-top:16px}
-.hint a{color:var(--navy);font-weight:500;cursor:pointer}
-.role-tabs{display:flex;gap:8px;margin-bottom:20px}
-.role-tab{flex:1;padding:10px;text-align:center;border:1.5px solid var(--border);border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--text-3);transition:.15s;background:var(--surface)}
-.role-tab.on{border-color:var(--navy);color:var(--navy);background:rgba(26,39,68,.06)}
-</style>
-</head>
-<body>
-
-<div class="logo">
-  <div class="logo-en">Mito Daiichi High School</div>
-  <div class="logo-jp">デジタル生徒手帳</div>
-  <div class="logo-sub">公欠申請システム</div>
-</div>
-
-<div class="card" id="mainCard">
-  <div style="text-align:center;padding:20px;color:var(--text-3);font-size:13px">読み込み中...</div>
-</div>
-
-<!-- firebase-config.js を先に同期読み込み（モジュールより前に実行される） -->
-<script src="/mito1-digital-studenthandbook/firebase-config.js"></script>
-
-<script type="module">
-import { initializeApp, getApps }
-  from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js'
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-         onAuthStateChanged, sendPasswordResetEmail,
-         browserSessionPersistence, setPersistence }
-  from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js'
-import { getFirestore, doc, setDoc, getDoc, serverTimestamp }
-  from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js'
-
-// window.FIREBASE_CONFIG は上の <script src="..."> で設定済み
-if (!window.FIREBASE_CONFIG || window.FIREBASE_CONFIG.apiKey.includes('YOUR_')) {
-  document.getElementById('mainCard').innerHTML =
-    '<div style="padding:32px;text-align:center;color:#8b1a2c;font-size:13px">' +
-    '⚠️ firebase-config.js が設定されていません。<br>public/firebase-config.js に正しいAPIキーを設定してください。</div>'
-  throw new Error('FIREBASE_CONFIG not set')
-}
-const FIREBASE_CONFIG = window.FIREBASE_CONFIG
+import { onAuth, login, registerStudent, registerTeacher, resetPassword, getCurrentProfile } from './auth.js'
 
 const BASE = '/mito1-digital-studenthandbook'
-
-const app  = getApps().length ? getApps()[0] : initializeApp(FIREBASE_CONFIG)
-const auth = getAuth(app)
-const db   = getFirestore(app)
-
-// タブを閉じたらログアウト（ブラウザを再起動しても自動ログインしない）
-await setPersistence(auth, browserSessionPersistence)
 
 // ── UIを描画 ──────────────────────────────────────────────────────
 document.getElementById('mainCard').innerHTML = `
@@ -191,29 +104,18 @@ document.getElementById('resetLink').addEventListener('click', showReset)
 // 新規登録後は自分でリダイレクト制御するためここでは登録フローを除外
 let skipAuthRedirect = false
 
-onAuthStateChanged(auth, async user => {
+onAuth(async user => {
   if (!user || skipAuthRedirect) return
   await redirectByRole(user)
 })
 
 async function redirectByRole(user) {
-  for (let i = 0; i < 5; i++) {
-    try {
-      const snap = await getDoc(doc(db, 'users', user.uid))
-      if (snap.exists()) {
-        const role = snap.data().role
-        if (role === 'teacher') { location.href = BASE + '/teacher.html'; return }
-        if (role === 'admin')   { location.href = BASE + '/admin/'; return }
-        // sessionStorageでマイページへ遷移するよう伝達
-        sessionStorage.setItem('mito1_nav', 'mypage')
-        location.href = BASE + '/'
-        return
-      }
-    } catch(e) {
-      console.warn('[auth] getDoc failed:', e.message)
-    }
-    await new Promise(r => setTimeout(r, 300))
+  const profile = await getCurrentProfile(user)
+  if (profile) {
+    if (profile.role === 'teacher') { location.href = BASE + '/teacher.html'; return }
+    if (profile.role === 'admin')   { location.href = BASE + '/admin/'; return }
   }
+  // sessionStorageでマイページへ遷移するよう伝達
   sessionStorage.setItem('mito1_nav', 'mypage')
   location.href = BASE + '/'
 }
@@ -248,8 +150,8 @@ async function doLogin() {
   if (!email || !pass) { showErr('メールアドレスとパスワードを入力してください'); return }
   setBtn('loginBtn', true, 'ログイン')
   try {
-    const cred = await signInWithEmailAndPassword(auth, email, pass)
-    // onAuthStateChanged がリダイレクト（ドキュメントは既に存在する）
+    await login(email, pass)
+    // onAuth がリダイレクト
   } catch(e) {
     showErr(fbErr(e.code))
     setBtn('loginBtn', false, 'ログイン')
@@ -271,17 +173,13 @@ async function doRegisterStudent() {
   if (pass.length < 6)          { showErr('パスワードは6文字以上にしてください'); return }
   setBtn('regStudentBtn', true, '登録して始める')
 
-  // ★ setDoc完了まで onAuthStateChanged のリダイレクトを抑制
   skipAuthRedirect = true
   try {
-    const cred = await createUserWithEmailAndPassword(auth, email, pass)
-    await setDoc(doc(db, 'users', cred.user.uid), {
-      role: 'student', name,
-      grade: Number(grade), class: Number(cls),
-      number: num ? Number(num) : 0,
-      email, createdAt: serverTimestamp(),
+    await registerStudent({
+      email, password: pass, name,
+      grade: Number(grade), classLabel: Number(cls),
+      number: num ? Number(num) : 0
     })
-    // setDoc完了後に自分でリダイレクト
     location.href = BASE + '/'
   } catch(e) {
     skipAuthRedirect = false
@@ -304,10 +202,7 @@ async function doRegisterTeacher() {
 
   skipAuthRedirect = true
   try {
-    const cred = await createUserWithEmailAndPassword(auth, email, pass)
-    await setDoc(doc(db, 'users', cred.user.uid), {
-      role: 'teacher', name, email, createdAt: serverTimestamp(),
-    })
+    await registerTeacher({ email, password: pass, name })
     location.href = BASE + '/teacher.html'
   } catch(e) {
     skipAuthRedirect = false
@@ -321,28 +216,23 @@ async function showReset() {
   const email = prompt('登録時のメールアドレスを入力してください')
   if (!email) return
   try {
-    await sendPasswordResetEmail(auth, email)
+    await resetPassword(email)
     alert('パスワードリセットメールを送信しました')
   } catch(e) {
     alert('送信に失敗: ' + fbErr(e.code))
   }
 }
-</script>
 
-<script>
-function switchTab(tab) {
+window.switchTab = function(tab) {
   ['login','register'].forEach(t => {
     document.getElementById('tab'+(t==='login'?'Login':'Register'))?.classList.toggle('on',t===tab)
     document.getElementById('sec-'+t)?.classList.toggle('on',t===tab)
   })
   document.getElementById('authErr')?.classList.remove('show')
 }
-function switchRole(role) {
+window.switchRole = function(role) {
   document.getElementById('roleStudent')?.classList.toggle('on',role==='student')
   document.getElementById('roleTeacher')?.classList.toggle('on',role==='teacher')
   document.getElementById('formStudent').style.display = role==='student' ? '' : 'none'
   document.getElementById('formTeacher').style.display = role==='teacher' ? '' : 'none'
 }
-</script>
-</body>
-</html>

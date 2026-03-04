@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#1a2744">
+<title>ログイン / 登録 — 水戸第一高等学校 デジタル生徒手帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@600;700&family=Noto+Sans+JP:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#1a2744;--navy-light:#253a78;
+  --enjii:#8b1a2c;--enjii-bg:rgba(139,26,44,.08);
+  --bg:#f6f6f4;--surface:#fff;--surface2:#f0f0ed;
+  --text:#111;--text-2:#444;--text-3:#888;
+  --border:#e2e2de;--r:10px;
+  --shadow-md:0 4px 16px rgba(0,0,0,.09),0 2px 4px rgba(0,0,0,.05);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+.logo{text-align:center;margin-bottom:32px}
+.logo-en{font-size:11px;letter-spacing:.18em;color:var(--text-3);text-transform:uppercase;margin-bottom:4px}
+.logo-jp{font-family:'Noto Serif JP',serif;font-size:20px;font-weight:700;color:var(--navy)}
+.logo-sub{font-size:12px;color:var(--text-3);margin-top:3px}
+.card{background:var(--surface);border-radius:14px;box-shadow:var(--shadow-md);padding:32px 36px;width:100%;max-width:440px}
+.tabs{display:flex;border-bottom:2px solid var(--border);margin-bottom:28px}
+.tab{flex:1;padding:10px;text-align:center;font-size:13px;font-weight:600;color:var(--text-3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:.15s}
+.tab.on{color:var(--navy);border-bottom-color:var(--navy)}
+.section{display:none}.section.on{display:block}
+.form-group{margin-bottom:18px}
+.form-label{display:block;font-size:12.5px;font-weight:600;color:var(--text-2);margin-bottom:6px}
+.req{font-size:10px;color:var(--enjii);background:var(--enjii-bg);padding:1px 6px;border-radius:4px;margin-left:4px}
+.form-input{width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text);font-size:14px;font-family:inherit;outline:none;transition:border-color .15s}
+.form-input:focus{border-color:var(--navy)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.btn-primary{width:100%;padding:13px;background:var(--navy);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer;transition:background .15s;margin-top:8px;font-family:inherit}
+.btn-primary:hover{background:var(--navy-light)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.err{font-size:12px;color:var(--enjii);background:var(--enjii-bg);padding:10px 12px;border-radius:8px;margin-bottom:16px;display:none}
+.err.show{display:block}
+.hint{font-size:11.5px;color:var(--text-3);text-align:center;margin-top:16px}
+.hint a{color:var(--navy);font-weight:500;cursor:pointer}
+.role-tabs{display:flex;gap:8px;margin-bottom:20px}
+.role-tab{flex:1;padding:10px;text-align:center;border:1.5px solid var(--border);border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--text-3);transition:.15s;background:var(--surface)}
+.role-tab.on{border-color:var(--navy);color:var(--navy);background:rgba(26,39,68,.06)}
+</style>
+</head>
+<body>
+
+<div class="logo">
+  <div class="logo-en">Mito Daiichi High School</div>
+  <div class="logo-jp">デジタル生徒手帳</div>
+  <div class="logo-sub">公欠申請システム</div>
+</div>
+
+<div class="card" id="mainCard">
+  <div style="text-align:center;padding:20px;color:var(--text-3);font-size:13px">読み込み中...</div>
+</div>
+
+<script type="module" src="/src/auth_page.js"></script>
+
+<script>
+// Keep simple UI helpers that don't need bundling if preferred,
+// but since we want consistency, we can move them too.
+// For now, I'll keep them here or move them to auth_page.js.
+// Moved to auth_page.js and exposed via window.
+</script>
+</body>
+</html>
