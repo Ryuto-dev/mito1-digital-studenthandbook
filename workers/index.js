@@ -85,8 +85,8 @@ async function sendApproval(body, env) {
   const base     = appBaseUrl || env.APP_BASE_URL || 'https://ryuto-devs.github.io/mito1-digital-studenthandbook'
   const datesStr = (dates || []).join(', ')
   const roleName = recipientRole === 'supervisor' ? 'Supervisor' : 'Homeroom Teacher'
-  const approveUrl = `${base}/approve.html?caseId=${body.caseId}&token=${approveToken}&action=approve`
-  const rejectUrl  = `${base}/approve.html?caseId=${body.caseId}&token=${rejectToken}&action=reject`
+  const approveUrl = `${base}/approve.html?token=${approveToken}&action=approve`
+  const rejectUrl  = `${base}/approve.html?token=${rejectToken}&action=reject`
   const supNote    = step === 'homeroom'
     ? `<p style="color:#27ae60;background:#eafaf1;padding:10px 14px;border-radius:6px;font-size:13px;margin:12px 0">Supervisor (${supervisorEmail}) has already approved.</p>`
     : ''

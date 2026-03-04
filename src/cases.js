@@ -101,7 +101,7 @@ export async function createCase({ studentId, studentName, studentEmail, title, 
 // =============================================
 // トークンで承認・差し戻し処理
 // =============================================
-export async function processToken(token, action, caseIdFromUrl = null) {
+export async function processToken(token, action) {
   // 顧問トークン or 担任トークンを検索
   const fields = [
     { field: 'approveToken',          step: 'supervisor', act: 'approve' },
@@ -110,39 +110,14 @@ export async function processToken(token, action, caseIdFromUrl = null) {
     { field: 'homeRoomRejectToken',   step: 'homeroom',   act: 'reject'  },
   ]
 
-  let caseDoc, caseId, caseData, step, act
+  for (const { field, step, act } of fields) {
+    const q = query(collection(db, 'cases'), where(field, '==', token))
+    const snap = await getDocs(q)
+    if (snap.empty) continue
 
-  if (caseIdFromUrl) {
-    // caseIdがある場合は直接取得（セキュリティ的に望ましい）
-    const docRef = doc(db, 'cases', caseIdFromUrl)
-    const snap = await getDoc(docRef)
-    if (!snap.exists()) return { ok: false, reason: 'token_not_found' }
-
-    caseDoc = snap
-    caseId = snap.id
-    caseData = snap.data()
-
-    const match = fields.find(f => caseData[f.field] === token)
-    if (!match) return { ok: false, reason: 'token_not_found' }
-    step = match.step
-    act = match.act
-  } else {
-    // 互換性のためのクエリ検索
-    for (const f of fields) {
-      const q = query(collection(db, 'cases'), where(f.field, '==', token))
-      const snap = await getDocs(q)
-      if (snap.empty) continue
-
-      caseDoc  = snap.docs[0]
-      caseId   = caseDoc.id
-      caseData = caseDoc.data()
-      step = f.step
-      act = f.act
-      break
-    }
-  }
-
-  if (!caseDoc) return { ok: false, reason: 'token_not_found' }
+    const caseDoc  = snap.docs[0]
+    const caseId   = caseDoc.id
+    const caseData = caseDoc.data()
 
     // 既に使用済みトークン（ステータスが進んでいる）はエラー
     if (step === 'supervisor' && caseData.status !== 'pending_supervisor') {
@@ -159,7 +134,6 @@ export async function processToken(token, action, caseIdFromUrl = null) {
         rejectedBy: step,
         [`${step === 'supervisor' ? 'approveToken' : 'homeRoomApproveToken'}`]: '', // トークン無効化
         [`${step === 'supervisor' ? 'rejectToken'  : 'homeRoomRejectToken'}`]:  '',
-        providedToken: token, // セキュリティルールでの検証用
       })
       return { ok: true, result: 'rejected', step, caseData }
     }
@@ -176,7 +150,6 @@ export async function processToken(token, action, caseIdFromUrl = null) {
           rejectToken:  '',
           homeRoomApproveToken: hrApproveToken,
           homeRoomRejectToken:  hrRejectToken,
-          providedToken: token, // セキュリティルールでの検証用
         })
         // 担任へ承認依頼メール
         await sendEmail('/send-approval', {
@@ -202,7 +175,6 @@ export async function processToken(token, action, caseIdFromUrl = null) {
           homeRoomApprovedAt: serverTimestamp(),
           homeRoomApproveToken: '',
           homeRoomRejectToken:  '',
-          providedToken: token, // セキュリティルールでの検証用
         })
         // 生徒へ完了通知メール
         await sendEmail('/send-complete', {

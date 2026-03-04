@@ -56,31 +56,20 @@ service cloud.firestore {
     // Cases (absence applications) collection
     // =============================================
     match /cases/{caseId} {
-      // Helper function to check if the update request provides a valid token
-      function isValidTokenUpdate() {
-        let providedToken = request.resource.data.providedToken;
-        return providedToken != null && (
-          providedToken == resource.data.approveToken ||
-          providedToken == resource.data.rejectToken ||
-          providedToken == resource.data.homeRoomApproveToken ||
-          providedToken == resource.data.homeRoomRejectToken
-        );
-      }
+      // Anyone authenticated can read cases
+      // (filtered by query in the app - students see their own, teachers see theirs)
+      allow read: if isAuthenticated();
 
-      // Allow individual document read (get) for token-based lookup
-      // Allow list only for authenticated users (prevents collection scraping)
-      allow get: if true;
-      allow list: if isAuthenticated();
-
-      // Allow students to create cases
+      // Authenticated users can create cases
       allow create: if isAuthenticated();
 
-      // Allow update if:
-      // 1. User is authenticated (teacher dashboard approval)
-      // 2. Request provides a valid token (email one-click approval)
-      allow update: if isAuthenticated() || isValidTokenUpdate();
+      // Authenticated users can update cases
+      // (approval/rejection by teachers, token updates)
+      allow update: if isAuthenticated();
 
-      // DELETE: Only authenticated users can delete cases (student withdrawal)
+      // DELETE: Allow authenticated users to delete cases
+      // - Students can delete their own pending cases (checked in app code)
+      // - Teachers/admins can delete any case (checked in app code)
       allow delete: if isAuthenticated();
     }
 
