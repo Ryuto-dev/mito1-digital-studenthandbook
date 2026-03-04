@@ -2000,6 +2000,7 @@ function runSearchPage(q){
    4. ユーザーの質問
    ※ 毎回全文を送らず、ヒット分のみ付加してAPIコストを最小化
 ================================= */
+// NOTE: "hundbook" might be a typo for "handbook". Please verify against the Worker deployment.
 const AI_WORKERS_URL = 'https://mito1-hundbook.asanuma-ryuto.workers.dev';
 window._aiContext = '';
 
@@ -2357,7 +2358,13 @@ window.submitApply = async function() {
         const warn = document.createElement('div')
         warn.className = 'email-warn'
         warn.style.cssText = 'font-size:12px;color:#856404;background:#fff3cd;padding:10px 14px;border-radius:8px;margin-top:12px;text-align:left'
-        warn.innerHTML = '⚠️ 顧問への承認依頼メールの自動送信に失敗しました。<br>申請データは保存済みです。顧問の先生に直接ご連絡ください。<br><span style="font-size:11px;color:#666;margin-top:4px;display:block">※ Resendの送信元ドメインが未認証の可能性があります。Workers の RESEND_FROM 環境変数を確認してください。</span>'
+
+        let errorDetail = result.emailError || ''
+        if (errorDetail.includes('RESEND_FROM is not set')) {
+          errorDetail = 'RESEND_FROM が設定されていません。onboarding@resend.dev は Resend アカウント所有者への送信のみ可能です。ドメイン認証を完了し、環境変数を設定してください。'
+        }
+
+        warn.innerHTML = `⚠️ 顧問への承認依頼メールの自動送信に失敗しました。<br>申請データは保存済みです。顧問の先生に直接ご連絡ください。<br><span style="font-size:11px;color:#666;margin-top:4px;display:block">${errorDetail}</span>`
         document.getElementById('applyDone').querySelector('.card').appendChild(warn)
       }
     }
