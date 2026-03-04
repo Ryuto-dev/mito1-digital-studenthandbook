@@ -1,6 +1,7 @@
 import { processToken } from './cases.js'
 
 const params = new URLSearchParams(location.search)
+const caseId = params.get('caseId')
 const token  = params.get('token')
 const action = params.get('action') || 'approve'
 
@@ -45,7 +46,7 @@ async function doProcess() {
   if (btn) { btn.disabled = true; btn.textContent = '処理中...' }
 
   try {
-    const result = await processToken(token, action)
+    const result = await processToken(token, action, caseId)
 
     if (!result.ok) {
       if (result.reason === 'already_processed') {
