@@ -1,6 +1,7 @@
-import { processToken } from './cases.js'
+import { processToken, getCase } from './cases.js'
 
 const params = new URLSearchParams(location.search)
+const caseId = params.get('caseId')
 const token  = params.get('token')
 const action = params.get('action') || 'approve'
 
@@ -27,13 +28,39 @@ async function main() {
       <div class="icon">📋</div>
       <div class="ttl">公欠申請の承認確認</div>
       <div class="sub">以下の申請を承認してよろしいですか？</div>
-      <div id="caseInfo" style="margin:16px 0;font-size:13px;color:var(--text-3)">確認中...</div>
-      <button class="btn btn-approve" id="btnApprove">✓ 承認する</button>
+      <div id="caseInfo" style="margin:20px 0;text-align:left">
+        <div class="spinner" style="width:24px;height:24px;margin:10px auto"></div>
+      </div>
+      <button class="btn btn-approve" id="btnApprove" disabled>✓ 承認する</button>
       <button class="btn btn-reject" onclick="location.href=location.href.replace('action=approve','action=reject')">差し戻す</button>
     `
-    document.getElementById('btnApprove').onclick = doProcess
-    // トークンからケース情報を取得して表示（processはまだしない）
-    // ここでは情報表示のみ、実際の処理はボタンクリックで行う
+    const infoEl = document.getElementById('caseInfo')
+    const btnApprove = document.getElementById('btnApprove')
+    btnApprove.onclick = doProcess
+
+    // ケース情報を取得して表示
+    if (caseId) {
+      try {
+        const d = await getCase(caseId)
+        if (d) {
+          const datesStr = (d.dates || []).join('、')
+          infoEl.innerHTML = `
+            <div class="info-box" style="margin:0">
+              <div class="info-row"><span class="info-key">申請者</span><span>${d.studentName}</span></div>
+              <div class="info-row"><span class="info-key">件名</span><span>${d.title}</span></div>
+              <div class="info-row"><span class="info-key">公欠日</span><span>${datesStr}</span></div>
+            </div>`
+          btnApprove.disabled = false
+        } else {
+          infoEl.innerHTML = '<div style="text-align:center;color:var(--enjii);font-size:13px">申請が見つかりませんでした</div>'
+        }
+      } catch (e) {
+        infoEl.innerHTML = '<div style="text-align:center;color:var(--enjii);font-size:12px">情報の取得に失敗しました</div>'
+      }
+    } else {
+      infoEl.innerHTML = '<div style="text-align:center;color:var(--text-3);font-size:12px">（詳細情報を表示できません）</div>'
+      btnApprove.disabled = false
+    }
   } else {
     // reject は確認なしで処理
     doProcess()
@@ -45,7 +72,7 @@ async function doProcess() {
   if (btn) { btn.disabled = true; btn.textContent = '処理中...' }
 
   try {
-    const result = await processToken(token, action)
+    const result = await processToken(token, action, caseId)
 
     if (!result.ok) {
       if (result.reason === 'already_processed') {

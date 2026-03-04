@@ -99,97 +99,135 @@ export async function createCase({ studentId, studentName, studentEmail, title, 
 }
 
 // =============================================
+// 単一ケース取得
+// =============================================
+export async function getCase(caseId) {
+  const ref = doc(db, 'cases', caseId)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) return null
+  return { id: snap.id, ...snap.data() }
+}
+
+// =============================================
 // トークンで承認・差し戻し処理
 // =============================================
-export async function processToken(token, action) {
-  // 顧問トークン or 担任トークンを検索
-  const fields = [
-    { field: 'approveToken',          step: 'supervisor', act: 'approve' },
-    { field: 'rejectToken',           step: 'supervisor', act: 'reject'  },
-    { field: 'homeRoomApproveToken',  step: 'homeroom',   act: 'approve' },
-    { field: 'homeRoomRejectToken',   step: 'homeroom',   act: 'reject'  },
-  ]
+export async function processToken(token, action, caseIdHint = null) {
+  let caseId   = null
+  let caseData = null
+  let step     = null
+  let act      = null
 
-  for (const { field, step, act } of fields) {
-    const q = query(collection(db, 'cases'), where(field, '==', token))
-    const snap = await getDocs(q)
-    if (snap.empty) continue
+  // caseIdHint がある場合は直接取得を試みる
+  if (caseIdHint) {
+    caseData = await getCase(caseIdHint)
+    if (caseData) {
+      caseId = caseIdHint
+      // トークンがいずれかのフィールドに一致するか確認
+      const matches = [
+        { field: 'approveToken',          s: 'supervisor', a: 'approve' },
+        { field: 'rejectToken',           s: 'supervisor', a: 'reject'  },
+        { field: 'homeRoomApproveToken',  s: 'homeroom',   a: 'approve' },
+        { field: 'homeRoomRejectToken',   s: 'homeroom',   a: 'reject'  },
+      ].find(m => caseData[m.field] === token)
 
-    const caseDoc  = snap.docs[0]
-    const caseId   = caseDoc.id
-    const caseData = caseDoc.data()
-
-    // 既に使用済みトークン（ステータスが進んでいる）はエラー
-    if (step === 'supervisor' && caseData.status !== 'pending_supervisor') {
-      return { ok: false, reason: 'already_processed', caseId }
-    }
-    if (step === 'homeroom' && caseData.status !== 'pending_homeroom') {
-      return { ok: false, reason: 'already_processed', caseId }
-    }
-
-    if (act === 'reject' && action === 'reject') {
-      // 差し戻し
-      await updateDoc(doc(db, 'cases', caseId), {
-        status: 'rejected',
-        rejectedBy: step,
-        [`${step === 'supervisor' ? 'approveToken' : 'homeRoomApproveToken'}`]: '', // トークン無効化
-        [`${step === 'supervisor' ? 'rejectToken'  : 'homeRoomRejectToken'}`]:  '',
-      })
-      return { ok: true, result: 'rejected', step, caseData }
-    }
-
-    if (act === 'approve' && action === 'approve') {
-      if (step === 'supervisor') {
-        // 顧問承認 → 担任への依頼へ進む
-        const hrApproveToken = genToken()
-        const hrRejectToken  = genToken()
-        await updateDoc(doc(db, 'cases', caseId), {
-          status: 'pending_homeroom',
-          supervisorApprovedAt: serverTimestamp(),
-          approveToken: '', // 使用済み無効化
-          rejectToken:  '',
-          homeRoomApproveToken: hrApproveToken,
-          homeRoomRejectToken:  hrRejectToken,
-        })
-        // 担任へ承認依頼メール
-        await sendEmail('/send-approval', {
-          caseId,
-          studentName: caseData.studentName,
-          title: caseData.title,
-          dates: caseData.dates,
-          reason: caseData.reason,
-          step: 'homeroom',
-          recipientEmail: caseData.homeRoomEmail,
-          recipientRole: 'homeroom',
-          supervisorEmail: caseData.supervisorEmail,
-          approveToken: hrApproveToken,
-          rejectToken:  hrRejectToken,
-          appBaseUrl: APP_BASE,
-        })
-        return { ok: true, result: 'supervisor_approved', caseData }
-
-      } else {
-        // 担任承認 → 完了
-        await updateDoc(doc(db, 'cases', caseId), {
-          status: 'approved',
-          homeRoomApprovedAt: serverTimestamp(),
-          homeRoomApproveToken: '',
-          homeRoomRejectToken:  '',
-        })
-        // 生徒へ完了通知メール
-        await sendEmail('/send-complete', {
-          studentEmail: caseData.studentEmail,
-          studentName:  caseData.studentName,
-          title: caseData.title,
-          dates: caseData.dates,
-          appBaseUrl: APP_BASE,
-        })
-        return { ok: true, result: 'approved', caseData }
+      if (matches) {
+        step = matches.s
+        act  = matches.a
       }
     }
   }
 
-  return { ok: false, reason: 'token_not_found' }
+  // ヒントで見つからない、またはヒントがない場合は従来通り全検索
+  if (!step) {
+    const fields = [
+      { field: 'approveToken',          s: 'supervisor', a: 'approve' },
+      { field: 'rejectToken',           s: 'supervisor', a: 'reject'  },
+      { field: 'homeRoomApproveToken',  s: 'homeroom',   a: 'approve' },
+      { field: 'homeRoomRejectToken',   s: 'homeroom',   a: 'reject'  },
+    ]
+    for (const { field, s, a } of fields) {
+      const q = query(collection(db, 'cases'), where(field, '==', token))
+      const snap = await getDocs(q)
+      if (!snap.empty) {
+        caseId   = snap.docs[0].id
+        caseData = snap.docs[0].data()
+        step     = s
+        act      = a
+        break
+      }
+    }
+  }
+
+  if (!step) return { ok: false, reason: 'token_not_found' }
+
+  // 既に使用済みトークン（ステータスが進んでいる）はエラー
+  if (step === 'supervisor' && caseData.status !== 'pending_supervisor') {
+    return { ok: false, reason: 'already_processed', caseId }
+  }
+  if (step === 'homeroom' && caseData.status !== 'pending_homeroom') {
+    return { ok: false, reason: 'already_processed', caseId }
+  }
+
+  // 承認・差し戻し処理
+  if (act === 'reject' && action === 'reject') {
+    await updateDoc(doc(db, 'cases', caseId), {
+      status: 'rejected',
+      rejectedBy: step,
+      [`${step === 'supervisor' ? 'approveToken' : 'homeRoomApproveToken'}`]: '',
+      [`${step === 'supervisor' ? 'rejectToken'  : 'homeRoomRejectToken'}`]:  '',
+      tokenVerification: token, // ルール用
+    })
+    return { ok: true, result: 'rejected', step, caseData }
+  }
+
+  if (act === 'approve' && action === 'approve') {
+    if (step === 'supervisor') {
+      const hrApproveToken = genToken()
+      const hrRejectToken  = genToken()
+      await updateDoc(doc(db, 'cases', caseId), {
+        status: 'pending_homeroom',
+        supervisorApprovedAt: serverTimestamp(),
+        approveToken: '',
+        rejectToken:  '',
+        homeRoomApproveToken: hrApproveToken,
+        homeRoomRejectToken:  hrRejectToken,
+        tokenVerification: token,
+      })
+      await sendEmail('/send-approval', {
+        caseId,
+        studentName: caseData.studentName,
+        title: caseData.title,
+        dates: caseData.dates,
+        reason: caseData.reason,
+        step: 'homeroom',
+        recipientEmail: caseData.homeRoomEmail,
+        recipientRole: 'homeroom',
+        supervisorEmail: caseData.supervisorEmail,
+        approveToken: hrApproveToken,
+        rejectToken:  hrRejectToken,
+        appBaseUrl: APP_BASE,
+      })
+      return { ok: true, result: 'supervisor_approved', caseData }
+    } else {
+      await updateDoc(doc(db, 'cases', caseId), {
+        status: 'approved',
+        homeRoomApprovedAt: serverTimestamp(),
+        homeRoomApproveToken: '',
+        homeRoomRejectToken:  '',
+        tokenVerification: token,
+      })
+      await sendEmail('/send-complete', {
+        studentEmail: caseData.studentEmail,
+        studentName:  caseData.studentName,
+        title: caseData.title,
+        dates: caseData.dates,
+        appBaseUrl: APP_BASE,
+      })
+      return { ok: true, result: 'approved', caseData }
+    }
+  }
+
+  return { ok: false, reason: 'action_mismatch' }
 }
 
 // =============================================

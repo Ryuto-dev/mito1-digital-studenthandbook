@@ -56,20 +56,28 @@ service cloud.firestore {
     // Cases (absence applications) collection
     // =============================================
     match /cases/{caseId} {
-      // Anyone authenticated can read cases
-      // (filtered by query in the app - students see their own, teachers see theirs)
-      allow read: if isAuthenticated();
+      // Anyone with the caseId can read the case details (needed for approval confirmation)
+      allow get: if true;
+      // Listing still requires authentication
+      allow list: if isAuthenticated();
 
       // Authenticated users can create cases
       allow create: if isAuthenticated();
 
-      // Authenticated users can update cases
-      // (approval/rejection by teachers, token updates)
-      allow update: if isAuthenticated();
+      // Update allowed if:
+      // 1. User is authenticated (for dashboard actions)
+      // 2. Unauthenticated but provides a valid token in tokenVerification field
+      allow update: if isAuthenticated() || (
+        request.resource.data.tokenVerification != null &&
+        (
+          request.resource.data.tokenVerification == resource.data.approveToken ||
+          request.resource.data.tokenVerification == resource.data.rejectToken ||
+          request.resource.data.tokenVerification == resource.data.homeRoomApproveToken ||
+          request.resource.data.tokenVerification == resource.data.homeRoomRejectToken
+        )
+      );
 
       // DELETE: Allow authenticated users to delete cases
-      // - Students can delete their own pending cases (checked in app code)
-      // - Teachers/admins can delete any case (checked in app code)
       allow delete: if isAuthenticated();
     }
 
