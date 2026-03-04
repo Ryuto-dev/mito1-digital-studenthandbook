@@ -9,10 +9,15 @@ import {
   signOut,
   onAuthStateChanged,
   sendPasswordResetEmail,
+  browserSessionPersistence,
+  setPersistence,
 } from 'firebase/auth'
 import {
   doc, setDoc, getDoc, serverTimestamp,
 } from 'firebase/firestore'
+
+// タブを閉じたらログアウト
+setPersistence(auth, browserSessionPersistence).catch(() => {})
 
 // =============================================
 // 新規登録（生徒）

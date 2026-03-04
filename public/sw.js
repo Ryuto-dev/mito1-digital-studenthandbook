@@ -19,6 +19,9 @@ self.addEventListener('fetch', e => {
   const url = e.request.url;
   if (e.request.method !== 'GET') return;
 
+  // http/https以外（chrome-extension等）はバイパス
+  if (!url.startsWith('http')) return;
+
   // Firebase / Workers API はバイパス
   if (url.includes('firestore.googleapis') ||
       url.includes('firebase') ||

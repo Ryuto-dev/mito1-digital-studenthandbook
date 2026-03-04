@@ -65,7 +65,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 import { initializeApp, getApps }
   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js'
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-         onAuthStateChanged, sendPasswordResetEmail }
+         onAuthStateChanged, sendPasswordResetEmail,
+         browserSessionPersistence, setPersistence }
   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js'
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'
@@ -84,6 +85,9 @@ const BASE = '/mito1-digital-studenthandbook'
 const app  = getApps().find(a => a.name === 'auth-page') || initializeApp(FIREBASE_CONFIG, 'auth-page')
 const auth = getAuth(app)
 const db   = getFirestore(app)
+
+// タブを閉じたらログアウト（ブラウザを再起動しても自動ログインしない）
+await setPersistence(auth, browserSessionPersistence)
 
 // ── UIを描画 ──────────────────────────────────────────────────────
 document.getElementById('mainCard').innerHTML = `
