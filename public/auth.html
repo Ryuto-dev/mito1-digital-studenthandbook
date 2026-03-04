@@ -63,13 +63,13 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 
 <script type="module">
 import { initializeApp, getApps }
-  from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js'
+  from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js'
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
          onAuthStateChanged, sendPasswordResetEmail,
          browserSessionPersistence, setPersistence }
-  from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js'
+  from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js'
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp }
-  from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'
+  from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js'
 
 // window.FIREBASE_CONFIG は上の <script src="..."> で設定済み
 if (!window.FIREBASE_CONFIG || window.FIREBASE_CONFIG.apiKey.includes('YOUR_')) {
@@ -82,7 +82,7 @@ const FIREBASE_CONFIG = window.FIREBASE_CONFIG
 
 const BASE = '/mito1-digital-studenthandbook'
 
-const app  = getApps().find(a => a.name === 'auth-page') || initializeApp(FIREBASE_CONFIG, 'auth-page')
+const app  = getApps().length ? getApps()[0] : initializeApp(FIREBASE_CONFIG)
 const auth = getAuth(app)
 const db   = getFirestore(app)
 
