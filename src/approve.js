@@ -1,7 +1,9 @@
-import { processToken, getCaseById } from './cases.js'
+import { processToken, getCaseById, findCaseIdByToken } from './cases.js'
+import { auth } from './firebase.js'
+import { onAuthStateChanged } from 'firebase/auth'
 
 const params = new URLSearchParams(location.search)
-const caseId = params.get('caseId')
+let caseId = params.get('caseId')
 const token  = params.get('token')
 const action = params.get('action') || 'approve'
 
@@ -22,28 +24,55 @@ async function main() {
     return
   }
 
+  // caseId が URL になくても、ログイン中ならクエリで探す
+  if (!caseId) {
+    // まずログイン状態を確認
+    const user = await new Promise(resolve => {
+      const unsub = onAuthStateChanged(auth, u => { unsub(); resolve(u) })
+    })
+    if (user) {
+      // ログイン中 → list 権限でトークン検索可能
+      try {
+        caseId = await findCaseIdByToken(token)
+        if (caseId) {
+          // URL に caseId を追加してリロード（次回以降のためにも）
+          const url = new URL(location.href)
+          url.searchParams.set('caseId', caseId)
+          history.replaceState(null, '', url.toString())
+        }
+      } catch (e) {
+        console.warn('Failed to find caseId by token:', e)
+      }
+    }
+  }
+
+  if (!caseId) {
+    // caseId が取得できなかった場合 — ログインして再試行を促す
+    render('❌', 'リンクの形式が古い可能性があります',
+      'この承認リンクにはケースIDが含まれていません。<br>' +
+      '<a href="/mito1-digital-studenthandbook/teacher.html" style="color:#1a2744;font-weight:600">先生用ダッシュボード</a>からログインして承認してください。')
+    return
+  }
+
   // caseId があれば情報を取得して表示
   let caseData = null
-  if (caseId) {
-    try {
-      caseData = await getCaseById(caseId)
-    } catch (e) {
-      console.warn('Failed to fetch case info:', e)
-    }
+  try {
+    caseData = await getCaseById(caseId)
+  } catch (e) {
+    console.warn('Failed to fetch case info:', e)
   }
 
   // 確認画面を先に表示（action=approve の場合）
   if (action === 'approve') {
-    let infoHtml = '確認中...'
+    let infoHtml = ''
     if (caseData) {
-      const datesStr = (caseData.dates || []).join('、')
       infoHtml = `
         <div class="info-box" style="margin:16px 0">
           <div class="info-row"><span class="info-key">申請者</span><span id="caseStudentName"></span></div>
           <div class="info-row"><span class="info-key">件名</span><span id="caseTitle"></span></div>
           <div class="info-row"><span class="info-key">公欠日</span><span id="caseDates"></span></div>
         </div>`
-    } else if (caseId) {
+    } else {
       infoHtml = '<div style="margin:16px 0;color:var(--enjii)">申請情報が見つかりませんでした</div>'
     }
 
@@ -76,6 +105,8 @@ async function main() {
 async function doProcess() {
   const btn = document.getElementById('btnApprove')
   if (btn) { btn.disabled = true; btn.textContent = '処理中...' }
+  const rejectBtn = document.getElementById('btnReject')
+  if (rejectBtn) { rejectBtn.disabled = true }
 
   try {
     const result = await processToken(token, action, caseId)
@@ -102,10 +133,6 @@ async function doProcess() {
 
     if (result.result === 'rejected') {
       render('🔴', '申請を差し戻しました', '生徒に通知されます。', infoBox)
-      const box = document.getElementById(infoBoxId)
-      box.querySelector('.val-name').textContent = d.studentName
-      box.querySelector('.val-title').textContent = d.title
-      box.querySelector('.val-dates').textContent = (d.dates || []).join('、')
     } else if (result.result === 'supervisor_approved') {
       render('✅', '顧問承認が完了しました',
         '担任の先生に承認依頼メールを送信しました。', infoBox)

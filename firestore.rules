@@ -26,20 +26,6 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Check if the user's profile has a specific role
-    // NOTE: This reads from the 'users' collection
-    function getUserRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
-    }
-
-    function isTeacher() {
-      return isAuthenticated() && getUserRole() == 'teacher';
-    }
-
-    function isStudent() {
-      return isAuthenticated() && getUserRole() == 'student';
-    }
-
     // =============================================
     // Users collection
     // =============================================

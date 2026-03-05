@@ -1,3 +1,4 @@
+import { auth } from './firebase.js'
 import { onAuth, getCurrentProfile, logout } from './auth.js'
 import { getTeacherCases, approveByTeacher, rejectByTeacher } from './cases.js'
 
@@ -14,17 +15,43 @@ let myProfile = null
 
 onAuth(async user => {
   if (!user) { location.href = '/mito1-digital-studenthandbook/auth.html'; return }
-  myProfile = await getCurrentProfile()
-  if (!myProfile) { location.href = '/mito1-digital-studenthandbook/auth.html'; return }
-  document.getElementById('headerName').textContent = `${myProfile.name} 先生`
-  await loadCases()
+  try {
+    myProfile = await getCurrentProfile(user)
+    if (!myProfile) {
+      // users ドキュメントが無い場合、auth 情報から最低限のプロフィールを構築
+      myProfile = { uid: user.uid, email: user.email, name: user.email, role: 'teacher' }
+    }
+    document.getElementById('headerName').textContent = `${myProfile.name} 先生`
+    await loadCases()
+  } catch (e) {
+    console.error('Teacher page init error:', e)
+    document.getElementById('caseList').innerHTML =
+      `<div class="empty">読み込みに失敗しました: ${e.message}<br><br><button onclick="location.reload()" style="padding:8px 16px;cursor:pointer">再読み込み</button></div>`
+  }
 })
 
 async function loadCases() {
   document.getElementById('caseList').innerHTML =
     '<div class="loading-wrap"><span class="spinner"></span>読み込み中...</div>'
-  allCases = await getTeacherCases(myProfile.email)
-  renderCases()
+  try {
+    // auth.currentUser.email と profile.email の両方で検索
+    const authEmail = auth.currentUser?.email
+    const profileEmail = myProfile.email
+    // メインのメールアドレスで取得
+    allCases = await getTeacherCases(profileEmail)
+    // auth メールが異なる場合は追加検索してマージ
+    if (authEmail && authEmail !== profileEmail) {
+      const extra = await getTeacherCases(authEmail)
+      const ids = new Set(allCases.map(c => c.id))
+      extra.forEach(c => { if (!ids.has(c.id)) allCases.push(c) })
+      allCases.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+    }
+    renderCases()
+  } catch (e) {
+    console.error('loadCases error:', e)
+    document.getElementById('caseList').innerHTML =
+      `<div class="empty">申請の読み込みに失敗しました: ${e.message}<br><br><button onclick="location.reload()" style="padding:8px 16px;cursor:pointer">再読み込み</button></div>`
+  }
 }
 
 function renderCases() {
@@ -40,7 +67,9 @@ function renderCases() {
 
   el.innerHTML = filtered.map(c => {
     const datesStr = (c.dates || []).join('、')
-    const isSupervisor = c.supervisorEmail === myProfile.email
+    const authEmail = auth.currentUser?.email
+    const isSupervisor = c.supervisorEmail === myProfile.email || c.supervisorEmail === authEmail
+    const isHomeRoom = c.homeRoomEmail === myProfile.email || c.homeRoomEmail === authEmail
     const myRole  = isSupervisor ? '顧問' : '担任'
     const canApprove =
       (isSupervisor && c.status === 'pending_supervisor') ||
