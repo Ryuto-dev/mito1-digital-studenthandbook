@@ -56,15 +56,18 @@ service cloud.firestore {
     // Cases (absence applications) collection
     // =============================================
     match /cases/{caseId} {
-      // Helper function to check if the update request provides a valid token
-      function isValidTokenUpdate() {
-        let providedToken = request.resource.data.providedToken;
-        return providedToken != null && (
-          providedToken == resource.data.approveToken ||
-          providedToken == resource.data.rejectToken ||
-          providedToken == resource.data.homeRoomApproveToken ||
-          providedToken == resource.data.homeRoomRejectToken
-        );
+      // Helper: check if the update request provides a valid token
+      // (used for unauthenticated email one-click approval/rejection)
+      function hasValidToken() {
+        return 'providedToken' in request.resource.data
+          && request.resource.data.providedToken is string
+          && request.resource.data.providedToken.size() > 0
+          && (
+               request.resource.data.providedToken == resource.data.approveToken
+            || request.resource.data.providedToken == resource.data.rejectToken
+            || request.resource.data.providedToken == resource.data.homeRoomApproveToken
+            || request.resource.data.providedToken == resource.data.homeRoomRejectToken
+          );
       }
 
       // Allow individual document read (get) for token-based lookup
@@ -76,9 +79,11 @@ service cloud.firestore {
       allow create: if isAuthenticated();
 
       // Allow update if:
-      // 1. User is authenticated (teacher dashboard approval)
+      // 1. User is authenticated (teacher dashboard approval), OR
       // 2. Request provides a valid token (email one-click approval)
-      allow update: if isAuthenticated() || isValidTokenUpdate();
+      //    — the token in the request body must match one of the
+      //      tokens stored on the existing document.
+      allow update: if isAuthenticated() || hasValidToken();
 
       // DELETE: Only authenticated users can delete cases (student withdrawal)
       allow delete: if isAuthenticated();
