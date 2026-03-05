@@ -102,6 +102,20 @@ export async function createCase({ studentId, studentName, studentEmail, title, 
 // トークンで承認・差し戻し処理
 // =============================================
 // =============================================
+// トークンからcaseIdを検索（認証済みユーザー用）
+// list権限が必要なため、ログイン中のみ使用可
+// =============================================
+export async function findCaseIdByToken(token) {
+  const tokenFields = ['approveToken', 'rejectToken', 'homeRoomApproveToken', 'homeRoomRejectToken']
+  for (const field of tokenFields) {
+    const q = query(collection(db, 'cases'), where(field, '==', token))
+    const snap = await getDocs(q)
+    if (!snap.empty) return snap.docs[0].id
+  }
+  return null
+}
+
+// =============================================
 // IDで単一ケース取得（承認画面用）
 // =============================================
 export async function getCaseById(caseId) {
@@ -126,7 +140,7 @@ export async function processToken(token, action, caseIdFromUrl = null) {
   let caseDoc, caseId, caseData, step, act
 
   if (caseIdFromUrl) {
-    // caseIdがある場合は直接取得（セキュリティ的に望ましい）
+    // caseIdがある場合は直接取得（get は認証不要）
     const docRef = doc(db, 'cases', caseIdFromUrl)
     const snap = await getDoc(docRef)
     if (!snap.exists()) return { ok: false, reason: 'token_not_found' }
@@ -140,19 +154,9 @@ export async function processToken(token, action, caseIdFromUrl = null) {
     step = match.step
     act = match.act
   } else {
-    // 互換性のためのクエリ検索
-    for (const f of fields) {
-      const q = query(collection(db, 'cases'), where(f.field, '==', token))
-      const snap = await getDocs(q)
-      if (snap.empty) continue
-
-      caseDoc  = snap.docs[0]
-      caseId   = caseDoc.id
-      caseData = caseDoc.data()
-      step = f.step
-      act = f.act
-      break
-    }
+    // caseId がない場合 — リスト権限不要の方法でトークン照合は不可能
+    // エラーメッセージで caseId 付きリンクの使用を促す
+    return { ok: false, reason: 'token_not_found' }
   }
 
   if (!caseDoc) return { ok: false, reason: 'token_not_found' }
@@ -349,9 +353,11 @@ export async function getMyCases(studentId) {
 // 先生の担当ケース一覧（自分のメール宛）
 // =============================================
 export async function getTeacherCases(teacherEmail) {
+  // composite index 不要: where のみでクエリし、JS側でソート
+  // （orderBy + where の組み合わせは Firestore composite index が必要なため）
   const [asSupervisor, asHomeRoom] = await Promise.all([
-    getDocs(query(collection(db, 'cases'), where('supervisorEmail', '==', teacherEmail), orderBy('createdAt', 'desc'))),
-    getDocs(query(collection(db, 'cases'), where('homeRoomEmail',   '==', teacherEmail), orderBy('createdAt', 'desc'))),
+    getDocs(query(collection(db, 'cases'), where('supervisorEmail', '==', teacherEmail))),
+    getDocs(query(collection(db, 'cases'), where('homeRoomEmail',   '==', teacherEmail))),
   ])
   const map = new Map()
   ;[...asSupervisor.docs, ...asHomeRoom.docs].forEach(d => map.set(d.id, { id: d.id, ...d.data() }))
