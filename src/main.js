@@ -122,17 +122,43 @@ async function loadSongs() {
 
 // =============================================
 // 条文（諸規定・特別教育活動・生徒会憲章・生徒会関係諸規定）
+// description（説明文/前文）やsection（総則/細則）にも対応
 // =============================================
-function renderArticles(items, containerId, tocId) {
+function renderArticles(items, containerId, tocId, options = {}) {
   const el  = document.getElementById(containerId)
   const toc = document.getElementById(tocId)
-  if (!el || !items.length) return
+  if (!el) return
 
   let html     = ''
   let tocHtml  = ''
   let prevChapter = ''
+  let prevSection = ''
+
+  // description（説明文/前文）がある場合はページ冒頭に表示
+  if (options.description) {
+    html += `<div class="card" style="margin-bottom:18px">
+      <div class="card-body" style="font-size:14px;color:var(--text-2);line-height:2.0;white-space:pre-wrap">${options.description}</div>
+    </div>`
+    tocHtml += `<a class="toc-lnk sub" style="font-style:italic;color:var(--text-3)">説明・前文</a>`
+  }
+
+  // preamble（前文テキスト — 憲章用）
+  if (options.preamble) {
+    html += `<div class="card" style="margin-bottom:18px">
+      <div class="card-h2">前文</div>
+      <div class="card-body" style="font-size:14px;color:var(--text-2);line-height:2.0;white-space:pre-wrap">${options.preamble}</div>
+    </div>`
+    tocHtml += `<a class="toc-lnk sub" style="font-weight:600">前文</a>`
+  }
 
   items.forEach(item => {
+    // セクション見出し（総則/細則）
+    if (item.section && item.section !== prevSection) {
+      html += `<div class="chapter-div" style="background:rgba(139,26,44,.06);border-left-color:var(--enjii);font-size:15px;margin-top:28px">${item.section}</div>`
+      tocHtml += `<a class="toc-lnk sub" style="font-weight:700;color:var(--enjii)">${item.section}</a>`
+      prevSection = item.section
+    }
+
     // 章見出し
     if (item.chapter && item.chapter !== prevChapter) {
       html += `<div class="chapter-div">${item.chapter}</div>`
@@ -177,8 +203,17 @@ function renderArticles(items, containerId, tocId) {
 
 async function loadArticles(col, containerId, tocId) {
   const items = await fetchOrdered(col)
-  if (!items.length) return
-  renderArticles(items, containerId, tocId)
+
+  // コンテンツドキュメントから description / preamble を取得
+  const contentDoc = await fetchDoc('content', col)
+  const options = {}
+  if (contentDoc) {
+    if (contentDoc.description) options.description = contentDoc.description
+    if (contentDoc.preamble) options.preamble = contentDoc.preamble
+  }
+
+  if (!items.length && !options.description && !options.preamble) return
+  renderArticles(items, containerId, tocId, options)
 
   const label = `全${items.length}条`
 
@@ -344,40 +379,64 @@ async function loadCouncilActivities() {
 
 // =============================================
 // 検索インデックスをFirestoreから動的生成
+// 全条文・説明文・前文を完全に格納
 // =============================================
 async function buildSearchIndex() {
-  const [rules, special, events, history, charter, councilRules] = await Promise.all([
+  const [rules, special, events, history, charter, councilRules, songs, goals] = await Promise.all([
     fetchOrdered('rules'),
     fetchOrdered('special'),
     fetchOrdered('events'),
     fetchOrdered('history'),
     fetchOrdered('council-charter'),
     fetchOrdered('council-rules'),
+    fetchOrdered('songs'),
+    fetchDoc('content', 'goals'),
+  ])
+
+  // コンテンツドキュメント（description/preamble）を取得
+  const [specialContent, charterContent, councilRulesContent, councilActivitiesContent] = await Promise.all([
+    fetchDoc('content', 'special'),
+    fetchDoc('content', 'council-charter'),
+    fetchDoc('content', 'council-rules'),
+    fetchDoc('content', 'council-activities'),
   ])
 
   const index = []
 
   rules.forEach(item => {
+    const fullText = [item.body || '', ...(item.items || [])].join(' ')
     index.push({
       path: `諸規定 › ${item.number}`,
       title: item.title || item.number,
-      snip: (item.body || '') + ' ' + (item.items || []).join(' '),
+      snip: fullText,
       page: 'rules',
-      id: `rulesList-${item.id}`,
-      tags: item.title || '',
+      id: `rulesContentFront-${item.id}`,
+      tags: [item.title || '', item.chapter || ''].join(' '),
     })
   })
 
   special.forEach(item => {
+    const fullText = [item.body || '', ...(item.items || [])].join(' ')
     index.push({
       path: `特別教育活動 › ${item.number}`,
       title: item.title || item.number,
-      snip: (item.body || '') + ' ' + (item.items || []).join(' '),
+      snip: fullText,
       page: 'special',
-      id: `specialList-${item.id}`,
-      tags: item.title || '',
+      id: `specialContentFront-${item.id}`,
+      tags: [item.title || '', item.chapter || ''].join(' '),
     })
   })
+
+  // 特別教育活動の説明文
+  if (specialContent?.description) {
+    index.push({
+      path: '特別教育活動 › 説明',
+      title: '特別教育活動について',
+      snip: specialContent.description,
+      page: 'special',
+      tags: '特別教育活動 目的 説明',
+    })
+  }
 
   events.forEach(item => {
     index.push({
@@ -400,37 +459,78 @@ async function buildSearchIndex() {
   })
 
   charter.forEach(item => {
+    const fullText = [item.body || '', ...(item.items || [])].join(' ')
     index.push({
       path: `知道生徒会憲章 › ${item.number}`,
       title: item.title || item.number,
-      snip: item.body || '',
+      snip: fullText,
       page: 'council-charter',
-      id: `councilCharterList-${item.id}`,
-      tags: item.title || '',
+      id: `charterContentFront-${item.id}`,
+      tags: [item.title || '', item.chapter || '', item.section || ''].join(' '),
     })
   })
 
+  // 憲章の前文
+  if (charterContent?.preamble) {
+    index.push({
+      path: '知道生徒会憲章 › 前文',
+      title: '知道生徒会憲章 前文',
+      snip: charterContent.preamble,
+      page: 'council-charter',
+      tags: '憲章 前文',
+    })
+  }
+
   councilRules.forEach(item => {
+    const fullText = [item.body || '', ...(item.items || [])].join(' ')
     index.push({
       path: `生徒会関係諸規定 › ${item.number}`,
       title: item.title || item.number,
-      snip: item.body || '',
+      snip: fullText,
       page: 'council-rules',
-      id: `councilRulesList-${item.id}`,
-      tags: item.title || '',
+      id: `councilRulesContentFront-${item.id}`,
+      tags: [item.title || '', item.chapter || ''].join(' '),
     })
   })
+
+  // 歌詞
+  songs.forEach(item => {
+    index.push({
+      path: `歌詞 › ${item.type || ''}`,
+      title: item.title || item.type || '',
+      snip: (item.verses || []).join('\n'),
+      page: 'songs',
+      tags: '歌詞 校歌 応援歌',
+    })
+  })
+
+  // 就学の目標
+  if (goals?.text) {
+    index.push({
+      path: '就学の目標',
+      title: '就学の目標',
+      snip: goals.text,
+      page: 'goals',
+      tags: '就学 目標 校是',
+    })
+  }
+
+  // 生徒会活動
+  if (councilActivitiesContent?.overview) {
+    index.push({
+      path: '生徒会活動',
+      title: '生徒会活動',
+      snip: councilActivitiesContent.overview,
+      page: 'council-activities',
+      tags: '生徒会 活動',
+    })
+  }
 
   // グローバルの検索インデックスを動的データで更新
   window.DYNAMIC_SEARCH_INDEX = index
 
-  // AIコンテキスト：条文の要約を compact にキャッシュ（全文はAPIコール時に検索ヒット分のみ付加）
-  const ctxLines = []
-  rules.forEach(r    => ctxLines.push(`[諸規定 ${r.number}]${r.title}：${(r.body||'').slice(0,80)}`))
-  special.forEach(r  => ctxLines.push(`[特別活動 ${r.number}]${r.title}：${(r.body||'').slice(0,60)}`))
-  charter.forEach(r  => ctxLines.push(`[憲章 ${r.number}]${r.title}：${(r.body||'').slice(0,60)}`))
-  councilRules.forEach(r => ctxLines.push(`[会規定 ${r.number}]${r.title}：${(r.body||'').slice(0,60)}`))
-  window._aiContext = ctxLines.join('\n')
+  // 全データをキャッシュ（AI用）
+  window._allArticleData = { rules, special, charter, councilRules, specialContent, charterContent, councilRulesContent }
 }
 
 // =============================================
@@ -451,33 +551,81 @@ export async function loadAllData() {
     loadArticles('council-rules',   'councilRulesContentFront', 'councilRulesTocFront'),
     buildSearchIndex(),
   ])
-  // AIコンテキスト生成（Firestoreデータの圧縮サマリー）
+  // AIコンテキスト生成（Firestoreデータの完全サマリー）
   buildAIContext()
 }
 
 // =============================================
 // AIコンテキスト生成
-// タイトル+本文冒頭をセクションごとにキャッシュ
-// 質問時にdoSearch()のヒット条文本文を追加付加
+// 全条文の完全なテキストをAIに送れるようにキャッシュ
 // =============================================
 function buildAIContext() {
   if (!window.DYNAMIC_SEARCH_INDEX || !window.DYNAMIC_SEARCH_INDEX.length) return
 
-  const idx = window.DYNAMIC_SEARCH_INDEX
-  const bySection = {}
-  idx.forEach(item => {
-    const section = item.path.split(' › ')[0]
-    if (!bySection[section]) bySection[section] = []
-    // タイトルと本文冒頭50文字をペアで保持
-    const title = item.title || ''
-    const snip  = (item.snip || '').slice(0, 50)
-    bySection[section].push(snip ? `${title}（${snip}）` : title)
-  })
+  const data = window._allArticleData || {}
 
-  window._aiContext = Object.entries(bySection).map(([sec, entries]) => {
-    const uniq = [...new Set(entries)].slice(0, 12)
-    return `▼${sec}\n${uniq.map(e=>`  ・${e}`).join('\n')}`
-  }).join('\n\n')
+  const lines = []
+
+  // 諸規定（全文）
+  if (data.rules?.length) {
+    lines.push('========== 諸規定（本則） ==========')
+    data.rules.forEach(r => {
+      let text = `${r.number}`
+      if (r.title) text += `（${r.title}）`
+      if (r.chapter) text += ` [${r.chapter}]`
+      if (r.body) text += `\n${r.body}`
+      if (r.items?.length) text += '\n' + r.items.map((it, i) => `  ${i + 1}. ${it}`).join('\n')
+      lines.push(text)
+    })
+  }
+
+  // 特別教育活動（説明文＋全文）
+  if (data.specialContent?.description || data.special?.length) {
+    lines.push('\n========== 特別教育活動 ==========')
+    if (data.specialContent?.description) {
+      lines.push('[説明文]\n' + data.specialContent.description)
+    }
+    data.special?.forEach(r => {
+      let text = `${r.number}`
+      if (r.title) text += `（${r.title}）`
+      if (r.chapter) text += ` [${r.chapter}]`
+      if (r.body) text += `\n${r.body}`
+      if (r.items?.length) text += '\n' + r.items.map((it, i) => `  ${i + 1}. ${it}`).join('\n')
+      lines.push(text)
+    })
+  }
+
+  // 知道生徒会憲章（前文＋全文）
+  if (data.charterContent?.preamble || data.charter?.length) {
+    lines.push('\n========== 知道生徒会憲章 ==========')
+    if (data.charterContent?.preamble) {
+      lines.push('[前文]\n' + data.charterContent.preamble)
+    }
+    data.charter?.forEach(r => {
+      let text = `${r.number}`
+      if (r.title) text += `（${r.title}）`
+      if (r.section) text += ` {${r.section}}`
+      if (r.chapter) text += ` [${r.chapter}]`
+      if (r.body) text += `\n${r.body}`
+      if (r.items?.length) text += '\n' + r.items.map((it, i) => `  ${i + 1}. ${it}`).join('\n')
+      lines.push(text)
+    })
+  }
+
+  // 生徒会関係諸規定（全文）
+  if (data.councilRules?.length) {
+    lines.push('\n========== 生徒会関係諸規定 ==========')
+    data.councilRules.forEach(r => {
+      let text = `${r.number}`
+      if (r.title) text += `（${r.title}）`
+      if (r.chapter) text += ` [${r.chapter}]`
+      if (r.body) text += `\n${r.body}`
+      if (r.items?.length) text += '\n' + r.items.map((it, i) => `  ${i + 1}. ${it}`).join('\n')
+      lines.push(text)
+    })
+  }
+
+  window._aiContext = lines.join('\n')
 }
 
 // =============================================

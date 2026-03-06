@@ -110,33 +110,14 @@ a{text-decoration:none;color:inherit}
   position:relative;z-index:1;
 }
 
-/* SVGの校章リング — strokeが伸びる */
-.load-crest-svg{
+/* 校章画像 */
+.load-crest-img{
   width:80px;height:80px;margin-bottom:28px;
+  object-fit:contain;
+  filter:brightness(0) invert(1);
   animation:crestAppear .6s ease .1s both;
 }
 @keyframes crestAppear{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
-
-.load-crest-ring{
-  stroke:rgba(255,255,255,.7);stroke-width:1.5;fill:none;
-  stroke-dasharray:226;stroke-dashoffset:226;
-  animation:drawRing 1.1s cubic-bezier(.4,0,.2,1) .2s forwards;
-  transform-origin:center;transform:rotate(-90deg);
-}
-@keyframes drawRing{to{stroke-dashoffset:0}}
-
-.load-crest-inner{
-  stroke:rgba(139,26,44,.7);stroke-width:1;fill:none;
-  stroke-dasharray:163;stroke-dashoffset:163;
-  animation:drawRing 0.9s cubic-bezier(.4,0,.2,1) .55s forwards;
-  transform-origin:center;transform:rotate(-90deg);
-}
-.load-crest-text{
-  font-family:'Noto Serif JP',serif;font-size:11px;font-weight:700;
-  fill:rgba(255,255,255,.85);text-anchor:middle;dominant-baseline:middle;
-  opacity:0;animation:ftextIn .4s ease .9s forwards;
-}
-@keyframes ftextIn{to{opacity:1}}
 
 /* 学校名 — 縦書き風スタック */
 .load-school-wrap{
@@ -238,10 +219,8 @@ a{text-decoration:none;color:inherit}
   cursor:pointer;flex-shrink:0;
 }
 .brand-crest{
-  width:31px;height:31px;background:var(--navy);border-radius:50%;
-  display:flex;align-items:center;justify-content:center;
-  font-family:'Noto Serif JP',serif;font-size:11px;font-weight:700;
-  color:white;letter-spacing:.03em;flex-shrink:0;
+  width:31px;height:31px;border-radius:50%;flex-shrink:0;
+  object-fit:contain;
 }
 .brand-names{display:flex;flex-direction:column}
 .brand-main{
@@ -467,7 +446,7 @@ a{text-decoration:none;color:inherit}
 /* ===========================
    HOME PAGE
 =========================== */
-.home-wrap{max-width:900px;margin:0 auto;padding:52px 0 20px}
+.home-wrap{max-width:900px;margin:0 auto;padding:80px 0 20px}
 
 .home-brand{text-align:center;margin-bottom:44px}
 .home-book{
@@ -483,11 +462,10 @@ a{text-decoration:none;color:inherit}
 .home-book::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.04) 0%,transparent 55%)}
 @keyframes homeFloat{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-6px) rotate(-.5deg)}}
 .hb-crest{
-  width:38px;height:38px;border:1.5px solid rgba(255,255,255,.82);border-radius:50%;
-  display:flex;align-items:center;justify-content:center;
-  font-family:'Noto Serif JP',serif;font-size:9px;font-weight:700;
-  color:rgba(255,255,255,.92);background:rgba(255,255,255,.06);
-  letter-spacing:.04em;position:relative;z-index:1;
+  width:38px;height:38px;border-radius:50%;
+  object-fit:contain;
+  filter:brightness(0) invert(1);
+  position:relative;z-index:1;
 }
 .hb-ttl{
   font-family:'Noto Serif JP',serif;font-size:9.5px;font-weight:600;
@@ -938,7 +916,7 @@ tr:last-child td{border-bottom:none}
   .ai-float{bottom:calc(var(--bn-h) + var(--safe-b) + 10px)}
   /* ヘッダーの下にコンテンツが隠れないよう明示的に余白確保 */
   .pg-header{scroll-margin-top:calc(var(--header-h) + 16px)}
-  .home-wrap{padding-top:32px}
+  .home-wrap{padding-top:48px}
 }
 @media(max-width:500px){
   .cat-grid{
@@ -953,7 +931,7 @@ tr:last-child td{border-bottom:none}
   .cat-card-about .cat-card-line { margin-bottom:8px; }
   .cat-card{min-height:100px}
   .song-verses{grid-template-columns:1fr}
-  .home-wrap{padding:36px 0 10px}
+  .home-wrap{padding:48px 0 10px}
 }
 @media(display-mode:standalone){
   .sidebar{display:none!important}
@@ -999,15 +977,8 @@ select.cf-input{cursor:pointer}
 <!-- LOADING -->
 <div id="loading">
   <div class="load-stage">
-    <!-- 校章SVG - strokeが描かれる -->
-    <svg class="load-crest-svg" viewBox="0 0 80 80">
-      <!-- 外円 -->
-      <circle class="load-crest-ring" cx="40" cy="40" r="36"/>
-      <!-- 内円 -->
-      <circle class="load-crest-inner" cx="40" cy="40" r="26"/>
-      <!-- 文字 -->
-      <text class="load-crest-text" x="40" y="40">校章</text>
-    </svg>
+    <!-- 校章画像 -->
+    <img class="load-crest-img" src="/mito1-digital-studenthandbook/crest.png" alt="校章">
 
     <!-- 学校名 -->
     <div class="load-school-wrap">
@@ -1034,7 +1005,7 @@ select.cf-input{cursor:pointer}
   </button>
 
   <div class="header-brand" onclick="nav('home')">
-    <div class="brand-crest">校章</div>
+    <img class="brand-crest" src="/mito1-digital-studenthandbook/crest.png" alt="校章">
     <div class="brand-names">
       <span class="brand-main">デジタル生徒手帳</span>
       <span class="brand-sub">水戸第一高等学校</span>
@@ -1269,7 +1240,7 @@ select.cf-input{cursor:pointer}
     <div class="home-wrap">
       <div class="home-brand">
         <div class="home-book">
-          <div class="hb-crest">校章</div>
+          <img class="hb-crest" src="/mito1-digital-studenthandbook/crest.png" alt="校章">
           <div class="hb-ttl">生徒手帳</div>
           <div class="hb-div"></div>
           <div class="hb-school">茨城県立<br>水戸第一高等学校</div>
@@ -1995,31 +1966,34 @@ function runSearchPage(q){
    
    【プロンプト構成】
    1. システム指示（役割・回答形式）
-   2. 全条文タイトル一覧（_aiContext: ページ読み込み時に1回キャッシュ）
-   3. 質問にヒットした条文の本文（doSearchで上位5件 → snipを付加）
+   2. 全条文データ（_aiContext: ページ読み込み時にキャッシュした全文テキスト）
+   3. 質問にヒットした条文のスニペット（doSearchで上位8件）
    4. ユーザーの質問
-   ※ 毎回全文を送らず、ヒット分のみ付加してAPIコストを最小化
 ================================= */
 // NOTE: "hundbook" might be a typo for "handbook". Please verify against the Worker deployment.
 const AI_WORKERS_URL = 'https://mito1-hundbook.asanuma-ryuto.workers.dev';
 window._aiContext = '';
 
 async function callGemini(q){
-  // 検索ヒットした条文の本文を取得（最大5件）
-  const hits = doSearch(q).slice(0,5)
+  // 検索ヒットした条文の本文を取得（最大8件）
+  const hits = doSearch(q).slice(0,8)
     .map(r=>`■${r.path}「${r.title}」\n${r.snip}`)
     .join('\n\n');
 
+  // 全条文データ（_aiContext に全文をキャッシュ済み）
+  const fullContext = window._aiContext || '（読み込み中）';
+
   const prompt =
 `あなたは茨城県立水戸第一高等学校デジタル生徒手帳のAIアシスタントです。
-以下の手帳データをもとに、在校生の質問に丁寧・簡潔な日本語で答えてください（200字以内目安）。
+以下の手帳の全データをもとに、在校生の質問に丁寧・正確な日本語で答えてください。
 データにない内容は「手帳に記載がないため確認できません」と答えてください。
+回答は簡潔にまとめ、該当する条文番号があれば明記してください。
 
-【手帳の目次（全セクション）】
-${window._aiContext || '（読み込み中）'}
+【手帳の全データ】
+${fullContext}
 
-【質問に関連する条文・データ】
-${hits || '（該当条文なし）'}
+【質問に特に関連するデータ】
+${hits || '（該当なし）'}
 
 【質問】
 ${q}`;

@@ -549,12 +549,17 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
         <div class="adm-section-header">
           <div>
             <div class="adm-section-title">特別教育活動</div>
-            <div class="adm-section-sub">条文を管理</div>
+            <div class="adm-section-sub">説明文と条文を管理</div>
           </div>
           <button class="btn-add" data-add="special">
             <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             条文を追加
           </button>
+        </div>
+        <div class="item-card" style="padding:20px 22px;margin-bottom:16px">
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">条文の前の説明文（目的など）</div>
+          <div style="font-size:11px;color:var(--text-3);margin-bottom:8px">改行を含む説明文を入力できます。条文の前に表示されます。</div>
+          <div id="specialDescForm"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
         </div>
         <div id="specialList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
       </section>
@@ -607,12 +612,17 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
         <div class="adm-section-header">
           <div>
             <div class="adm-section-title">知道生徒会憲章</div>
-            <div class="adm-section-sub">条文を管理</div>
+            <div class="adm-section-sub">前文・総則・細則の条文を管理</div>
           </div>
           <button class="btn-add" data-add="council-charter">
             <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             条文を追加
           </button>
+        </div>
+        <div class="item-card" style="padding:20px 22px;margin-bottom:16px">
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">前文</div>
+          <div style="font-size:11px;color:var(--text-3);margin-bottom:8px">憲章の前文を入力できます。条文の前に表示されます。</div>
+          <div id="charterPreambleForm"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
         </div>
         <div id="councilCharterList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
       </section>
