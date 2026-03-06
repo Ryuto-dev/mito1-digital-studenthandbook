@@ -57,7 +57,7 @@ async function sendEmail(endpoint, payload) {
 // =============================================
 // ケース作成 + 顧問へ承認依頼メール送信
 // =============================================
-export async function createCase({ studentId, studentName, studentEmail, title, reason, dates, supervisorEmail, homeRoomEmail }) {
+export async function createCase({ studentId, studentName, studentEmail, title, reason, reasonDetail, dates, supervisorEmail, homeRoomEmail }) {
   const approveToken = genToken()
   const rejectToken  = genToken()
 
@@ -68,6 +68,7 @@ export async function createCase({ studentId, studentName, studentEmail, title, 
     studentEmail,
     title,
     reason,
+    reasonDetail: reasonDetail || '',
     dates,                    // ["2025-06-14", "2025-06-15"]
     supervisorEmail,
     homeRoomEmail,
@@ -86,7 +87,7 @@ export async function createCase({ studentId, studentName, studentEmail, title, 
   // 顧問へ承認依頼メール送信
   const emailResult = await sendEmail('/send-approval', {
     caseId: ref.id,
-    studentName, title, dates, reason,
+    studentName, title, dates, reason, reasonDetail: reasonDetail || '',
     step: 'supervisor',
     recipientEmail: supervisorEmail,
     recipientRole: 'supervisor',

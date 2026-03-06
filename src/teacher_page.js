@@ -95,7 +95,7 @@ function renderCases() {
             <div class="case-title">${esc(c.title)}</div>
             <div class="case-meta">
               <span>申請者: ${esc(c.studentName)}</span>
-              <span>${esc(c.reason||'')}</span>
+              <span>${esc(c.reasonDetail ? c.reason + '（' + c.reasonDetail + '）' : (c.reason||''))}</span>
               <span>${c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString('ja') : ''}</span>
             </div>
             <div class="case-dates">📅 ${esc(datesStr)}</div>

@@ -449,6 +449,11 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
         公欠申請ケース
         <span id="casesBadge" style="display:none;background:#856404;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:auto"></span>
       </button>
+      <div class="sb-section-label">ユーザー管理</div>
+      <button class="adm-sb-item" data-sec="users">
+        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        ユーザー一覧
+      </button>
     </aside>
 
     <!-- MAIN -->
@@ -679,6 +684,42 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
           </div>
         </div>
         <div id="adminCasesList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+      </section>
+
+      <!-- USERS -->
+      <section class="adm-section" id="sec-users">
+        <div class="adm-section-header">
+          <div>
+            <div class="adm-section-title">ユーザー管理</div>
+            <div class="adm-section-sub">登録ユーザーの閲覧・編集・削除</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+          <select style="font-size:12px;padding:6px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)" onchange="filterUsers('role',this.value)">
+            <option value="all">すべてのロール</option>
+            <option value="student">生徒のみ</option>
+            <option value="teacher">先生のみ</option>
+            <option value="admin">管理者のみ</option>
+          </select>
+          <select style="font-size:12px;padding:6px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)" onchange="filterUsers('grade',this.value)">
+            <option value="all">全学年</option>
+            <option value="1">1年</option>
+            <option value="2">2年</option>
+            <option value="3">3年</option>
+          </select>
+          <select style="font-size:12px;padding:6px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)" onchange="filterUsers('class',this.value)">
+            <option value="all">全クラス</option>
+            <option value="1">1組</option>
+            <option value="2">2組</option>
+            <option value="3">3組</option>
+            <option value="4">4組</option>
+            <option value="5">5組</option>
+            <option value="6">6組</option>
+          </select>
+          <input type="text" placeholder="名前・メールで検索..." oninput="searchUsers(this.value)"
+            style="font-size:12px;padding:6px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text);flex:1;min-width:180px">
+        </div>
+        <div id="usersList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
       </section>
 
     </main>

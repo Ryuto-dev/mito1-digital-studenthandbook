@@ -382,11 +382,12 @@ async function loadCouncilActivities() {
 // 全条文・説明文・前文を完全に格納
 // =============================================
 async function buildSearchIndex() {
-  const [rules, special, events, history, charter, councilRules, songs, goals] = await Promise.all([
+  const [rules, special, events, history, principals, charter, councilRules, songs, goals] = await Promise.all([
     fetchOrdered('rules'),
     fetchOrdered('special'),
     fetchOrdered('events'),
     fetchOrdered('history'),
+    fetchOrdered('principals'),
     fetchOrdered('council-charter'),
     fetchOrdered('council-rules'),
     fetchOrdered('songs'),
@@ -455,6 +456,16 @@ async function buildSearchIndex() {
       snip: item.event || '',
       page: 'about',
       tags: '沿革 歴史',
+    })
+  })
+
+  principals.forEach(item => {
+    index.push({
+      path: '歴代校長一覧',
+      title: `${item.gen || ''} ${item.name || ''}`,
+      snip: `${item.name || ''} ${item.term || ''}`,
+      page: 'principals',
+      tags: '歴代校長 校長',
     })
   })
 
@@ -530,7 +541,7 @@ async function buildSearchIndex() {
   window.DYNAMIC_SEARCH_INDEX = index
 
   // 全データをキャッシュ（AI用）
-  window._allArticleData = { rules, special, charter, councilRules, specialContent, charterContent, councilRulesContent }
+  window._allArticleData = { rules, special, charter, councilRules, principals, songs, history, specialContent, charterContent, councilRulesContent }
 }
 
 // =============================================
@@ -622,6 +633,35 @@ function buildAIContext() {
       if (r.body) text += `\n${r.body}`
       if (r.items?.length) text += '\n' + r.items.map((it, i) => `  ${i + 1}. ${it}`).join('\n')
       lines.push(text)
+    })
+  }
+
+  // 歴代校長
+  if (data.principals?.length) {
+    lines.push('\n========== 歴代校長一覧 ==========')
+    data.principals.forEach(p => {
+      lines.push(`${p.gen || ''} ${p.name || ''} （${p.term || ''}）`)
+    })
+  }
+
+  // 歌詞
+  if (data.songs?.length) {
+    lines.push('\n========== 歌詞 ==========')
+    data.songs.forEach(s => {
+      lines.push(`[${s.type || ''}] ${s.title || ''}`)
+      if (s.lyricist) lines.push(`作詞：${s.lyricist}`)
+      if (s.composer) lines.push(`作曲：${s.composer}`)
+      ;(s.verses || []).forEach((v, i) => {
+        lines.push(`${i + 1}番\n${v}`)
+      })
+    })
+  }
+
+  // 沿革
+  if (data.history?.length) {
+    lines.push('\n========== 本校の沿革 ==========')
+    data.history.forEach(h => {
+      lines.push(`${h.year || ''} ${h.event || ''}`)
     })
   }
 

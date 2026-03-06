@@ -60,6 +60,7 @@ export default {
 
     if (url.pathname === '/send-approval') return sendApproval(body, env)
     if (url.pathname === '/send-complete')  return sendComplete(body, env)
+    if (url.pathname === '/send-reply')     return sendReply(body, env)
 
     // Default -> Gemini proxy
     return gemini(body, env)
@@ -135,7 +136,7 @@ async function gemini(body, env) {
 // -- Approval request email ---------------------------------------------
 async function sendApproval(body, env) {
   const {
-    studentName, title, dates, reason,
+    studentName, title, dates, reason, reasonDetail,
     step, recipientEmail, recipientRole,
     supervisorEmail, approveToken, rejectToken, appBaseUrl,
   } = body
@@ -147,36 +148,37 @@ async function sendApproval(body, env) {
 
   const base     = appBaseUrl || env.APP_BASE_URL || 'https://ryuto-devs.github.io/mito1-digital-studenthandbook'
   const datesStr = (dates || []).join(', ')
-  const roleName = recipientRole === 'supervisor' ? 'Supervisor' : 'Homeroom Teacher'
+  const roleName = recipientRole === 'supervisor' ? '顧問' : '担任'
+  const reasonDisplay = reasonDetail ? `${reason}（${reasonDetail}）` : (reason || '部活動')
   // Always include caseId in approve/reject URLs
   const approveUrl = `${base}/approve.html?caseId=${body.caseId}&token=${approveToken}&action=approve`
   const rejectUrl  = `${base}/approve.html?caseId=${body.caseId}&token=${rejectToken}&action=reject`
   const supNote    = step === 'homeroom'
-    ? `<p style="color:#27ae60;background:#eafaf1;padding:10px 14px;border-radius:6px;font-size:13px;margin:12px 0">Supervisor (${supervisorEmail}) has already approved.</p>`
+    ? `<p style="color:#27ae60;background:#eafaf1;padding:10px 14px;border-radius:6px;font-size:13px;margin:12px 0">顧問（${supervisorEmail}）が承認済みです。</p>`
     : ''
 
   const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"></head>
-<body style="font-family:sans-serif;background:#f5f5f5;padding:24px;margin:0">
+<body style="font-family:'Helvetica Neue',Arial,'Noto Sans JP',sans-serif;background:#f5f5f5;padding:24px;margin:0">
 <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">
-  <div style="background:#1a2744;padding:20px 28px"><div style="color:#fff;font-size:18px;font-weight:700">Mito Daiichi High School</div><div style="color:#a0b0cc;font-size:12px;margin-top:2px">Digital Student Handbook - Absence Application System</div></div>
+  <div style="background:#1a2744;padding:20px 28px"><div style="color:#fff;font-size:18px;font-weight:700">水戸第一高等学校</div><div style="color:#a0b0cc;font-size:12px;margin-top:2px">デジタル生徒手帳 公欠申請システム</div></div>
   <div style="padding:28px">
-    <p style="color:#333;font-size:15px;margin:0 0 16px">${roleName}<br><br>Please review the following absence application.</p>
+    <p style="color:#333;font-size:15px;margin:0 0 16px">${roleName}の先生<br><br>以下の公欠申請の承認をお願いいたします。</p>
     ${supNote}
     <table style="width:100%;border-collapse:collapse;font-size:13px;margin:16px 0">
-      <tr style="background:#f8f9fa"><td style="padding:10px 14px;border:1px solid #e0e0e0;font-weight:600;width:30%">Applicant</td><td style="padding:10px 14px;border:1px solid #e0e0e0">${studentName}</td></tr>
-      <tr><td style="padding:10px 14px;border:1px solid #e0e0e0;font-weight:600">Subject</td><td style="padding:10px 14px;border:1px solid #e0e0e0">${title}</td></tr>
-      <tr style="background:#f8f9fa"><td style="padding:10px 14px;border:1px solid #e0e0e0;font-weight:600">Reason</td><td style="padding:10px 14px;border:1px solid #e0e0e0">${reason||'Club activity'}</td></tr>
-      <tr><td style="padding:10px 14px;border:1px solid #e0e0e0;font-weight:600">Absence Dates</td><td style="padding:10px 14px;border:1px solid #e0e0e0">${datesStr}</td></tr>
+      <tr style="background:#f8f9fa"><td style="padding:10px 14px;border:1px solid #e0e0e0;font-weight:600;width:30%">申請者</td><td style="padding:10px 14px;border:1px solid #e0e0e0">${studentName}</td></tr>
+      <tr><td style="padding:10px 14px;border:1px solid #e0e0e0;font-weight:600">件名</td><td style="padding:10px 14px;border:1px solid #e0e0e0">${title}</td></tr>
+      <tr style="background:#f8f9fa"><td style="padding:10px 14px;border:1px solid #e0e0e0;font-weight:600">事由</td><td style="padding:10px 14px;border:1px solid #e0e0e0">${reasonDisplay}</td></tr>
+      <tr><td style="padding:10px 14px;border:1px solid #e0e0e0;font-weight:600">公欠日</td><td style="padding:10px 14px;border:1px solid #e0e0e0">${datesStr}</td></tr>
     </table>
     <div style="display:flex;gap:12px;margin-top:24px">
-      <a href="${approveUrl}" style="flex:1;display:block;text-align:center;background:#1a2744;color:#fff;padding:14px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:700">Approve</a>
-      <a href="${rejectUrl}" style="flex:1;display:block;text-align:center;background:#fff;color:#e74c3c;border:1.5px solid #e74c3c;padding:14px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:700">Reject</a>
+      <a href="${approveUrl}" style="flex:1;display:block;text-align:center;background:#1a2744;color:#fff;padding:14px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:700">承認する</a>
+      <a href="${rejectUrl}" style="flex:1;display:block;text-align:center;background:#fff;color:#e74c3c;border:1.5px solid #e74c3c;padding:14px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:700">差し戻す</a>
     </div>
-    <p style="font-size:11px;color:#999;margin-top:20px">This link is valid for 7 days. You can also manage from the <a href="${base}/teacher.html" style="color:#1a2744">Teacher Dashboard</a>.</p>
+    <p style="font-size:11px;color:#999;margin-top:20px">このリンクの有効期限は7日間です。<a href="${base}/teacher.html" style="color:#1a2744">先生用ダッシュボード</a>からも操作できます。</p>
   </div>
 </div></body></html>`
 
-  const r = await resend(env, { to: recipientEmail, subject: `[Absence Application] ${studentName} - ${title} (${datesStr})`, html })
+  const r = await resend(env, { to: recipientEmail, subject: `【公欠申請】${studentName} - ${title}（${datesStr}）`, html })
   if (!r.ok) {
     const detail = await r.text().catch(() => 'Unknown error')
     console.error('[send-approval] Resend API error:', r.status, detail)
@@ -197,25 +199,62 @@ async function sendComplete(body, env) {
   const datesStr = (dates || []).join(', ')
 
   const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"></head>
-<body style="font-family:sans-serif;background:#f5f5f5;padding:24px;margin:0">
+<body style="font-family:'Helvetica Neue',Arial,'Noto Sans JP',sans-serif;background:#f5f5f5;padding:24px;margin:0">
 <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">
-  <div style="background:#1a2744;padding:20px 28px"><div style="color:#fff;font-size:18px;font-weight:700">Mito Daiichi High School</div><div style="color:#a0b0cc;font-size:12px;margin-top:2px">Digital Student Handbook - Absence Application System</div></div>
+  <div style="background:#1a2744;padding:20px 28px"><div style="color:#fff;font-size:18px;font-weight:700">水戸第一高等学校</div><div style="color:#a0b0cc;font-size:12px;margin-top:2px">デジタル生徒手帳 公欠申請システム</div></div>
   <div style="padding:28px;text-align:center">
     <div style="font-size:48px;margin-bottom:12px">&#10004;</div>
-    <div style="font-size:18px;font-weight:700;color:#1a2744;margin-bottom:8px">Absence Application Approved</div>
-    <p style="color:#333;font-size:14px;margin-bottom:16px">${studentName}'s application has been approved by both supervisor and homeroom teacher.</p>
+    <div style="font-size:18px;font-weight:700;color:#1a2744;margin-bottom:8px">公欠申請が承認されました</div>
+    <p style="color:#333;font-size:14px;margin-bottom:16px">${studentName} さんの公欠申請が顧問・担任の両方に承認されました。</p>
     <table style="width:100%;border-collapse:collapse;font-size:13px;margin:16px 0;text-align:left">
-      <tr style="background:#f8f9fa"><td style="padding:10px 14px;border:1px solid #e0e0e0;font-weight:600;width:30%">Subject</td><td style="padding:10px 14px;border:1px solid #e0e0e0">${title}</td></tr>
-      <tr><td style="padding:10px 14px;border:1px solid #e0e0e0;font-weight:600">Absence Dates</td><td style="padding:10px 14px;border:1px solid #e0e0e0">${datesStr}</td></tr>
+      <tr style="background:#f8f9fa"><td style="padding:10px 14px;border:1px solid #e0e0e0;font-weight:600;width:30%">件名</td><td style="padding:10px 14px;border:1px solid #e0e0e0">${title}</td></tr>
+      <tr><td style="padding:10px 14px;border:1px solid #e0e0e0;font-weight:600">公欠日</td><td style="padding:10px 14px;border:1px solid #e0e0e0">${datesStr}</td></tr>
     </table>
-    <a href="${base}" style="display:inline-block;background:#1a2744;color:#fff;padding:13px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:700;margin-top:8px">Open Handbook</a>
+    <a href="${base}/#mypage" style="display:inline-block;background:#1a2744;color:#fff;padding:13px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:700;margin-top:8px">手帳を開く（マイページ）</a>
   </div>
 </div></body></html>`
 
-  const r = await resend(env, { to: studentEmail, subject: `[Approved] Absence Application "${title}" (${datesStr})`, html })
+  const r = await resend(env, { to: studentEmail, subject: `【承認完了】公欠申請「${title}」（${datesStr}）`, html })
   if (!r.ok) {
     const detail = await r.text().catch(() => 'Unknown error')
     console.error('[send-complete] Resend API error:', r.status, detail)
+    return json({ error: 'Email send failed', detail, status: r.status }, 500)
+  }
+  return json({ ok: true })
+}
+
+// -- Inquiry reply email ------------------------------------------------
+async function sendReply(body, env) {
+  const { recipientEmail, recipientName, subject, replyBody, appBaseUrl } = body
+
+  if (!recipientEmail) {
+    return json({ error: 'recipientEmail is required' }, 400)
+  }
+  if (!replyBody) {
+    return json({ error: 'replyBody is required' }, 400)
+  }
+
+  const base = appBaseUrl || env.APP_BASE_URL || ''
+  const replyText = (replyBody || '').replace(/\n/g, '<br>')
+
+  const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"></head>
+<body style="font-family:'Helvetica Neue',Arial,'Noto Sans JP',sans-serif;background:#f5f5f5;padding:24px;margin:0">
+<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">
+  <div style="background:#1a2744;padding:20px 28px"><div style="color:#fff;font-size:18px;font-weight:700">水戸第一高等学校</div><div style="color:#a0b0cc;font-size:12px;margin-top:2px">デジタル生徒手帳 お問い合わせ回答</div></div>
+  <div style="padding:28px">
+    <p style="color:#333;font-size:15px;margin:0 0 16px">${recipientName || ''} 様<br><br>お問い合わせいただきありがとうございます。<br>以下の通り回答いたします。</p>
+    <div style="background:#f8f9fa;border-radius:8px;padding:16px 18px;margin:16px 0;font-size:14px;color:#333;line-height:1.8;border-left:4px solid #1a2744">
+      ${replyText}
+    </div>
+    <p style="font-size:12px;color:#999;margin-top:20px">このメールはデジタル生徒手帳のお問い合わせシステムから自動送信されています。<br>ご不明な点がございましたら、再度お問い合わせフォームよりご連絡ください。</p>
+    <a href="${base}" style="display:inline-block;background:#1a2744;color:#fff;padding:10px 22px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;margin-top:8px">デジタル生徒手帳を開く</a>
+  </div>
+</div></body></html>`
+
+  const r = await resend(env, { to: recipientEmail, subject: `【回答】${subject || 'お問い合わせ'}`, html })
+  if (!r.ok) {
+    const detail = await r.text().catch(() => 'Unknown error')
+    console.error('[send-reply] Resend API error:', r.status, detail)
     return json({ error: 'Email send failed', detail, status: r.status }, 500)
   }
   return json({ ok: true })

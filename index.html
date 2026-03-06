@@ -114,7 +114,7 @@ a{text-decoration:none;color:inherit}
 .load-crest-img{
   width:80px;height:80px;margin-bottom:28px;
   object-fit:contain;
-  filter:brightness(0) invert(1);
+  position:relative;z-index:2;
   animation:crestAppear .6s ease .1s both;
 }
 @keyframes crestAppear{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
@@ -435,7 +435,7 @@ a{text-decoration:none;color:inherit}
 .pwa-mode .layout{padding-top:calc(var(--header-h) + var(--safe-t))!important}
 .pwa-mode .sidebar{top:calc(var(--header-h) + var(--safe-t))}
 
-.pg-header{margin-bottom:24px;padding-bottom:18px;border-bottom:1.5px solid var(--border)}
+.pg-header{margin-bottom:24px;padding-top:40px;padding-bottom:18px;border-bottom:1.5px solid var(--border)}
 .breadcrumb{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--text-3);margin-bottom:8px}
 .breadcrumb span{cursor:pointer;transition:color .12s}
 .breadcrumb span:hover{color:var(--enjii)}
@@ -464,8 +464,7 @@ a{text-decoration:none;color:inherit}
 .hb-crest{
   width:38px;height:38px;border-radius:50%;
   object-fit:contain;
-  filter:brightness(0) invert(1);
-  position:relative;z-index:1;
+  position:relative;z-index:2;
 }
 .hb-ttl{
   font-family:'Noto Serif JP',serif;font-size:9.5px;font-weight:600;
@@ -1603,12 +1602,16 @@ select.cf-input{cursor:pointer}
           </div>
           <div class="cf-field">
             <label class="cf-label">事由<span class="cf-req">必須</span></label>
-            <select class="cf-input" id="applyReason">
+            <select class="cf-input" id="applyReason" onchange="toggleReasonDetail()">
               <option value="部活動">部活動</option>
               <option value="生徒会活動">生徒会活動</option>
               <option value="学校行事">学校行事</option>
               <option value="その他">その他</option>
             </select>
+          </div>
+          <div class="cf-field" id="applyReasonDetailField" style="display:none">
+            <label class="cf-label" id="applyReasonDetailLabel">部活動名<span class="cf-req">必須</span></label>
+            <input class="cf-input" id="applyReasonDetail" type="text" placeholder="">
           </div>
           <div class="cf-field">
             <label class="cf-label">公欠日<span class="cf-req">必須</span>
@@ -1757,7 +1760,7 @@ const BN_MAP={
   contact:'',apply:'apply',mypage:'mypage',coming:''
 };
 
-function nav(page){
+function nav(page, skipHash){
   PAGES.forEach(p=>{
     const el=document.getElementById('pg-'+p);
     if(el) el.classList.toggle('on',p===page);
@@ -1780,7 +1783,26 @@ function nav(page){
     document.getElementById('sbOverlay').classList.remove('open');
   }
   closeSD();
+  // URLハッシュを更新（ブラウザ戻る・進む対応）
+  if(!skipHash && location.hash !== '#'+page){
+    history.pushState({page:page}, '', '#'+page);
+  }
 }
+// ハッシュからページを復元
+function restoreFromHash(){
+  const hash = location.hash.replace('#','');
+  if(hash && PAGES.includes(hash)){
+    nav(hash, true);
+  }
+}
+// popstate（ブラウザ戻る・進む）
+window.addEventListener('popstate', function(){
+  restoreFromHash();
+});
+// 初期ハッシュ復元
+window.addEventListener('load', function(){
+  setTimeout(restoreFromHash, 100);
+});
 
 /* =================================
    SIDEBAR / MORE
@@ -1801,14 +1823,24 @@ function closeMore(){
 /* =================================
    DARK MODE
 ================================= */
-let darkMode=false;
-function toggleTheme(){
-  darkMode=!darkMode;
-  document.documentElement.setAttribute('data-theme',darkMode?'dark':'');
+let darkMode = localStorage.getItem('mito1_theme') === 'dark';
+// 初期テーマ反映（ちらつき防止のため即座に適用）
+if(darkMode){
+  document.documentElement.setAttribute('data-theme','dark');
+}
+function applyThemeIcon(){
   const icon=document.getElementById('themeIcon');
+  if(!icon) return;
   icon.innerHTML=darkMode
     ?'<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'
     :'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+}
+applyThemeIcon();
+function toggleTheme(){
+  darkMode=!darkMode;
+  document.documentElement.setAttribute('data-theme',darkMode?'dark':'');
+  localStorage.setItem('mito1_theme',darkMode?'dark':'light');
+  applyThemeIcon();
 }
 
 /* =================================
@@ -2273,6 +2305,28 @@ function updateAuthUI() {
 // =============================================
 // 公欠申請送信
 // =============================================
+// 事由に応じて詳細入力欄の表示切替
+window.toggleReasonDetail = function() {
+  const reason = document.getElementById('applyReason').value
+  const field = document.getElementById('applyReasonDetailField')
+  const label = document.getElementById('applyReasonDetailLabel')
+  const input = document.getElementById('applyReasonDetail')
+  if (reason === '部活動') {
+    field.style.display = ''
+    label.innerHTML = '部活動名<span class="cf-req">必須</span>'
+    input.placeholder = '例: 野球部'
+  } else if (reason === 'その他') {
+    field.style.display = ''
+    label.innerHTML = '内容<span class="cf-req">必須</span>'
+    input.placeholder = '例: 大学のオープンキャンパス参加'
+  } else {
+    field.style.display = 'none'
+    input.value = ''
+  }
+}
+// 初期表示で部活動の場合に表示
+setTimeout(()=>{ window.toggleReasonDetail() }, 0)
+
 window.addDateField = function() {
   const wrap = document.getElementById('applyDatesWrap')
   const div = document.createElement('div')
@@ -2289,6 +2343,7 @@ window.submitApply = async function() {
 
   const title           = document.getElementById('applyTitle').value.trim()
   const reason          = document.getElementById('applyReason').value
+  const reasonDetail    = document.getElementById('applyReasonDetail').value.trim()
   const supervisorEmail = document.getElementById('applySupervisorEmail').value.trim()
   const homeRoomEmail   = document.getElementById('applyHomeRoomEmail').value.trim()
   const dates = [...document.querySelectorAll('.apply-date')]
@@ -2299,15 +2354,19 @@ window.submitApply = async function() {
   errEl.style.display = 'none'
 
   if (!title)                         { showErr('件名を入力してください'); return }
+  if ((reason === '部活動' || reason === 'その他') && !reasonDetail) {
+    showErr(reason === '部活動' ? '部活動名を入力してください' : '内容を入力してください'); return
+  }
   if (dates.length === 0)             { showErr('公欠日を1日以上入力してください'); return }
   if (!supervisorEmail.includes('@')) { showErr('顧問のメールアドレスを正しく入力してください'); return }
   if (!homeRoomEmail.includes('@'))   { showErr('担任のメールアドレスを正しく入力してください'); return }
 
   // 確認ダイアログ
   const datesStr = dates.join('、')
+  const reasonDisplay = reasonDetail ? `${reason}（${reasonDetail}）` : reason
   const ok = confirm(
     `以下の内容で申請します。\n\n` +
-    `件名: ${title}\n公欠日: ${datesStr}\n事由: ${reason}\n` +
+    `件名: ${title}\n公欠日: ${datesStr}\n事由: ${reasonDisplay}\n` +
     `顧問: ${supervisorEmail}\n担任: ${homeRoomEmail}\n\nよろしいですか？`
   )
   if (!ok) return
@@ -2321,7 +2380,7 @@ window.submitApply = async function() {
       studentId:      _currentUser.uid,
       studentName:    (_currentProfile && _currentProfile.name) || _currentUser.email,
       studentEmail:   _currentUser.email,
-      title, reason, dates, supervisorEmail, homeRoomEmail,
+      title, reason, reasonDetail, dates, supervisorEmail, homeRoomEmail,
     })
     document.getElementById('applyForm').style.display = 'none'
     document.getElementById('applyDone').style.display = ''
@@ -2351,6 +2410,7 @@ window.submitApply = async function() {
 
 window.resetApply = function() {
   document.getElementById('applyTitle').value = ''
+  document.getElementById('applyReasonDetail').value = ''
   document.getElementById('applySupervisorEmail').value = ''
   document.getElementById('applyHomeRoomEmail').value   = ''
   // 日付フィールドを1つにリセット
@@ -2457,8 +2517,8 @@ window.loadMyCases = async function() {
 
 // マイページ表示時に自動読み込み
 const origNav = window.nav
-window.nav = function(page) {
-  origNav(page)
+window.nav = function(page, skipHash) {
+  origNav(page, skipHash)
   if (page === 'mypage') window.loadMyCases()
 }
 

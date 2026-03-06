@@ -26,16 +26,24 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    function isAdmin() {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     // =============================================
     // Users collection
     // =============================================
     match /users/{userId} {
-      // Users can read their own profile
-      allow read: if isOwner(userId);
+      // Users can read their own profile; admins can read all
+      allow read: if isOwner(userId) || isAdmin();
       // Users can create their own profile during registration
       allow create: if isOwner(userId);
-      // Users can update their own profile
-      allow update: if isOwner(userId);
+      // Users can update their own profile; admins can update any
+      allow update: if isOwner(userId) || isAdmin();
+      // Only admins can delete user profiles
+      allow delete: if isAdmin();
     }
 
     // =============================================

@@ -13,7 +13,7 @@ import {
   setPersistence,
 } from 'firebase/auth'
 import {
-  doc, setDoc, getDoc, serverTimestamp,
+  doc, setDoc, getDoc, getDocs, collection, serverTimestamp,
 } from 'firebase/firestore'
 
 // タブを閉じたらログアウト
