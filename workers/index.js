@@ -13,6 +13,8 @@
  *                      NOTE: onboarding@resend.dev can ONLY deliver to the Resend account owner's email.
  *                      To send to any recipient, you MUST verify your own domain in the Resend dashboard
  *                      and set this variable to an address on that domain.
+ *   FIREBASE_PROJECT_ID -- Firebase project ID (Plain text, e.g. "mito1-digital-handbook")
+ *   FIREBASE_API_KEY    -- Firebase Web API Key (Plain text, for Firestore REST API)
  */
 
 const CORS = {
@@ -43,6 +45,11 @@ export default {
       return Response.redirect(redirectUrl, 302)
     }
 
+    // GET /resolve-token?token=xxx -> resolve token to caseId via Firestore REST API
+    if (request.method === 'GET' && url.pathname === '/resolve-token') {
+      return resolveToken(url.searchParams.get('token'), env)
+    }
+
     if (request.method !== 'POST') {
       return json({ error: 'Method not allowed' }, 405)
     }
@@ -57,6 +64,57 @@ export default {
     // Default -> Gemini proxy
     return gemini(body, env)
   }
+}
+
+// -- Resolve token to caseId via Firestore REST API -------------------------
+async function resolveToken(token, env) {
+  if (!token) return json({ error: 'token required' }, 400)
+
+  const projectId = env.FIREBASE_PROJECT_ID
+  if (!projectId) {
+    return json({ error: 'FIREBASE_PROJECT_ID not set' }, 500)
+  }
+
+  const tokenFields = ['approveToken', 'rejectToken', 'homeRoomApproveToken', 'homeRoomRejectToken']
+
+  for (const field of tokenFields) {
+    try {
+      const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`
+      const queryBody = {
+        structuredQuery: {
+          from: [{ collectionId: 'cases' }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath: field },
+              op: 'EQUAL',
+              value: { stringValue: token }
+            }
+          },
+          limit: 1
+        }
+      }
+
+      const res = await fetch(firestoreUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(queryBody)
+      })
+
+      if (res.ok) {
+        const results = await res.json()
+        if (results && results.length > 0 && results[0].document) {
+          // Extract document ID from the name path
+          const docName = results[0].document.name
+          const caseId = docName.split('/').pop()
+          return json({ caseId, field })
+        }
+      }
+    } catch (e) {
+      console.error(`[resolve-token] Error querying field ${field}:`, e)
+    }
+  }
+
+  return json({ error: 'token not found' }, 404)
 }
 
 // -- Gemini proxy -------------------------------------------------------
@@ -90,6 +148,7 @@ async function sendApproval(body, env) {
   const base     = appBaseUrl || env.APP_BASE_URL || 'https://ryuto-devs.github.io/mito1-digital-studenthandbook'
   const datesStr = (dates || []).join(', ')
   const roleName = recipientRole === 'supervisor' ? 'Supervisor' : 'Homeroom Teacher'
+  // Always include caseId in approve/reject URLs
   const approveUrl = `${base}/approve.html?caseId=${body.caseId}&token=${approveToken}&action=approve`
   const rejectUrl  = `${base}/approve.html?caseId=${body.caseId}&token=${rejectToken}&action=reject`
   const supNote    = step === 'homeroom'
@@ -177,7 +236,11 @@ function resend(env, { to, subject, html }) {
   // Use RESEND_FROM env var if set, otherwise fall back to sandbox address.
   // IMPORTANT: onboarding@resend.dev can ONLY deliver to the Resend account owner's email.
   if (!env.RESEND_FROM) {
-    return new Response('RESEND_FROM is not set. onboarding@resend.dev can only send to the Resend account owner. Please verify your domain and set the RESEND_FROM environment variable.', { status: 403 })
+    return Promise.resolve({
+      ok: false,
+      status: 403,
+      text: () => Promise.resolve('RESEND_FROM is not set. onboarding@resend.dev can only send to the Resend account owner. Please verify your domain and set the RESEND_FROM environment variable.'),
+    })
   }
 
   const from = env.RESEND_FROM

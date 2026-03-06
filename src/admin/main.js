@@ -65,6 +65,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (btn.dataset.saveAction === 'goals') saveGoals()
     if (btn.dataset.saveAction === 'council-activities') saveCouncilActivities()
+    if (btn.dataset.saveAction === 'special-desc') saveSpecialDesc()
+    if (btn.dataset.saveAction === 'charter-preamble') saveCharterPreamble()
   })
 })
 
@@ -128,11 +130,11 @@ async function loadSection(sec) {
     case 'goals':            return loadGoalsForm()
     case 'songs':            return loadList('songs', renderSongsList)
     case 'rules':            return loadList('rules', renderArticleList('rulesList'))
-    case 'special':          return loadList('special', renderArticleList('specialList'))
+    case 'special':          return Promise.all([loadList('special', renderArticleList('specialList')), loadSpecialDescForm()])
     case 'curriculum':       return loadList('curriculum', renderCurriculumList)
     case 'events':           return loadList('events', renderEventsList)
     case 'council-activities': return loadCouncilActivitiesForm()
-    case 'council-charter':  return loadList('council-charter', renderArticleList('councilCharterList'))
+    case 'council-charter':  return Promise.all([loadList('council-charter', renderArticleList('councilCharterList')), loadCharterPreambleForm()])
     case 'council-rules':    return loadList('council-rules', renderArticleList('councilRulesList'))
     case 'inquiries':        return loadInquiries()
     case 'cases':            return loadAdminCases()
@@ -301,6 +303,14 @@ function renderSongsList(items) {
 // ARTICLES (rules / special / charter / council-rules)
 // =============================================
 function renderArticleList(containerId) {
+  // Map container ID to Firestore collection name
+  const colMap = {
+    rulesList: 'rules',
+    specialList: 'special',
+    councilCharterList: 'council-charter',
+    councilRulesList: 'council-rules',
+  }
+  const colName = colMap[containerId] || containerId.replace('List', '')
   return function(items) {
     const el = document.getElementById(containerId)
     if (!items.length) { el.innerHTML = emptyState(); return }
@@ -309,11 +319,12 @@ function renderArticleList(containerId) {
         <div class="item-card-header">
           <span class="item-num">${item.number || ''}</span>
           <span class="item-title">${item.title || ''}</span>
+          ${item.section ? `<span style="font-size:10px;color:var(--navy);background:rgba(26,39,68,.07);padding:2px 7px;border-radius:4px;margin-left:4px">${item.section}</span>` : ''}
           <div class="item-actions">
-            <button class="btn-icon" data-edit="${containerId.replace('List','')}|${item.id}">
+            <button class="btn-icon" data-edit="${colName}|${item.id}">
               <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             </button>
-            <button class="btn-icon del" data-delete="${containerId.replace('List','')}|${item.id}">
+            <button class="btn-icon del" data-delete="${colName}|${item.id}">
               <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
             </button>
           </div>
@@ -447,6 +458,51 @@ async function saveCouncilActivities() {
   // 後方互換のため overview に保存、committees は空にする
   await setDoc(doc(db, 'content', 'council-activities'), { overview: content, committees: '' })
   showToast('生徒会活動を保存しました')
+}
+
+// =============================================
+// 特別教育活動 説明文（content/special ドキュメント）
+// =============================================
+async function loadSpecialDescForm() {
+  const el = document.getElementById('specialDescForm')
+  if (!el) return
+  const snap = await getDoc(doc(db, 'content', 'special')).catch(() => null)
+  const data = snap?.data() || {}
+  el.innerHTML = `
+    <textarea id="specialDescription" rows="6" style="width:100%;font-size:13px;border:1.5px solid var(--border);border-radius:var(--r);padding:9px 12px;line-height:1.7;resize:vertical" placeholder="特別教育活動の目的や概要を入力...">${data.description || ''}</textarea>
+    <button class="btn-save" style="margin-top:8px" data-save-action="special-desc">保存</button>
+  `
+}
+
+async function saveSpecialDesc() {
+  const description = document.getElementById('specialDescription').value.trim()
+  // merge with existing data
+  const snap = await getDoc(doc(db, 'content', 'special')).catch(() => null)
+  const existing = snap?.data() || {}
+  await setDoc(doc(db, 'content', 'special'), { ...existing, description })
+  showToast('特別教育活動の説明文を保存しました')
+}
+
+// =============================================
+// 知道生徒会憲章 前文（content/council-charter ドキュメント）
+// =============================================
+async function loadCharterPreambleForm() {
+  const el = document.getElementById('charterPreambleForm')
+  if (!el) return
+  const snap = await getDoc(doc(db, 'content', 'council-charter')).catch(() => null)
+  const data = snap?.data() || {}
+  el.innerHTML = `
+    <textarea id="charterPreamble" rows="6" style="width:100%;font-size:13px;border:1.5px solid var(--border);border-radius:var(--r);padding:9px 12px;line-height:1.7;resize:vertical" placeholder="憲章の前文を入力...">${data.preamble || ''}</textarea>
+    <button class="btn-save" style="margin-top:8px" data-save-action="charter-preamble">保存</button>
+  `
+}
+
+async function saveCharterPreamble() {
+  const preamble = document.getElementById('charterPreamble').value.trim()
+  const snap = await getDoc(doc(db, 'content', 'council-charter')).catch(() => null)
+  const existing = snap?.data() || {}
+  await setDoc(doc(db, 'content', 'council-charter'), { ...existing, preamble })
+  showToast('憲章の前文を保存しました')
 }
 
 // =============================================
@@ -686,6 +742,13 @@ const articleForm = (type) => ({
         <input type="text" id="f_title_art" placeholder="目的">
       </div>
     </div>
+    ${type === 'council-charter' ? `
+    <div class="form-row">
+      <label>セクション（任意 — 例: 総則、細則）</label>
+      <input type="text" id="f_section" placeholder="総則">
+      <div style="font-size:10.5px;color:var(--text-3);margin-top:3px">条文が「総則」「細則」などのセクションに分かれる場合に指定</div>
+    </div>
+    ` : ''}
     <div class="form-row">
       <label>章見出し（任意 — 例: 第一章 総則）</label>
       <input type="text" id="f_chapter" placeholder="第一章 総則">
@@ -703,14 +766,19 @@ const articleForm = (type) => ({
       <input type="number" id="f_order" value="0">
     </div>
   `,
-  getData: () => ({
-    number:  document.getElementById('f_number').value.trim(),
-    title:   document.getElementById('f_title_art').value.trim(),
-    chapter: document.getElementById('f_chapter').value.trim(),
-    body:    document.getElementById('f_body').value.trim(),
-    items:   document.getElementById('f_items').value.trim().split('\n').filter(Boolean),
-    order:   Number(document.getElementById('f_order').value),
-  }),
+  getData: () => {
+    const data = {
+      number:  document.getElementById('f_number').value.trim(),
+      title:   document.getElementById('f_title_art').value.trim(),
+      chapter: document.getElementById('f_chapter').value.trim(),
+      body:    document.getElementById('f_body').value.trim(),
+      items:   document.getElementById('f_items').value.trim().split('\n').filter(Boolean),
+      order:   Number(document.getElementById('f_order').value),
+    }
+    const sectionEl = document.getElementById('f_section')
+    if (sectionEl) data.section = sectionEl.value.trim()
+    return data
+  },
   fill: (data) => {
     document.getElementById('f_number').value    = data.number  || ''
     document.getElementById('f_title_art').value = data.title   || ''
@@ -718,6 +786,8 @@ const articleForm = (type) => ({
     document.getElementById('f_body').value      = data.body    || ''
     document.getElementById('f_items').value     = (data.items || []).join('\n')
     document.getElementById('f_order').value     = data.order   ?? 0
+    const sectionEl = document.getElementById('f_section')
+    if (sectionEl) sectionEl.value = data.section || ''
   }
 })
 
