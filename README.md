@@ -76,4 +76,4 @@
 - `workers/`: バックエンド処理（AIプロキシ、メール送信）。
 
 ---
-© 2024 Mito First High School Digital Student Handbook Project.
+© 2026 Mito First High School Digital Student Handbook Project.
