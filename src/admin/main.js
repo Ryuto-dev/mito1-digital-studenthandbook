@@ -7,8 +7,9 @@ import {
 import {
   collection, doc, getDocs, getDoc,
   addDoc, setDoc, updateDoc, deleteDoc,
-  orderBy, query
+  orderBy, query, where,
 } from 'firebase/firestore'
+import { getCurrentProfile } from '../auth.js'
 
 // =============================================
 // STATE
@@ -71,10 +72,20 @@ document.addEventListener('DOMContentLoaded', () => {
 })
 
 // =============================================
-// AUTH
+// AUTH — 管理者権限チェック
 // =============================================
-onAuthStateChanged(auth, user => {
+onAuthStateChanged(auth, async user => {
   if (user) {
+    // Firestoreでユーザーのロールを確認
+    const profile = await getCurrentProfile(user)
+    if (!profile || profile.role !== 'admin') {
+      // 管理者権限がない場合はログイン画面に戻す
+      document.getElementById('loginErr').textContent = 'この機能は管理者のみアクセスできます'
+      document.getElementById('loginScreen').classList.remove('hide')
+      document.getElementById('appShell').classList.remove('show')
+      await signOut(auth)
+      return
+    }
     document.getElementById('loginScreen').classList.add('hide')
     document.getElementById('appShell').classList.add('show')
     document.getElementById('headerUser').textContent = user.email
@@ -93,7 +104,8 @@ async function doLogin() {
   err.textContent = ''
   btn.disabled = true
   try {
-    await signInWithEmailAndPassword(auth, email, pass)
+    const cred = await signInWithEmailAndPassword(auth, email, pass)
+    // ログイン成功後、ロールチェックはonAuthStateChangedで行われる
   } catch (e) {
     const msgs = {
       'auth/invalid-credential': 'メールアドレスまたはパスワードが違います',
@@ -138,6 +150,7 @@ async function loadSection(sec) {
     case 'council-rules':    return loadList('council-rules', renderArticleList('councilRulesList'))
     case 'inquiries':        return loadInquiries()
     case 'cases':            return loadAdminCases()
+    case 'users':            return loadUsers()
   }
 }
 
@@ -921,6 +934,10 @@ window.loadInquiries = async function() {
               style="font-size:11px;padding:6px 12px;border:none;border-radius:6px;background:var(--navy);cursor:pointer;color:#fff">
               返信内容を保存
             </button>
+            <button onclick="sendReplyEmail('${item.id}')"
+              style="font-size:11px;padding:6px 12px;border:none;border-radius:6px;background:#27ae60;cursor:pointer;color:#fff">
+              📧 メールで送信
+            </button>
             <select onchange="changeStatus('${item.id}',this.value)"
               style="font-size:11px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text)">
               ${Object.entries(STATUS_LABELS).map(([k,v])=>`<option value="${k}"${item.status===k?' selected':''}>${v}</option>`).join('')}
@@ -972,6 +989,48 @@ window.saveReply = async function(id) {
   await updateDoc(doc(db, 'inquiries', id), { reply: ta.value, status: 'replied' })
   showToast('返信内容を保存しました')
   loadInquiries()
+}
+
+// メールで返信を送信
+window.sendReplyEmail = async function(id) {
+  const ta = document.getElementById('reply-'+id)
+  if (!ta || !ta.value.trim()) { showToast('返信内容を入力してください'); return }
+
+  // お問い合わせデータを取得
+  const snap = await getDoc(doc(db, 'inquiries', id))
+  if (!snap.exists()) { showToast('お問い合わせが見つかりません'); return }
+  const data = snap.data()
+  if (!data.email) { showToast('送信先メールアドレスがありません'); return }
+
+  const btn = event.target
+  btn.disabled = true
+  btn.textContent = '送信中...'
+
+  try {
+    const res = await fetch(AI_URL + '/send-reply', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        recipientEmail: data.email,
+        recipientName: data.name || '',
+        subject: data.subject || 'お問い合わせ',
+        replyBody: ta.value.trim(),
+        appBaseUrl: window.location.origin + '/mito1-digital-studenthandbook',
+      })
+    })
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '')
+      throw new Error(`送信失敗 (${res.status}): ${detail}`)
+    }
+    // 返信内容も保存
+    await updateDoc(doc(db, 'inquiries', id), { reply: ta.value, status: 'replied' })
+    showToast('メールを送信しました')
+    loadInquiries()
+  } catch(e) {
+    showToast('メール送信エラー: ' + e.message)
+    btn.disabled = false
+    btn.textContent = '📧 メールで送信'
+  }
 }
 
 window.changeStatus = async function(id, status) {
@@ -1038,7 +1097,7 @@ window.loadAdminCases = async function() {
           </div>
           <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px">${escHtml(c.title||'')}</div>
           <div style="font-size:12px;color:var(--text-3);margin-bottom:2px">申請者: <strong>${escHtml(c.studentName||'')}</strong> &lt;${escHtml(c.studentEmail||'')}&gt;</div>
-          <div style="font-size:12px;color:var(--text-3);margin-bottom:2px">公欠日: ${escHtml(datesStr)} ／ 事由: ${escHtml(c.reason||'')}</div>
+          <div style="font-size:12px;color:var(--text-3);margin-bottom:2px">公欠日: ${escHtml(datesStr)} ／ 事由: ${escHtml(c.reasonDetail ? c.reason + '（' + c.reasonDetail + '）' : (c.reason||''))}</div>
           <div style="font-size:11.5px;color:var(--text-3)">顧問: ${escHtml(c.supervisorEmail||'')} ／ 担任: ${escHtml(c.homeRoomEmail||'')}</div>
           ${progressBar}
           <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
@@ -1069,5 +1128,230 @@ window.deleteAdminCase = async function(caseId) {
     } else {
       alert('削除に失敗しました: ' + msg)
     }
+  }
+}
+
+// =============================================
+// ユーザー管理
+// =============================================
+const ROLE_LABELS = { student: '生徒', teacher: '先生', admin: '管理者' }
+const ROLE_COLORS = { student: '#004085', teacher: '#856404', admin: '#155724' }
+const ROLE_BGS    = { student: '#cce5ff', teacher: '#fff3cd', admin: '#d4edda' }
+
+let allUsers = []
+let userFilters = { role: 'all', grade: 'all', class: 'all', search: '' }
+
+async function loadUsers() {
+  const el = document.getElementById('usersList')
+  if (!el) return
+  el.innerHTML = '<div class="loading-spinner"><div class="spinner"></div>読み込み中...</div>'
+
+  try {
+    const snap = await getDocs(collection(db, 'users'))
+    allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    renderUsers()
+  } catch(e) {
+    el.innerHTML = `<div style="padding:20px;color:#c0392b">読み込みエラー: ${e.message}</div>`
+  }
+}
+
+function renderUsers() {
+  const el = document.getElementById('usersList')
+  if (!el) return
+
+  let filtered = [...allUsers]
+
+  // ロールフィルタ
+  if (userFilters.role !== 'all') {
+    filtered = filtered.filter(u => u.role === userFilters.role)
+  }
+  // 学年フィルタ
+  if (userFilters.grade !== 'all') {
+    filtered = filtered.filter(u => String(u.grade) === userFilters.grade)
+  }
+  // クラスフィルタ
+  if (userFilters.class !== 'all') {
+    filtered = filtered.filter(u => String(u.class) === userFilters.class)
+  }
+  // 検索フィルタ
+  if (userFilters.search) {
+    const kw = userFilters.search.toLowerCase()
+    filtered = filtered.filter(u =>
+      (u.name||'').toLowerCase().includes(kw) ||
+      (u.email||'').toLowerCase().includes(kw)
+    )
+  }
+
+  // ソート: 先生→管理者→生徒（学年→クラス→番号）
+  filtered.sort((a,b) => {
+    const ro = { admin:0, teacher:1, student:2 }
+    const rr = (ro[a.role]||9) - (ro[b.role]||9)
+    if (rr !== 0) return rr
+    if (a.grade !== b.grade) return (a.grade||0) - (b.grade||0)
+    if (a.class !== b.class) return (a.class||0) - (b.class||0)
+    return (a.number||0) - (b.number||0)
+  })
+
+  if (!filtered.length) {
+    el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3)">該当するユーザーはいません</div>'
+    return
+  }
+
+  el.innerHTML = `
+    <div style="margin-bottom:8px;font-size:12px;color:var(--text-3)">
+      全${allUsers.length}件中 ${filtered.length}件表示
+    </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="background:var(--surface2)">
+            <th style="padding:9px 12px;text-align:left;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">氏名</th>
+            <th style="padding:9px 12px;text-align:left;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">メール</th>
+            <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">ロール</th>
+            <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">学年</th>
+            <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">クラス</th>
+            <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">番号</th>
+            <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">管理者</th>
+            <th style="padding:9px 12px;border-bottom:2px solid var(--border)"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtered.map(u => `
+            <tr>
+              <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);color:var(--text);font-weight:500">${escHtml(u.name||'')}</td>
+              <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);color:var(--text-2);font-size:12px">${escHtml(u.email||'')}</td>
+              <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center">
+                <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;color:${ROLE_COLORS[u.role]||'#888'};background:${ROLE_BGS[u.role]||'#eee'}">${ROLE_LABELS[u.role]||u.role||'不明'}</span>
+              </td>
+              <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center;color:var(--text-2)">${u.grade||'—'}</td>
+              <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center;color:var(--text-2)">${u.class||'—'}</td>
+              <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center;color:var(--text-2)">${u.number||'—'}</td>
+              <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center">
+                ${u.role === 'admin' ? '<span style="color:#27ae60;font-weight:700">✓</span>' : '<span style="color:var(--text-3)">—</span>'}
+              </td>
+              <td style="padding:9px 12px;border-bottom:1px solid var(--border-2)">
+                <div style="display:flex;gap:4px;justify-content:flex-end">
+                  <button onclick="editUser('${u.id}')"
+                    style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer;color:var(--text-2);font-family:inherit">
+                    編集
+                  </button>
+                  <button onclick="deleteUser('${u.id}','${escHtml(u.name||u.email||'')}')"
+                    style="font-size:11px;padding:4px 10px;border:1px solid #e74c3c;border-radius:5px;background:transparent;cursor:pointer;color:#e74c3c;font-family:inherit">
+                    削除
+                  </button>
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>`
+}
+
+window.filterUsers = function(type, value) {
+  userFilters[type] = value
+  renderUsers()
+}
+
+window.searchUsers = function(q) {
+  userFilters.search = q
+  renderUsers()
+}
+
+window.editUser = async function(uid) {
+  const user = allUsers.find(u => u.id === uid)
+  if (!user) return
+
+  const overlay = document.getElementById('modalOverlay')
+  document.getElementById('modalTitle').textContent = '編集 — ユーザー'
+  document.getElementById('modalBody').innerHTML = `
+    <div class="form-row">
+      <label>氏名</label>
+      <input type="text" id="f_user_name" value="${escHtml(user.name||'')}">
+    </div>
+    <div class="form-row">
+      <label>メールアドレス</label>
+      <input type="email" id="f_user_email" value="${escHtml(user.email||'')}" disabled style="opacity:0.6;cursor:not-allowed">
+      <div style="font-size:10px;color:var(--text-3);margin-top:3px">※メールアドレスはFirebase Authenticationで管理されるためここでは変更できません</div>
+    </div>
+    <div class="form-row">
+      <label>ロール</label>
+      <select id="f_user_role">
+        <option value="student" ${user.role==='student'?'selected':''}>生徒</option>
+        <option value="teacher" ${user.role==='teacher'?'selected':''}>先生</option>
+        <option value="admin" ${user.role==='admin'?'selected':''}>管理者</option>
+      </select>
+    </div>
+    <div class="form-row-2 form-row" id="f_user_student_fields" style="${user.role==='student'?'':'display:none'}">
+      <div>
+        <label>学年</label>
+        <select id="f_user_grade">
+          <option value="">—</option>
+          <option value="1" ${user.grade==1?'selected':''}>1年</option>
+          <option value="2" ${user.grade==2?'selected':''}>2年</option>
+          <option value="3" ${user.grade==3?'selected':''}>3年</option>
+        </select>
+      </div>
+      <div>
+        <label>クラス</label>
+        <select id="f_user_class">
+          <option value="">—</option>
+          ${[1,2,3,4,5,6].map(i=>`<option value="${i}" ${user.class==i?'selected':''}>${i}組</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-row" id="f_user_number_field" style="${user.role==='student'?'':'display:none'}">
+      <label>出席番号</label>
+      <input type="number" id="f_user_number" value="${user.number||''}" min="1" max="50">
+    </div>
+    <script>
+      document.getElementById('f_user_role').addEventListener('change', function(){
+        const isStudent = this.value === 'student';
+        document.getElementById('f_user_student_fields').style.display = isStudent ? '' : 'none';
+        document.getElementById('f_user_number_field').style.display = isStudent ? '' : 'none';
+      });
+    <\/script>
+  `
+
+  // Rebind modal save for user editing
+  const saveBtn = document.getElementById('modalSaveBtn')
+  const origHandler = saveBtn.onclick
+  saveBtn.onclick = async function() {
+    saveBtn.disabled = true
+    try {
+      const data = {
+        name: document.getElementById('f_user_name').value.trim(),
+        role: document.getElementById('f_user_role').value,
+      }
+      if (data.role === 'student') {
+        const g = document.getElementById('f_user_grade').value
+        const c = document.getElementById('f_user_class').value
+        const n = document.getElementById('f_user_number').value
+        if (g) data.grade = Number(g)
+        if (c) data.class = c
+        if (n) data.number = Number(n)
+      }
+      await updateDoc(doc(db, 'users', uid), data)
+      showToast('ユーザーを更新しました')
+      closeModal()
+      loadUsers()
+    } catch(e) {
+      showToast('エラー: ' + e.message)
+    }
+    saveBtn.disabled = false
+    saveBtn.onclick = origHandler
+  }
+
+  overlay.classList.add('open')
+}
+
+window.deleteUser = async function(uid, name) {
+  if (!confirm(`ユーザー「${name}」の登録情報を削除しますか？\n※Firebase Authenticationのアカウント自体はFirebase Consoleから削除する必要があります。`)) return
+  try {
+    await deleteDoc(doc(db, 'users', uid))
+    showToast('ユーザー情報を削除しました')
+    loadUsers()
+  } catch(e) {
+    alert('削除に失敗しました: ' + (e?.message || String(e)))
   }
 }

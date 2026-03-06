@@ -72,8 +72,9 @@ document.getElementById('mainCard').innerHTML = `
 
     <div id="formTeacher" style="display:none">
       <div class="form-group">
-        <label class="form-label">氏名 <span class="req">必須</span></label>
-        <input class="form-input" id="regTeacherName" type="text" placeholder="鈴木 先生">
+        <label class="form-label">氏名（フルネーム） <span class="req">必須</span></label>
+        <input class="form-input" id="regTeacherName" type="text" placeholder="鈴木 太郎">
+        <div style="font-size:11px;color:var(--text-3);margin-top:4px">※「先生」は付けずにフルネームで入力してください。ダッシュボードでは自動で「先生」が付加されます。</div>
       </div>
       <div class="form-group">
         <label class="form-label">メールアドレス <span class="req">必須</span></label>
