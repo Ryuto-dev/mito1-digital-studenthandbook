@@ -90,6 +90,8 @@ onAuthStateChanged(auth, async user => {
     document.getElementById('appShell').classList.add('show')
     document.getElementById('headerUser').textContent = user.email
     loadSection('dashboard')
+    // Load badge counts immediately on login
+    loadBadgeCounts()
   } else {
     document.getElementById('loginScreen').classList.remove('hide')
     document.getElementById('appShell').classList.remove('show')
@@ -190,27 +192,138 @@ function emptyState(msg = 'まだデータがありません') {
 // =============================================
 async function loadDashboard() {
   const grid = document.getElementById('dashGrid')
+
+  const DASH_ICONS = {
+    rules:            { bg: '#1a2744', svg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>' },
+    special:          { bg: '#6c3483', svg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>' },
+    events:           { bg: '#2471a3', svg: '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>' },
+    history:          { bg: '#1e8449', svg: '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>' },
+    principals:       { bg: '#d4ac0d', svg: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>' },
+    songs:            { bg: '#cb4335', svg: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>' },
+    curriculum:       { bg: '#117a65', svg: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>' },
+    'council-charter':{ bg: '#8b1a2c', svg: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>' },
+    'council-rules':  { bg: '#7d6608', svg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>' },
+  }
+
   const sections = [
-    { col: 'rules',           label: '諸規定（本則）',     sec: 'rules' },
-    { col: 'special',         label: '特別教育活動',       sec: 'special' },
-    { col: 'events',          label: '年間主要行事',       sec: 'events' },
-    { col: 'history',         label: '本校の沿革',         sec: 'history' },
-    { col: 'principals',      label: '歴代校長',           sec: 'principals' },
-    { col: 'songs',           label: '歌詞',               sec: 'songs' },
-    { col: 'curriculum',      label: '教育課程',           sec: 'curriculum' },
-    { col: 'council-charter', label: '知道生徒会憲章',     sec: 'council-charter' },
-    { col: 'council-rules',   label: '生徒会関係諸規定',   sec: 'council-rules' },
+    { col: 'rules',           label: '諸規定（本則）',     sec: 'rules',           unit: '条' },
+    { col: 'special',         label: '特別教育活動',       sec: 'special',          unit: '条' },
+    { col: 'events',          label: '年間主要行事',       sec: 'events',           unit: '件' },
+    { col: 'history',         label: '本校の沿革',         sec: 'history',          unit: '件' },
+    { col: 'principals',      label: '歴代校長',           sec: 'principals',       unit: '名' },
+    { col: 'songs',           label: '歌詞',               sec: 'songs',            unit: '曲' },
+    { col: 'curriculum',      label: '教育課程',           sec: 'curriculum',       unit: '科目' },
+    { col: 'council-charter', label: '知道生徒会憲章',     sec: 'council-charter',  unit: '条' },
+    { col: 'council-rules',   label: '生徒会関係諸規定',   sec: 'council-rules',    unit: '条' },
   ]
   const counts = await Promise.all(
     sections.map(s => getDocs(collection(db, s.col)).then(sn => sn.size).catch(() => 0))
   )
-  grid.innerHTML = sections.map((s, i) => `
-    <div class="dash-card">
-      <div class="dash-card-num">${counts[i]}</div>
-      <div class="dash-card-label">${s.label}</div>
-      <span class="dash-card-link" data-nav="${s.sec}">管理する →</span>
+
+  // Also fetch inquiries/cases counts for the summary
+  let inquiryNewCount = 0, casePendingCount = 0, totalUsers = 0
+  try {
+    const [iqSnap, csSnap, usSnap] = await Promise.all([
+      getDocs(collection(db, 'inquiries')),
+      getDocs(collection(db, 'cases')),
+      getDocs(collection(db, 'users')),
+    ])
+    inquiryNewCount = iqSnap.docs.filter(d => d.data().status === 'new').length
+    casePendingCount = csSnap.docs.filter(d => ['pending_supervisor','pending_homeroom'].includes(d.data().status)).length
+    totalUsers = usSnap.size
+  } catch(e) { /* ignore */ }
+
+  const totalContent = counts.reduce((a, b) => a + b, 0)
+
+  grid.innerHTML = `
+    <div class="dash-welcome">
+      <div class="dash-welcome-title">管理者ダッシュボード</div>
+      <div class="dash-welcome-sub">水戸第一高等学校 デジタル生徒手帳の全コンテンツを管理できます</div>
     </div>
-  `).join('')
+
+    <div class="dash-summary">
+      <div class="dash-summary-card">
+        <div class="dash-summary-icon" style="background:linear-gradient(135deg,#1a2744,#253a78)">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        <div class="dash-summary-info">
+          <div class="dash-summary-num">${totalContent}</div>
+          <div class="dash-summary-label">全コンテンツ数</div>
+        </div>
+      </div>
+      <div class="dash-summary-card" style="cursor:pointer" data-nav="inquiries">
+        <div class="dash-summary-icon" style="background:linear-gradient(135deg,#c0392b,#e74c3c)">
+          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div class="dash-summary-info">
+          <div class="dash-summary-num">${inquiryNewCount}</div>
+          <div class="dash-summary-label">未対応のお問い合わせ</div>
+        </div>
+      </div>
+      <div class="dash-summary-card" style="cursor:pointer" data-nav="cases">
+        <div class="dash-summary-icon" style="background:linear-gradient(135deg,#856404,#d4ac0d)">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        </div>
+        <div class="dash-summary-info">
+          <div class="dash-summary-num">${casePendingCount}</div>
+          <div class="dash-summary-label">承認待ち公欠申請</div>
+        </div>
+      </div>
+      <div class="dash-summary-card" style="cursor:pointer" data-nav="users">
+        <div class="dash-summary-icon" style="background:linear-gradient(135deg,#1e8449,#27ae60)">
+          <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div class="dash-summary-info">
+          <div class="dash-summary-num">${totalUsers}</div>
+          <div class="dash-summary-label">登録ユーザー</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;padding-left:2px">コンテンツ管理</div>
+    <div class="dash-grid" style="margin-bottom:0">
+      ${sections.map((s, i) => {
+        const ic = DASH_ICONS[s.col] || DASH_ICONS.rules
+        return `
+          <div class="dash-card">
+            <div class="dash-card-top">
+              <div class="dash-card-icon" style="background:${ic.bg}">
+                <svg viewBox="0 0 24 24">${ic.svg}</svg>
+              </div>
+              <div class="dash-card-info">
+                <div class="dash-card-num">${counts[i]}</div>
+                <div class="dash-card-label">${s.label}</div>
+              </div>
+            </div>
+            <div class="dash-card-bottom">
+              <span class="dash-card-link" data-nav="${s.sec}">管理する <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></span>
+              <span class="dash-card-tag">${counts[i]}${s.unit}</span>
+            </div>
+          </div>`
+      }).join('')}
+    </div>
+  `
+}
+
+// =============================================
+// BADGE COUNTS (load on site access)
+// =============================================
+async function loadBadgeCounts() {
+  try {
+    // Inquiries badge
+    const iqSnap = await getDocs(query(collection(db, 'inquiries'), orderBy('createdAt', 'desc')))
+    const newCount = iqSnap.docs.filter(d => d.data().status === 'new').length
+    const iqBadge = document.getElementById('inquiryBadge')
+    if (iqBadge) { iqBadge.textContent = newCount; iqBadge.style.display = newCount ? '' : 'none' }
+  } catch(e) { /* ignore */ }
+
+  try {
+    // Cases badge
+    const csSnap = await getDocs(query(collection(db, 'cases'), orderBy('createdAt', 'desc')))
+    const pending = csSnap.docs.filter(d => ['pending_supervisor','pending_homeroom'].includes(d.data().status)).length
+    const csBadge = document.getElementById('casesBadge')
+    if (csBadge) { csBadge.textContent = pending; csBadge.style.display = pending ? '' : 'none' }
+  } catch(e) { /* ignore */ }
 }
 
 // =============================================
@@ -344,7 +457,7 @@ function renderArticleList(containerId) {
         </div>
         <div class="item-card-body">
           <div class="item-body-text">${item.body || ''}</div>
-          ${(item.items||[]).length ? `<div style="margin-top:8px;font-size:12px;color:var(--text-3)">${item.items.length}項あり</div>` : ''}
+          ${(item.items||[]).length ? `<div style="margin-top:8px;font-size:12px;color:var(--text-3)">${item.items.filter(it => !/^[\s\t　]+/.test(it) && !/^[ア-ン][\s　.]/.test(it.trim())).length}項あり${item.items.some(it => /^[\s\t　]+/.test(it) || /^[ア-ン][\s　.]/.test(it.trim())) ? '（サブ項目含む）' : ''}</div>` : ''}
         </div>
       </div>
     `).join('')
@@ -771,8 +884,9 @@ const articleForm = (type) => ({
       <textarea id="f_body" rows="4" placeholder="条文の本文を入力..."></textarea>
     </div>
     <div class="form-row">
-      <label>項（1行1項。空行で区切り）</label>
-      <textarea id="f_items" rows="6" placeholder="1 授業に関すること&#10;2 施設の利用に関すること"></textarea>
+      <label>項（1行1項。サブ項目はスペースで字下げ、ア イ ウ...で始める）</label>
+      <textarea id="f_items" rows="8" placeholder="1 授業に関すること&#10;  ア 遅刻について&#10;  イ 欠席について&#10;2 施設の利用に関すること"></textarea>
+      <div style="font-size:10.5px;color:var(--text-3);margin-top:3px">サブ項目はスペースで字下げするか「ア」「イ」等で始めてください</div>
     </div>
     <div class="form-row">
       <label>並び順</label>
@@ -934,7 +1048,7 @@ window.loadInquiries = async function() {
               style="font-size:11px;padding:6px 12px;border:none;border-radius:6px;background:var(--navy);cursor:pointer;color:#fff">
               返信内容を保存
             </button>
-            <button onclick="sendReplyEmail('${item.id}')"
+            <button onclick="sendReplyEmail('${item.id}', event)"
               style="font-size:11px;padding:6px 12px;border:none;border-radius:6px;background:#27ae60;cursor:pointer;color:#fff">
               📧 メールで送信
             </button>
@@ -992,7 +1106,7 @@ window.saveReply = async function(id) {
 }
 
 // メールで返信を送信
-window.sendReplyEmail = async function(id) {
+window.sendReplyEmail = async function(id, evt) {
   const ta = document.getElementById('reply-'+id)
   if (!ta || !ta.value.trim()) { showToast('返信内容を入力してください'); return }
 
@@ -1002,9 +1116,11 @@ window.sendReplyEmail = async function(id) {
   const data = snap.data()
   if (!data.email) { showToast('送信先メールアドレスがありません'); return }
 
-  const btn = event.target
-  btn.disabled = true
-  btn.textContent = '送信中...'
+  const btn = evt ? evt.currentTarget : document.querySelector(`#inq-${id} button[onclick*="sendReplyEmail"]`)
+  if (btn) {
+    btn.disabled = true
+    btn.textContent = '送信中...'
+  }
 
   try {
     const res = await fetch(AI_URL + '/send-reply', {
@@ -1015,7 +1131,7 @@ window.sendReplyEmail = async function(id) {
         recipientName: data.name || '',
         subject: data.subject || 'お問い合わせ',
         replyBody: ta.value.trim(),
-        appBaseUrl: window.location.origin + '/mito1-digital-studenthandbook',
+        appBaseUrl: window.location.origin,
       })
     })
     if (!res.ok) {
@@ -1028,8 +1144,10 @@ window.sendReplyEmail = async function(id) {
     loadInquiries()
   } catch(e) {
     showToast('メール送信エラー: ' + e.message)
-    btn.disabled = false
-    btn.textContent = '📧 メールで送信'
+    if (btn) {
+      btn.disabled = false
+      btn.textContent = '📧 メールで送信'
+    }
   }
 }
 

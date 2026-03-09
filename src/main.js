@@ -121,6 +121,53 @@ async function loadSongs() {
 }
 
 // =============================================
+// 項目のサブアイテム対応レンダリング
+// 行頭がスペース/タブで始まる行 or ア〜ン で始まる行はサブアイテム
+// 構造: 章 > 条 > (1) > ア, イ
+// =============================================
+function renderItemsWithSubItems(items) {
+  if (!items || !items.length) return ''
+
+  // Parse items into groups: main items with optional sub-items
+  const groups = []
+  let mainIdx = 0
+
+  for (let i = 0; i < items.length; i++) {
+    const line = items[i]
+    const isSubItem = /^[\s\t　]+/.test(line) || /^[ア-ン][\s　.]/.test(line.trim())
+
+    if (isSubItem && groups.length > 0) {
+      // Attach as sub-item to the last main item
+      groups[groups.length - 1].subs.push(line.trim())
+    } else {
+      mainIdx++
+      groups.push({ idx: mainIdx, text: line, subs: [] })
+    }
+  }
+
+  return groups.map(g => `
+    <li class="item-row">
+      <span class="item-idx">${g.idx}</span>
+      <span>
+        ${g.text}
+        ${g.subs.length ? `
+          <ul class="sub-list">
+            ${g.subs.map(sub => {
+              // Extract label (ア, イ, etc.) if present
+              const match = sub.match(/^([ア-ン])\s*(.*)$/)
+              if (match) {
+                return `<li class="sub-row"><span class="sub-idx">${match[1]}</span><span>${match[2]}</span></li>`
+              }
+              return `<li class="sub-row"><span class="sub-idx">・</span><span>${sub}</span></li>`
+            }).join('')}
+          </ul>
+        ` : ''}
+      </span>
+    </li>
+  `).join('')
+}
+
+// =============================================
 // 条文（諸規定・特別教育活動・生徒会憲章・生徒会関係諸規定）
 // description（説明文/前文）やsection（総則/細則）にも対応
 // =============================================
@@ -178,12 +225,7 @@ function renderArticles(items, containerId, tocId, options = {}) {
           ${item.body ? `<div class="art-main">${item.body}</div>` : ''}
           ${(item.items || []).length ? `
             <ol class="items-list">
-              ${item.items.map((itm, i) => `
-                <li class="item-row">
-                  <span class="item-idx">${i + 1}</span>
-                  <span>${itm}</span>
-                </li>
-              `).join('')}
+              ${renderItemsWithSubItems(item.items)}
             </ol>
           ` : ''}
         </div>
@@ -585,7 +627,10 @@ function buildAIContext() {
       if (r.title) text += `（${r.title}）`
       if (r.chapter) text += ` [${r.chapter}]`
       if (r.body) text += `\n${r.body}`
-      if (r.items?.length) text += '\n' + r.items.map((it, i) => `  ${i + 1}. ${it}`).join('\n')
+      if (r.items?.length) text += '\n' + r.items.map(it => {
+        const isSubItem = /^[\s\t　]+/.test(it) || /^[ア-ン][\s　.]/.test(it.trim())
+        return isSubItem ? `      ${it.trim()}` : `  ${it}`
+      }).join('\n')
       lines.push(text)
     })
   }

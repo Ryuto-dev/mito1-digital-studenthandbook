@@ -14,7 +14,7 @@ let allCases = []
 let myProfile = null
 
 onAuth(async user => {
-  if (!user) { location.href = '/mito1-digital-studenthandbook/auth.html'; return }
+  if (!user) { location.href = '/auth.html'; return }
   try {
     myProfile = await getCurrentProfile(user)
     if (!myProfile) {
@@ -155,7 +155,7 @@ window.handleReject = async function(caseId, step) {
 
 window.doLogout = async function() {
   await logout()
-  location.href = '/mito1-digital-studenthandbook/auth.html'
+  location.href = '/auth.html'
 }
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }

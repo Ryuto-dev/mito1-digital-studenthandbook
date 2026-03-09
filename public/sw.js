@@ -3,7 +3,7 @@
 // 修正: Response.clone() を非同期処理の前に呼ぶ
 // ================================================
 const CACHE = 'mito1-v3';  // バージョン上げて古いキャッシュを強制削除
-const BASE  = '/mito1-digital-studenthandbook';
+const BASE  = '';
 
 self.addEventListener('install', () => self.skipWaiting());
 
