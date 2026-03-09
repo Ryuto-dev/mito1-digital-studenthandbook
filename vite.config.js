@@ -5,7 +5,7 @@ import { dirname, resolve } from 'path'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
-  base: '/mito1-digital-studenthandbook/',
+  base: '/',
   build: {
     rollupOptions: {
       input: {

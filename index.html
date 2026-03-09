@@ -9,10 +9,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="水一手帳">
 <title>デジタル生徒手帳 - 水戸第一高等学校</title>
-<link rel="manifest" href="/mito1-digital-studenthandbook/manifest.json">
-<link rel="icon" type="image/png" sizes="192x192" href="/mito1-digital-studenthandbook/icons/icon-192.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/mito1-digital-studenthandbook/icons/icon-32.png">
-<link rel="apple-touch-icon" href="/mito1-digital-studenthandbook/icons/icon-192.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -977,7 +977,7 @@ select.cf-input{cursor:pointer}
 <div id="loading">
   <div class="load-stage">
     <!-- 校章画像 -->
-    <img class="load-crest-img" src="/mito1-digital-studenthandbook/crest.png" alt="校章">
+    <img class="load-crest-img" src="/crest_touka.png" alt="校章">
 
     <!-- 学校名 -->
     <div class="load-school-wrap">
@@ -1004,7 +1004,7 @@ select.cf-input{cursor:pointer}
   </button>
 
   <div class="header-brand" onclick="nav('home')">
-    <img class="brand-crest" src="/mito1-digital-studenthandbook/crest.png" alt="校章">
+    <img class="brand-crest" src="/crest_touka.png" alt="校章">
     <div class="brand-names">
       <span class="brand-main">デジタル生徒手帳</span>
       <span class="brand-sub">水戸第一高等学校</span>
@@ -1239,7 +1239,7 @@ select.cf-input{cursor:pointer}
     <div class="home-wrap">
       <div class="home-brand">
         <div class="home-book">
-          <img class="hb-crest" src="/mito1-digital-studenthandbook/crest.png" alt="校章">
+          <img class="hb-crest" src="/crest_touka.png" alt="校章">
           <div class="hb-ttl">生徒手帳</div>
           <div class="hb-div"></div>
           <div class="hb-school">茨城県立<br>水戸第一高等学校</div>
@@ -1588,7 +1588,7 @@ select.cf-input{cursor:pointer}
         <svg viewBox="0 0 24 24" style="width:48px;height:48px;stroke:var(--text-3);fill:none;stroke-width:1.5;margin-bottom:16px"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px">ログインが必要です</div>
         <p style="font-size:13px;color:var(--text-3);margin-bottom:20px">公欠申請を行うにはアカウントが必要です。</p>
-        <a href="/mito1-digital-studenthandbook/auth.html" class="btn-navy" style="display:inline-block;padding:11px 28px;border-radius:8px;font-weight:600;font-size:14px;background:var(--navy);color:#fff">ログイン / 新規登録</a>
+        <a href="/auth.html" class="btn-navy" style="display:inline-block;padding:11px 28px;border-radius:8px;font-weight:600;font-size:14px;background:var(--navy);color:#fff">ログイン / 新規登録</a>
       </div>
     </div>
     <!-- ログイン済みフォーム -->
@@ -1663,7 +1663,7 @@ select.cf-input{cursor:pointer}
     <div id="mypageLoginRequired" style="display:none">
       <div class="card" style="text-align:center;padding:40px 24px">
         <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px">ログインが必要です</div>
-        <a href="/mito1-digital-studenthandbook/auth.html" class="btn-navy" style="display:inline-block;padding:11px 28px;border-radius:8px;font-weight:600;font-size:14px;background:var(--navy);color:#fff">ログイン</a>
+        <a href="/auth.html" class="btn-navy" style="display:inline-block;padding:11px 28px;border-radius:8px;font-weight:600;font-size:14px;background:var(--navy);color:#fff">ログイン</a>
       </div>
     </div>
     <!-- ログイン済み -->
@@ -2190,7 +2190,7 @@ document.head.appendChild(style);
 
 // Service Worker 登録
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/mito1-digital-studenthandbook/sw.js')
+  navigator.serviceWorker.register('/sw.js')
     .catch(e=>console.warn('SW registration failed:',e));
 }
 

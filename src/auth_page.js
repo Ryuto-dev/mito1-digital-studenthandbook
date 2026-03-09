@@ -1,6 +1,6 @@
 import { onAuth, login, registerStudent, registerTeacher, resetPassword, getCurrentProfile } from './auth.js'
 
-const BASE = '/mito1-digital-studenthandbook'
+const BASE = ''
 
 // ── UIを描画 ──────────────────────────────────────────────────────
 document.getElementById('mainCard').innerHTML = `

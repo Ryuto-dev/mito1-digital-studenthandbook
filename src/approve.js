@@ -66,7 +66,7 @@ async function main() {
   if (!caseId) {
     render('❌', 'ケースIDを特定できません',
       'このリンクからケースを特定できませんでした。<br>' +
-      '<a href="/mito1-digital-studenthandbook/teacher.html" style="color:#1a2744;font-weight:600">先生用ダッシュボード</a>からログインして承認してください。')
+      '<a href="/teacher.html" style="color:#1a2744;font-weight:600">先生用ダッシュボード</a>からログインして承認してください。')
     return
   }
 
@@ -160,10 +160,10 @@ async function doProcess(processAction) {
       if (result.reason === 'already_processed') {
         render('⚠️', 'すでに処理済みです',
           'この申請はすでに処理されています。<br>ダッシュボードで最新の状況をご確認ください。',
-          `<a class="btn btn-back" style="display:block;margin-top:16px;text-decoration:none;padding:13px;border-radius:10px" href="/mito1-digital-studenthandbook/teacher.html">ダッシュボードへ</a>`)
+          `<a class="btn btn-back" style="display:block;margin-top:16px;text-decoration:none;padding:13px;border-radius:10px" href="/teacher.html">ダッシュボードへ</a>`)
       } else {
         render('❌', 'リンクが無効です', 'このリンクは有効期限切れか、すでに使用されています。<br>' +
-          '<a href="/mito1-digital-studenthandbook/teacher.html" style="color:#1a2744;font-weight:600">先生用ダッシュボード</a>から操作してください。')
+          '<a href="/teacher.html" style="color:#1a2744;font-weight:600">先生用ダッシュボード</a>から操作してください。')
       }
       return
     }

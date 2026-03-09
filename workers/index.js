@@ -7,7 +7,7 @@
  * Secrets (Settings > Variables and Secrets):
  *   GEMINI_API_KEY  -- Gemini API key (Secret)
  *   RESEND_API_KEY  -- Resend API key (Secret)
- *   APP_BASE_URL    -- https://ryuto-devs.github.io/mito1-digital-studenthandbook (Plain text)
+ *   APP_BASE_URL    -- https://mito1-tetyo.tech (Plain text)
  *   RESEND_FROM     -- Verified sender (Plain text, e.g. "mito1-handbook <noreply@yourdomain.com>")
  *                      If not set, falls back to "mito1-handbook <onboarding@resend.dev>"
  *                      NOTE: onboarding@resend.dev can ONLY deliver to the Resend account owner's email.
@@ -36,7 +36,7 @@ export default {
       const caseId = url.searchParams.get('caseId')
       const token  = url.searchParams.get('token')
       const action = url.searchParams.get('action') || 'approve'
-      const base   = env.APP_BASE_URL || 'https://ryuto-devs.github.io/mito1-digital-studenthandbook'
+      const base   = env.APP_BASE_URL || 'https://mito1-tetyo.tech'
       if (!token) return new Response('Token is invalid', { status: 400 })
 
       let redirectUrl = `${base}/approve.html?token=${encodeURIComponent(token)}&action=${action}`
@@ -146,7 +146,7 @@ async function sendApproval(body, env) {
     return json({ error: 'recipientEmail is required' }, 400)
   }
 
-  const base     = appBaseUrl || env.APP_BASE_URL || 'https://ryuto-devs.github.io/mito1-digital-studenthandbook'
+  const base     = appBaseUrl || env.APP_BASE_URL || 'https://mito1-tetyo.tech'
   const datesStr = (dates || []).join(', ')
   const roleName = recipientRole === 'supervisor' ? '顧問' : '担任'
   const reasonDisplay = reasonDetail ? `${reason}（${reasonDetail}）` : (reason || '部活動')
@@ -160,7 +160,10 @@ async function sendApproval(body, env) {
   const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"></head>
 <body style="font-family:'Helvetica Neue',Arial,'Noto Sans JP',sans-serif;background:#f5f5f5;padding:24px;margin:0">
 <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">
-  <div style="background:#1a2744;padding:20px 28px"><div style="color:#fff;font-size:18px;font-weight:700">水戸第一高等学校</div><div style="color:#a0b0cc;font-size:12px;margin-top:2px">デジタル生徒手帳 公欠申請システム</div></div>
+  <div style="background:#1a2744;padding:20px 28px;display:flex;align-items:center;gap:14px">
+    <img src="${base}/icons/icon-192.png" alt="" style="width:40px;height:40px;border-radius:8px" />
+    <div><div style="color:#fff;font-size:18px;font-weight:700">水戸第一高等学校</div><div style="color:#a0b0cc;font-size:12px;margin-top:2px">デジタル生徒手帳 公欠申請システム</div></div>
+  </div>
   <div style="padding:28px">
     <p style="color:#333;font-size:15px;margin:0 0 16px">${roleName}の先生<br><br>以下の公欠申請の承認をお願いいたします。</p>
     ${supNote}
@@ -201,7 +204,10 @@ async function sendComplete(body, env) {
   const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"></head>
 <body style="font-family:'Helvetica Neue',Arial,'Noto Sans JP',sans-serif;background:#f5f5f5;padding:24px;margin:0">
 <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">
-  <div style="background:#1a2744;padding:20px 28px"><div style="color:#fff;font-size:18px;font-weight:700">水戸第一高等学校</div><div style="color:#a0b0cc;font-size:12px;margin-top:2px">デジタル生徒手帳 公欠申請システム</div></div>
+  <div style="background:#1a2744;padding:20px 28px;display:flex;align-items:center;gap:14px">
+    <img src="${base}/icons/icon-192.png" alt="" style="width:40px;height:40px;border-radius:8px" />
+    <div><div style="color:#fff;font-size:18px;font-weight:700">水戸第一高等学校</div><div style="color:#a0b0cc;font-size:12px;margin-top:2px">デジタル生徒手帳 公欠申請システム</div></div>
+  </div>
   <div style="padding:28px;text-align:center">
     <div style="font-size:48px;margin-bottom:12px">&#10004;</div>
     <div style="font-size:18px;font-weight:700;color:#1a2744;margin-bottom:8px">公欠申請が承認されました</div>
@@ -236,11 +242,15 @@ async function sendReply(body, env) {
 
   const base = appBaseUrl || env.APP_BASE_URL || ''
   const replyText = (replyBody || '').replace(/\n/g, '<br>')
+  const iconUrl = base ? `${base}/icons/icon-192.png` : ''
 
   const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"></head>
 <body style="font-family:'Helvetica Neue',Arial,'Noto Sans JP',sans-serif;background:#f5f5f5;padding:24px;margin:0">
 <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">
-  <div style="background:#1a2744;padding:20px 28px"><div style="color:#fff;font-size:18px;font-weight:700">水戸第一高等学校</div><div style="color:#a0b0cc;font-size:12px;margin-top:2px">デジタル生徒手帳 お問い合わせ回答</div></div>
+  <div style="background:#1a2744;padding:20px 28px;display:flex;align-items:center;gap:14px">
+    ${iconUrl ? `<img src="${iconUrl}" alt="" style="width:40px;height:40px;border-radius:8px" />` : ''}
+    <div><div style="color:#fff;font-size:18px;font-weight:700">水戸第一高等学校</div><div style="color:#a0b0cc;font-size:12px;margin-top:2px">デジタル生徒手帳 お問い合わせ回答</div></div>
+  </div>
   <div style="padding:28px">
     <p style="color:#333;font-size:15px;margin:0 0 16px">${recipientName || ''} 様<br><br>お問い合わせいただきありがとうございます。<br>以下の通り回答いたします。</p>
     <div style="background:#f8f9fa;border-radius:8px;padding:16px 18px;margin:16px 0;font-size:14px;color:#333;line-height:1.8;border-left:4px solid #1a2744">
