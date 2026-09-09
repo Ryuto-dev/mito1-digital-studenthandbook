@@ -57,6 +57,13 @@ service cloud.firestore {
       return hasProfile() && myRole() == r;
     }
 
+    // 承認済み生徒本人か（公欠申請フォームの先生メールサジェスト機能などで使用）
+    function isApprovedStudentSelf() {
+      return hasProfile()
+        && myRole() == 'student'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true;
+    }
+
     // =============================================
     // Helper functions — ロール判定
     // =============================================
@@ -98,8 +105,16 @@ service cloud.firestore {
     // Users collection
     // =============================================
     match /users/{userId} {
-      // 閲覧: 本人 or 委員会スタッフ（モデレーター以上）
-      allow read: if isOwnerUid(userId) || isStaff();
+      // 閲覧（get: 単一ドキュメント取得）: 本人 or 委員会スタッフ（モデレーター以上）
+      allow get: if isOwnerUid(userId) || isStaff();
+
+      // 閲覧（list: 一覧取得）:
+      //  - 本人 or 委員会スタッフ（モデレーター以上）: 全件
+      //  - 承認済み生徒: 先生（role=='teacher'）のドキュメントのみ
+      //    （公欠申請フォームの顧問・担任メールアドレスサジェスト機能用。
+      //     クライアント側は where('role','==','teacher') のクエリを必ず使用すること）
+      allow list: if isOwnerUid(userId) || isStaff()
+        || (isApprovedStudentSelf() && resource.data.role == 'teacher');
 
       // 作成: 本人の登録時のみ
       allow create: if isOwnerUid(userId);

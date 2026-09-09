@@ -978,6 +978,21 @@ select.cf-input{cursor:pointer}
 .cf-submit:hover{background:var(--navy-light)}
 .cf-submit:disabled{opacity:.5;cursor:not-allowed}
 .cf-error{font-size:12px;color:var(--enjii);margin-top:2px}
+
+/* Email suggest dropdown (teacher email autocomplete for absence applications) */
+.email-suggest-wrap{position:relative}
+.email-suggest-dd{
+  position:absolute;top:calc(100% + 6px);left:0;right:0;
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--r);box-shadow:var(--shadow-lg);
+  z-index:200;display:none;overflow:hidden;max-height:220px;overflow-y:auto;
+}
+.email-suggest-dd.open{display:block;animation:dropIn .15s ease}
+.es-item{padding:9px 12px;cursor:pointer;transition:background .12s;display:flex;flex-direction:column;gap:1px}
+.es-item:hover,.es-item.es-active{background:var(--surface2)}
+.es-name{font-size:12.5px;font-weight:600;color:var(--text)}
+.es-email{font-size:11.5px;color:var(--text-3)}
+.es-hint{padding:8px 12px;font-size:10.5px;color:var(--text-3);border-top:1px solid var(--border);background:var(--surface2)}
 </style>
 </head>
 <body>
@@ -1635,12 +1650,18 @@ select.cf-input{cursor:pointer}
           </div>
           <div class="cf-field">
             <label class="cf-label">顧問のメールアドレス<span class="cf-req">必須</span></label>
-            <input class="cf-input" id="applySupervisorEmail" type="email" placeholder="supervisor@ibaraki.ed.jp">
+            <div class="email-suggest-wrap">
+              <input class="cf-input" id="applySupervisorEmail" type="email" placeholder="supervisor@ibaraki.ed.jp" autocomplete="off">
+              <div class="email-suggest-dd" id="applySupervisorEmailDD"></div>
+            </div>
             <div style="font-size:11px;color:var(--text-3);margin-top:4px">承認依頼メールが送信されます</div>
           </div>
           <div class="cf-field">
             <label class="cf-label">担任のメールアドレス<span class="cf-req">必須</span></label>
-            <input class="cf-input" id="applyHomeRoomEmail" type="email" placeholder="homeroom@ibaraki.ed.jp">
+            <div class="email-suggest-wrap">
+              <input class="cf-input" id="applyHomeRoomEmail" type="email" placeholder="homeroom@ibaraki.ed.jp" autocomplete="off">
+              <div class="email-suggest-dd" id="applyHomeRoomEmailDD"></div>
+            </div>
             <div style="font-size:11px;color:var(--text-3);margin-top:4px">顧問承認後に依頼メールが送信されます</div>
           </div>
         </div>
@@ -2220,8 +2241,9 @@ if('serviceWorker' in navigator){
 import { loadAllData } from '/src/main.js'
 import { db } from '/src/firebase.js'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
-import { onAuth, getCurrentProfile, logout } from '/src/auth.js'
+import { onAuth, getCurrentProfile, logout, getTeacherDirectory } from '/src/auth.js'
 import { createCase, getMyCases, deleteCaseByStudent } from '/src/cases.js'
+import { canUseTeacherSuggest } from '/src/roles.js'
 
 loadAllData().catch(e => console.error('[Firestore]', e))
 
@@ -2346,6 +2368,98 @@ window.addDateField = function() {
   `
   wrap.appendChild(div)
 }
+
+// =============================================
+// 顧問・担任メールアドレスのサジェスト
+// （承認済み生徒のみ。登録済みの先生アカウントのメールアドレスから
+//  最初はランダムに数件、入力中はその文字列から始まるものを提示する。
+//  登録されていないメールアドレスの入力も妨げない＝あくまで補助）
+// =============================================
+let _teacherDirCache = null
+async function loadTeacherDirectory() {
+  if (_teacherDirCache) return _teacherDirCache
+  try {
+    _teacherDirCache = await getTeacherDirectory()
+  } catch (e) {
+    console.warn('[teacher-suggest] failed to load teacher directory', e)
+    _teacherDirCache = []
+  }
+  return _teacherDirCache
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+}
+
+function pickRandom(arr, n) {
+  const copy = arr.slice()
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[copy[i], copy[j]] = [copy[j], copy[i]]
+  }
+  return copy.slice(0, n)
+}
+
+function setupEmailSuggest(inputId, ddId) {
+  const input = document.getElementById(inputId)
+  const dd    = document.getElementById(ddId)
+  if (!input || !dd) return
+
+  function renderList(items) {
+    if (!items.length) { dd.classList.remove('open'); dd.innerHTML = ''; return }
+    dd.innerHTML = items.map(t => `
+      <div class="es-item" data-email="${escHtml(t.email)}">
+        <span class="es-name">${escHtml(t.name || t.email)}</span>
+        <span class="es-email">${escHtml(t.email)}</span>
+      </div>`).join('') +
+      `<div class="es-hint">登録されていない先生の場合はそのまま直接入力できます</div>`
+    dd.classList.add('open')
+  }
+
+  function showSuggestions() {
+    const list = _teacherDirCache || []
+    if (!list.length) { dd.classList.remove('open'); return }
+    const val = input.value.trim().toLowerCase()
+    if (!val) {
+      // 未入力時：ランダムに3人程度をサジェスト
+      renderList(pickRandom(list, Math.min(3, list.length)))
+    } else {
+      // 入力中：その文字列から始まるメールアドレスをサジェスト
+      const matched = list.filter(t => t.email.toLowerCase().startsWith(val))
+      renderList(matched.slice(0, 8))
+    }
+  }
+
+  input.addEventListener('focus', async () => {
+    // 承認済み生徒のみサジェスト対象（未承認・先生などは対象外。roles.js: canUseTeacherSuggest）
+    if (!canUseTeacherSuggest(_currentProfile)) return
+    await loadTeacherDirectory()
+    showSuggestions()
+  })
+
+  input.addEventListener('input', () => {
+    if (!canUseTeacherSuggest(_currentProfile)) return
+    if (!_teacherDirCache) return // まだ読み込み中/未読み込みなら何もしない（focusで読み込まれる）
+    showSuggestions()
+  })
+
+  dd.addEventListener('mousedown', (e) => {
+    const item = e.target.closest('.es-item')
+    if (!item) return
+    e.preventDefault()
+    input.value = item.dataset.email
+    dd.classList.remove('open')
+    dd.innerHTML = ''
+  })
+
+  document.addEventListener('click', (e) => {
+    if (e.target === input || dd.contains(e.target)) return
+    dd.classList.remove('open')
+  })
+}
+
+setupEmailSuggest('applySupervisorEmail', 'applySupervisorEmailDD')
+setupEmailSuggest('applyHomeRoomEmail',   'applyHomeRoomEmailDD')
 
 window.submitApply = async function() {
   if (!_currentUser) { alert('ログインが必要です'); return }

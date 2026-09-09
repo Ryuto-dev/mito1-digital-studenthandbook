@@ -13,7 +13,7 @@ import {
   setPersistence,
 } from 'firebase/auth'
 import {
-  doc, setDoc, getDoc, getDocs, collection, serverTimestamp,
+  doc, setDoc, getDoc, getDocs, collection, serverTimestamp, query, where,
 } from 'firebase/firestore'
 
 // タブを閉じたらログアウト
@@ -97,4 +97,22 @@ export function onAuth(callback) {
 // =============================================
 export async function resetPassword(email) {
   await sendPasswordResetEmail(auth, email)
+}
+
+// =============================================
+// 先生のメールアドレス一覧取得（公欠申請フォームのサジェスト用）
+// 承認済み生徒のみ呼び出し可能（firestore.rules で制限）。
+// role === 'teacher' のユーザーのみを対象とする
+// （委員会の管理者(先生)等は既存の顧問・担任フローの対象外のため含めない）。
+// =============================================
+let _teacherDirectoryCache = null
+export async function getTeacherDirectory() {
+  if (_teacherDirectoryCache) return _teacherDirectoryCache
+  const q = query(collection(db, 'users'), where('role', '==', 'teacher'))
+  const snap = await getDocs(q)
+  const list = snap.docs
+    .map(d => ({ email: d.data().email || '', name: d.data().name || '' }))
+    .filter(t => !!t.email)
+  _teacherDirectoryCache = list
+  return list
 }
