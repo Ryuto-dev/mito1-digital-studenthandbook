@@ -10,44 +10,123 @@ rules_version = '2';
  *
  * Alternatively, install firebase-tools and run:
  *   firebase deploy --only firestore:rules
+ *
+ * =====================================================================
+ * ロール定義（Issue #18: ロールの細分化 — src/roles.js と対応）
+ * =====================================================================
+ *   student        生徒（未承認/承認済みは users.approved で区別）
+ *   teacher        先生（公欠申請の顧問・担任として承認を行う）
+ *   moderator      モデレーター（生徒）— 委員会内の委員
+ *   admin_student  管理者（生徒）— 委員会内の管理者
+ *   admin_teacher  管理者（先生）— 委員の顧問先生
+ *   owner          オーナー — 全て可能
+ *
+ * 権限マトリクス:
+ *   モデレーター   : 公欠申請ケース閲覧不可 / ロール変更不可 / 生徒の承認切替は可能 /
+ *                    ユーザー情報閲覧可・変更不可 / 条文変更可 / 問い合わせ閲覧可・返信不可
+ *   管理者(生徒)   : 公欠申請ケース閲覧不可 / ロール変更は自分以下まで可 / 生徒承認可 /
+ *                    ユーザー情報変更可 / 条文変更可 / 問い合わせ返信可
+ *   管理者(先生)   : 公欠申請ケース閲覧可能。他は管理者(生徒)と同じ
+ *   オーナー       : 全て可能
  */
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     // =============================================
-    // Helper functions
+    // Helper functions — 基本
     // =============================================
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
+    function isOwnerUid(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    function isAdmin() {
+    function hasProfile() {
       return isAuthenticated()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function myRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isRole(r) {
+      return hasProfile() && myRole() == r;
+    }
+
+    // =============================================
+    // Helper functions — ロール判定
+    // =============================================
+    function isOwnerRole()      { return isRole('owner'); }
+    function isAdminTeacher()   { return isRole('admin_teacher'); }
+    function isAdminStudent()   { return isRole('admin_student'); }
+    function isModerator()      { return isRole('moderator'); }
+    function isTeacherRole()    { return isRole('teacher'); }
+
+    // 委員会の管理者以上（ロール変更・ユーザー情報変更・問い合わせ返信が可能）
+    function isCommitteeAdmin() {
+      return isAdminStudent() || isAdminTeacher() || isOwnerRole();
+    }
+
+    // 委員会スタッフ（モデレーター以上。管理パネルへのアクセス・条文編集・問い合わせ閲覧が可能）
+    function isStaff() {
+      return isModerator() || isCommitteeAdmin();
+    }
+
+    // 公欠申請ケースの閲覧・操作が可能なロール（管理者(先生)・オーナー・顧問/担任の先生自身）
+    function canTouchCases() {
+      return isTeacherRole() || isAdminTeacher() || isOwnerRole();
+    }
+
+    // ロールの階層レベル（自分より上位のロールは操作できない）
+    function roleLevel(r) {
+      return r == 'owner' ? 99
+        : (r == 'admin_teacher' || r == 'admin_student') ? 2
+        : r == 'moderator' ? 1
+        : 0;
+    }
+
+    // 指定フィールドのみが変更されたか
+    function onlyChanged(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
 
     // =============================================
     // Users collection
     // =============================================
     match /users/{userId} {
-      // Users can read their own profile; admins can read all
-      allow read: if isOwner(userId) || isAdmin();
-      // Users can create their own profile during registration
-      allow create: if isOwner(userId);
-      // Users can update their own profile; admins can update any
-      allow update: if isOwner(userId) || isAdmin();
-      // Only admins can delete user profiles
-      allow delete: if isAdmin();
+      // 閲覧: 本人 or 委員会スタッフ（モデレーター以上）
+      allow read: if isOwnerUid(userId) || isStaff();
+
+      // 作成: 本人の登録時のみ
+      allow create: if isOwnerUid(userId);
+
+      // 更新:
+      //  1. 本人による自分の情報更新
+      //  2. モデレーター: 生徒の承認状態（approved）のみ切替可能。ロール変更・その他情報変更は不可
+      //  3. 委員会管理者(admin_student/admin_teacher)・オーナー: 自分のロールレベル以下の
+      //     ユーザーに対してのみ、情報変更・ロール変更が可能（自分より上位ロールへの変更や、
+      //     自分より上位ロールのユーザーの変更は不可）
+      allow update: if isOwnerUid(userId)
+        || (isModerator() && resource.data.role == 'student' && onlyChanged(['approved']))
+        || (
+             isCommitteeAdmin()
+             // 更新前・更新後どちらのロールも自分のレベル以下であること
+             // （自分より上位のユーザーを操作できない／自分より上位のロールへ変更できない）
+             && roleLevel(resource.data.role) <= roleLevel(myRole())
+             && roleLevel(request.resource.data.role) <= roleLevel(myRole())
+           );
+
+      // 削除: 委員会管理者以上で、自分のロールレベル以下の対象のみ
+      allow delete: if isCommitteeAdmin() && roleLevel(resource.data.role) <= roleLevel(myRole());
     }
 
     // =============================================
     // Cases (absence applications) collection
+    // 公欠申請ケース: モデレーター・管理者(生徒)は閲覧不可
     // =============================================
     match /cases/{caseId} {
       // Helper: check if the update request provides a valid token
@@ -64,32 +143,38 @@ service cloud.firestore {
           );
       }
 
-      // Allow individual document read (get) for token-based lookup
-      // Allow list only for authenticated users (prevents collection scraping)
+      // 個別ドキュメント取得（get）はトークン照合用に誰でも可
+      // 一覧取得（list）は次のいずれか:
+      //  - 先生（顧問/担任本人）・管理者(先生)・オーナー（管理パネル/先生ダッシュボード全件）
+      //  - 申請した生徒本人（マイページの申請履歴）
+      //  - 自分が顧問/担任として指定されているケース（メールアドレス一致）
+      // モデレーター・管理者(生徒)には一覧権限を与えない（Issue #18: 公欠申請ケース閲覧不可）
       allow get: if true;
-      allow list: if isAuthenticated();
+      allow list: if canTouchCases()
+        || (isAuthenticated() && resource.data.studentId == request.auth.uid)
+        || (isAuthenticated() && request.auth.token.email != null
+            && (resource.data.supervisorEmail == request.auth.token.email
+                || resource.data.homeRoomEmail == request.auth.token.email));
 
-      // Allow students to create cases
+      // 作成: 生徒本人の申請作成
       allow create: if isAuthenticated();
 
-      // Allow update if:
-      // 1. User is authenticated (teacher dashboard approval), OR
-      // 2. Request provides a valid token (email one-click approval)
-      //    — the token in the request body must match one of the
-      //      tokens stored on the existing document.
-      allow update: if isAuthenticated() || hasValidToken();
+      // 更新: 先生（顧問/担任本人）・管理者(先生)・オーナー、またはメールリンクの有効トークン
+      allow update: if canTouchCases() || hasValidToken();
 
-      // DELETE: Only authenticated users can delete cases (student withdrawal)
-      allow delete: if isAuthenticated();
+      // 削除: 申請した生徒本人（取り下げ）、または先生・管理者(先生)・オーナー
+      allow delete: if isAuthenticated()
+        && (resource.data.studentId == request.auth.uid || canTouchCases());
     }
 
     // =============================================
-    // Content collections (public read, authenticated write)
+    // Content collections (public read, staff-only write)
     // These are the handbook content collections
+    // 条文などのコンテンツ変更は委員会スタッフ（モデレーター以上）が可能
     // =============================================
     match /content/{docId} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isStaff();
     }
 
     // Read-only collections for all users (handbook data)
@@ -98,8 +183,8 @@ service cloud.firestore {
         'history', 'principals', 'songs', 'rules', 'special',
         'events', 'curriculum', 'council-charter', 'council-rules'
       ];
-      // Write requires authentication (admin panel)
-      allow write: if isAuthenticated() && collection in [
+      // Write requires committee staff (admin panel)
+      allow write: if isStaff() && collection in [
         'history', 'principals', 'songs', 'rules', 'special',
         'events', 'curriculum', 'council-charter', 'council-rules'
       ];
@@ -107,19 +192,21 @@ service cloud.firestore {
 
     // =============================================
     // Contacts / Inquiries collection
+    // モデレーターは閲覧のみ（下書きはクライアント内のみで保存不要）。
+    // 返信の保存・送信・状態変更・削除は委員会管理者以上のみ。
     // =============================================
     match /contacts/{contactId} {
-      allow read: if isAuthenticated();
+      allow read: if isStaff();
       allow create: if true;  // Anyone can submit a contact form
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
+      allow update: if isCommitteeAdmin();
+      allow delete: if isCommitteeAdmin();
     }
 
     match /inquiries/{inquiryId} {
-      allow read: if isAuthenticated();
+      allow read: if isStaff();
       allow create: if true;  // Anyone can submit
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
+      allow update: if isCommitteeAdmin();
+      allow delete: if isCommitteeAdmin();
     }
   }
 }

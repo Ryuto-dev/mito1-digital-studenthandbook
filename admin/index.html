@@ -765,9 +765,12 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
           <select style="font-size:12px;padding:6px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)" onchange="filterUsers('role',this.value)">
             <option value="all">すべてのロール</option>
-            <option value="student">生徒のみ</option>
-            <option value="teacher">先生のみ</option>
-            <option value="admin">管理者のみ</option>
+            <option value="student">生徒</option>
+            <option value="teacher">先生</option>
+            <option value="moderator">モデレーター</option>
+            <option value="admin_student">管理者（生徒）</option>
+            <option value="admin_teacher">管理者（先生）</option>
+            <option value="owner">オーナー</option>
           </select>
           <select style="font-size:12px;padding:6px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)" onchange="filterUsers('grade',this.value)">
             <option value="all">全学年</option>

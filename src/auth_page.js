@@ -113,8 +113,11 @@ onAuth(async user => {
 async function redirectByRole(user) {
   const profile = await getCurrentProfile(user)
   if (profile) {
+    // 委員会スタッフ（モデレーター／管理者／オーナー）は管理者パネルへ
+    if (['moderator', 'admin_student', 'admin_teacher', 'owner'].includes(profile.role)) {
+      location.href = BASE + '/admin/'; return
+    }
     if (profile.role === 'teacher') { location.href = BASE + '/teacher.html'; return }
-    if (profile.role === 'admin')   { location.href = BASE + '/admin/'; return }
   }
   // sessionStorageでマイページへ遷移するよう伝達
   sessionStorage.setItem('mito1_nav', 'mypage')
