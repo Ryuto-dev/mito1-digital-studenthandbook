@@ -29,6 +29,7 @@ export async function registerStudent({ email, password, name, grade, classLabel
 
   await setDoc(doc(db, 'users', uid), {
     role:    'student',
+    approved: false, // 生徒は登録直後は未承認。承認されるまで一部機能が制限される
     name,
     grade:   Number(grade),
     class:   classLabel,

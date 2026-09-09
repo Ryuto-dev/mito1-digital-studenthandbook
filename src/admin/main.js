@@ -10,6 +10,12 @@ import {
   orderBy, query, where,
 } from 'firebase/firestore'
 import { getCurrentProfile } from '../auth.js'
+import {
+  ROLES, ROLE_LABELS as R_LABELS, ROLE_COLORS as R_COLORS, ROLE_BGS as R_BGS,
+  canAccessAdminPanel, canViewCasesAdmin, canManageRoles, canToggleApproval,
+  canEditUserInfo, canViewUsers, canReplyInquiries, canManageTargetRole,
+  canAssignRole, assignableRoles, roleLevel,
+} from '../roles.js'
 
 // =============================================
 // STATE
@@ -17,6 +23,7 @@ import { getCurrentProfile } from '../auth.js'
 let currentSection = 'dashboard'
 let editingId = null
 let editingType = null
+let myProfile = null // ログイン中の管理者/モデレーターのプロフィール（roles.js の権限判定に使用）
 
 // =============================================
 // DOM READY
@@ -78,25 +85,44 @@ onAuthStateChanged(auth, async user => {
   if (user) {
     // Firestoreでユーザーのロールを確認
     const profile = await getCurrentProfile(user)
-    if (!profile || profile.role !== 'admin') {
+    if (!profile || !canAccessAdminPanel(profile.role)) {
       // 管理者権限がない場合はログイン画面に戻す
-      document.getElementById('loginErr').textContent = 'この機能は管理者のみアクセスできます'
+      document.getElementById('loginErr').textContent = 'この機能は委員会メンバー（モデレーター以上）のみアクセスできます'
       document.getElementById('loginScreen').classList.remove('hide')
       document.getElementById('appShell').classList.remove('show')
       await signOut(auth)
       return
     }
+    myProfile = profile
     document.getElementById('loginScreen').classList.add('hide')
     document.getElementById('appShell').classList.add('show')
-    document.getElementById('headerUser').textContent = user.email
+    document.getElementById('headerUser').textContent = `${user.email}（${R_LABELS[profile.role] || profile.role}）`
+    applyRoleUI()
     loadSection('dashboard')
     // Load badge counts immediately on login
     loadBadgeCounts()
   } else {
+    myProfile = null
     document.getElementById('loginScreen').classList.remove('hide')
     document.getElementById('appShell').classList.remove('show')
   }
 })
+
+// =============================================
+// ロールに応じたサイドバー／機能の表示切替
+// =============================================
+function applyRoleUI() {
+  if (!myProfile) return
+  const role = myProfile.role
+
+  // 公欠申請ケース：管理者(先生)・オーナーのみ閲覧可
+  const casesNav = document.querySelector('.adm-sb-item[data-sec="cases"]')
+  if (casesNav) casesNav.style.display = canViewCasesAdmin(role) ? '' : 'none'
+
+  // ユーザー管理自体はスタッフ全員閲覧可（編集・ロール変更は個別に制御）
+  const usersNav = document.querySelector('.adm-sb-item[data-sec="users"]')
+  if (usersNav) usersNav.style.display = canViewUsers(role) ? '' : 'none'
+}
 
 async function doLogin() {
   const email = document.getElementById('loginEmail').value.trim()
@@ -151,7 +177,7 @@ async function loadSection(sec) {
     case 'council-charter':  return Promise.all([loadList('council-charter', renderArticleList('councilCharterList')), loadCharterPreambleForm()])
     case 'council-rules':    return loadList('council-rules', renderArticleList('councilRulesList'))
     case 'inquiries':        return loadInquiries()
-    case 'cases':            return loadAdminCases()
+    case 'cases':            return canViewCasesAdmin(myProfile?.role) ? loadAdminCases() : renderCasesForbidden()
     case 'users':            return loadUsers()
   }
 }
@@ -221,15 +247,20 @@ async function loadDashboard() {
   )
 
   // Also fetch inquiries/cases counts for the summary
+  const canSeeCases = canViewCasesAdmin(myProfile?.role)
   let inquiryNewCount = 0, casePendingCount = 0, totalUsers = 0
   try {
-    const [iqSnap, csSnap, usSnap] = await Promise.all([
+    const promises = [
       getDocs(collection(db, 'inquiries')),
-      getDocs(collection(db, 'cases')),
       getDocs(collection(db, 'users')),
-    ])
+    ]
+    if (canSeeCases) promises.splice(1, 0, getDocs(collection(db, 'cases')))
+    const results = await Promise.all(promises)
+    const iqSnap = results[0]
+    const csSnap = canSeeCases ? results[1] : null
+    const usSnap = canSeeCases ? results[2] : results[1]
     inquiryNewCount = iqSnap.docs.filter(d => d.data().status === 'new').length
-    casePendingCount = csSnap.docs.filter(d => ['pending_supervisor','pending_homeroom'].includes(d.data().status)).length
+    if (csSnap) casePendingCount = csSnap.docs.filter(d => ['pending_supervisor','pending_homeroom'].includes(d.data().status)).length
     totalUsers = usSnap.size
   } catch(e) { /* ignore */ }
 
@@ -260,6 +291,7 @@ async function loadDashboard() {
           <div class="dash-summary-label">未対応のお問い合わせ</div>
         </div>
       </div>
+      ${canSeeCases ? `
       <div class="dash-summary-card" style="cursor:pointer" data-nav="cases">
         <div class="dash-summary-icon" style="background:linear-gradient(135deg,#856404,#d4ac0d)">
           <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
@@ -268,7 +300,7 @@ async function loadDashboard() {
           <div class="dash-summary-num">${casePendingCount}</div>
           <div class="dash-summary-label">承認待ち公欠申請</div>
         </div>
-      </div>
+      </div>` : ''}
       <div class="dash-summary-card" style="cursor:pointer" data-nav="users">
         <div class="dash-summary-icon" style="background:linear-gradient(135deg,#1e8449,#27ae60)">
           <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -317,13 +349,15 @@ async function loadBadgeCounts() {
     if (iqBadge) { iqBadge.textContent = newCount; iqBadge.style.display = newCount ? '' : 'none' }
   } catch(e) { /* ignore */ }
 
-  try {
-    // Cases badge
-    const csSnap = await getDocs(query(collection(db, 'cases'), orderBy('createdAt', 'desc')))
-    const pending = csSnap.docs.filter(d => ['pending_supervisor','pending_homeroom'].includes(d.data().status)).length
-    const csBadge = document.getElementById('casesBadge')
-    if (csBadge) { csBadge.textContent = pending; csBadge.style.display = pending ? '' : 'none' }
-  } catch(e) { /* ignore */ }
+  if (canViewCasesAdmin(myProfile?.role)) {
+    try {
+      // Cases badge（公欠申請ケース閲覧権限がある場合のみ）
+      const csSnap = await getDocs(query(collection(db, 'cases'), orderBy('createdAt', 'desc')))
+      const pending = csSnap.docs.filter(d => ['pending_supervisor','pending_homeroom'].includes(d.data().status)).length
+      const csBadge = document.getElementById('casesBadge')
+      if (csBadge) { csBadge.textContent = pending; csBadge.style.display = pending ? '' : 'none' }
+    } catch(e) { /* ignore */ }
+  }
 }
 
 // =============================================
@@ -1021,6 +1055,9 @@ window.loadInquiries = async function() {
 
     if (!items.length) { el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3)">該当するお問い合わせはありません</div>'; return }
 
+    // モデレーターは閲覧・AI下書きのみ可能。返信保存/送信/状態変更/削除は管理者以上のみ。
+    const iCanReply = canReplyInquiries(myProfile?.role)
+
     el.innerHTML = items.map(item => `
       <div class="item-card" id="inq-${item.id}" style="margin-bottom:12px">
         <div style="display:flex;align-items:flex-start;gap:12px;padding:18px 20px">
@@ -1037,13 +1074,14 @@ window.loadInquiries = async function() {
           </div>
         </div>
         <div style="padding:0 20px 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-          <textarea id="reply-${item.id}" rows="3" placeholder="返信内容を入力（メールで送信する文章）"
+          <textarea id="reply-${item.id}" rows="3" placeholder="返信内容を入力（メールで送信する文章）" ${iCanReply ? '' : 'readonly'}
             style="flex:1;min-width:200px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;resize:vertical;background:var(--surface);color:var(--text)">${escHtml(item.reply||'')}</textarea>
           <div style="display:flex;flex-direction:column;gap:6px">
             <button onclick="draftReply('${item.id}','${escAttr(item.subject)}','${escAttr(item.body)}')"
               style="font-size:11px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);cursor:pointer;color:var(--text-2)">
               ✦ AIで下書き
             </button>
+            ${iCanReply ? `
             <button onclick="saveReply('${item.id}')"
               style="font-size:11px;padding:6px 12px;border:none;border-radius:6px;background:var(--navy);cursor:pointer;color:#fff">
               返信内容を保存
@@ -1059,7 +1097,8 @@ window.loadInquiries = async function() {
             <button onclick="deleteInquiry('${item.id}')"
               style="font-size:11px;padding:6px 12px;border:1px solid #e74c3c;border-radius:6px;background:transparent;cursor:pointer;color:#e74c3c;margin-top:4px">
               削除
-            </button>
+            </button>` : `
+            <div style="font-size:10.5px;color:var(--text-3);max-width:160px">返信・状態変更は管理者以上のみ行えます</div>`}
           </div>
         </div>
       </div>
@@ -1098,6 +1137,7 @@ window.draftReply = async function(id, subject, body) {
 }
 
 window.saveReply = async function(id) {
+  if (!canReplyInquiries(myProfile?.role)) { showToast('返信を保存する権限がありません'); return }
   const ta = document.getElementById('reply-'+id)
   if (!ta) return
   await updateDoc(doc(db, 'inquiries', id), { reply: ta.value, status: 'replied' })
@@ -1107,6 +1147,7 @@ window.saveReply = async function(id) {
 
 // メールで返信を送信
 window.sendReplyEmail = async function(id, evt) {
+  if (!canReplyInquiries(myProfile?.role)) { showToast('返信を送信する権限がありません'); return }
   const ta = document.getElementById('reply-'+id)
   if (!ta || !ta.value.trim()) { showToast('返信内容を入力してください'); return }
 
@@ -1152,12 +1193,14 @@ window.sendReplyEmail = async function(id, evt) {
 }
 
 window.changeStatus = async function(id, status) {
+  if (!canReplyInquiries(myProfile?.role)) { showToast('ステータスを変更する権限がありません'); return }
   await updateDoc(doc(db, 'inquiries', id), { status })
   showToast('ステータスを変更しました')
   loadInquiries()
 }
 
 window.deleteInquiry = async function(id) {
+  if (!canReplyInquiries(myProfile?.role)) { showToast('削除する権限がありません'); return }
   if (!confirm('このお問い合わせを削除しますか？\nこの操作は取り消せません。')) return
   await deleteDoc(doc(db, 'inquiries', id))
   showToast('削除しました')
@@ -1171,9 +1214,15 @@ const CASE_STATUS_LABEL = { pending_supervisor:'顧問承認待ち', pending_hom
 const CASE_STATUS_COLOR = { pending_supervisor:'#856404', pending_homeroom:'#004085', approved:'#155724', rejected:'#721c24' }
 const CASE_STATUS_BG    = { pending_supervisor:'#fff3cd', pending_homeroom:'#cce5ff', approved:'#d4edda', rejected:'#f8d7da' }
 
+function renderCasesForbidden() {
+  const el = document.getElementById('adminCasesList')
+  if (el) el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3)">公欠申請ケースの閲覧権限がありません。<br>（管理者（先生）またはオーナーのみ閲覧可能です）</div>'
+}
+
 window.loadAdminCases = async function() {
   const el = document.getElementById('adminCasesList')
   if (!el) return
+  if (!canViewCasesAdmin(myProfile?.role)) { renderCasesForbidden(); return }
   el.innerHTML = '<div class="loading-spinner"><div class="spinner"></div>読み込み中...</div>'
   const filter = document.getElementById('casesFilter')?.value || 'all'
 
@@ -1234,6 +1283,7 @@ window.loadAdminCases = async function() {
 
 // 管理者：ケース削除
 window.deleteAdminCase = async function(caseId) {
+  if (!canViewCasesAdmin(myProfile?.role)) { showToast('この操作を行う権限がありません'); return }
   if (!confirm('このケースを削除しますか？\nこの操作は取り消せません。')) return
   try {
     await deleteDoc(doc(db, 'cases', caseId))
@@ -1252,9 +1302,7 @@ window.deleteAdminCase = async function(caseId) {
 // =============================================
 // ユーザー管理
 // =============================================
-const ROLE_LABELS = { student: '生徒', teacher: '先生', admin: '管理者' }
-const ROLE_COLORS = { student: '#004085', teacher: '#856404', admin: '#155724' }
-const ROLE_BGS    = { student: '#cce5ff', teacher: '#fff3cd', admin: '#d4edda' }
+// ロールのラベル・配色は roles.js（R_LABELS/R_COLORS/R_BGS）を共通利用
 
 let allUsers = []
 let userFilters = { role: 'all', grade: 'all', class: 'all', search: '' }
@@ -1300,10 +1348,10 @@ function renderUsers() {
     )
   }
 
-  // ソート: 先生→管理者→生徒（学年→クラス→番号）
+  // ソート: オーナー→管理者(先生)→管理者(生徒)→モデレーター→先生→生徒（学年→クラス→番号）
   filtered.sort((a,b) => {
-    const ro = { admin:0, teacher:1, student:2 }
-    const rr = (ro[a.role]||9) - (ro[b.role]||9)
+    const ro = { owner:0, admin_teacher:1, admin_student:2, moderator:3, teacher:4, student:5 }
+    const rr = (ro[a.role]??9) - (ro[b.role]??9)
     if (rr !== 0) return rr
     if (a.grade !== b.grade) return (a.grade||0) - (b.grade||0)
     if (a.class !== b.class) return (a.class||0) - (b.class||0)
@@ -1314,6 +1362,11 @@ function renderUsers() {
     el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3)">該当するユーザーはいません</div>'
     return
   }
+
+  const myRole = myProfile?.role
+  const iCanEditInfo   = canEditUserInfo(myRole)   // ユーザー情報変更（氏名・学年等）
+  const iCanToggleAppr = canToggleApproval(myRole) // 承認状態の切替
+  const iCanManageRole = canManageRoles(myRole)    // ロール変更・削除は管理者以上のみ
 
   el.innerHTML = `
     <div style="margin-bottom:8px;font-size:12px;color:var(--text-3)">
@@ -1329,41 +1382,75 @@ function renderUsers() {
             <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">学年</th>
             <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">クラス</th>
             <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">番号</th>
-            <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">管理者</th>
+            <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">承認</th>
             <th style="padding:9px 12px;border-bottom:2px solid var(--border)"></th>
           </tr>
         </thead>
         <tbody>
-          ${filtered.map(u => `
+          ${filtered.map(u => {
+            const isStudentRow = u.role === 'student'
+            const approvedCell = isStudentRow
+              ? (iCanToggleAppr
+                  ? `<button onclick="toggleApproval('${u.id}', ${!u.approved})"
+                       style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:10px;border:none;cursor:pointer;color:${u.approved?'#155724':'#856404'};background:${u.approved?'#d4edda':'#fff3cd'}">
+                       ${u.approved ? '✓ 承認済み' : '未承認'}
+                     </button>`
+                  : `<span style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:10px;color:${u.approved?'#155724':'#856404'};background:${u.approved?'#d4edda':'#fff3cd'}">${u.approved ? '✓ 承認済み' : '未承認'}</span>`)
+              : '<span style="color:var(--text-3)">—</span>'
+
+            // 自分のロールレベル以下のユーザーに対してのみロール変更・削除ボタンを出す
+            const canOpEdit   = iCanEditInfo   && canManageTargetRole(myRole, u.role)
+            const canOpDelete = iCanManageRole && canManageTargetRole(myRole, u.role)
+
+            return `
             <tr>
               <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);color:var(--text);font-weight:500">${escHtml(u.name||'')}</td>
               <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);color:var(--text-2);font-size:12px">${escHtml(u.email||'')}</td>
               <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center">
-                <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;color:${ROLE_COLORS[u.role]||'#888'};background:${ROLE_BGS[u.role]||'#eee'}">${ROLE_LABELS[u.role]||u.role||'不明'}</span>
+                <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;color:${R_COLORS[u.role]||'#888'};background:${R_BGS[u.role]||'#eee'}">${R_LABELS[u.role]||u.role||'不明'}</span>
               </td>
               <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center;color:var(--text-2)">${u.grade||'—'}</td>
               <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center;color:var(--text-2)">${u.class||'—'}</td>
               <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center;color:var(--text-2)">${u.number||'—'}</td>
               <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center">
-                ${u.role === 'admin' ? '<span style="color:#27ae60;font-weight:700">✓</span>' : '<span style="color:var(--text-3)">—</span>'}
+                ${approvedCell}
               </td>
               <td style="padding:9px 12px;border-bottom:1px solid var(--border-2)">
                 <div style="display:flex;gap:4px;justify-content:flex-end">
+                  ${canOpEdit ? `
                   <button onclick="editUser('${u.id}')"
                     style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer;color:var(--text-2);font-family:inherit">
                     編集
-                  </button>
+                  </button>` : ''}
+                  ${canOpDelete ? `
                   <button onclick="deleteUser('${u.id}','${escHtml(u.name||u.email||'')}')"
                     style="font-size:11px;padding:4px 10px;border:1px solid #e74c3c;border-radius:5px;background:transparent;cursor:pointer;color:#e74c3c;font-family:inherit">
                     削除
-                  </button>
+                  </button>` : ''}
+                  ${!canOpEdit && !canOpDelete ? '<span style="font-size:11px;color:var(--text-3)">—</span>' : ''}
                 </div>
               </td>
             </tr>
-          `).join('')}
+          `}).join('')}
         </tbody>
       </table>
     </div>`
+}
+
+// =============================================
+// 生徒の承認状態を切り替え（モデレーター以上が利用可能）
+// =============================================
+window.toggleApproval = async function(uid, newApproved) {
+  const user = allUsers.find(u => u.id === uid)
+  if (!user) return
+  if (!canToggleApproval(myProfile?.role)) { showToast('この操作を行う権限がありません'); return }
+  try {
+    await updateDoc(doc(db, 'users', uid), { approved: newApproved })
+    showToast(newApproved ? '生徒を承認済みにしました' : '承認を取り消しました')
+    loadUsers()
+  } catch(e) {
+    showToast('エラー: ' + (e?.message || String(e)))
+  }
 }
 
 window.filterUsers = function(type, value) {
@@ -1380,6 +1467,18 @@ window.editUser = async function(uid) {
   const user = allUsers.find(u => u.id === uid)
   if (!user) return
 
+  const myRole = myProfile?.role
+  if (!canEditUserInfo(myRole) || !canManageTargetRole(myRole, user.role)) {
+    showToast('このユーザーを編集する権限がありません')
+    return
+  }
+  // ロール変更自体が許可されているか（モデレーターは情報編集も不可なのでここには来ないが念のため）
+  const iCanChangeRole = canManageRoles(myRole)
+  // 自分が割り当てられるロール一覧（自分のレベル以下）。オーナーは全ロール。
+  const roleOptions = assignableRoles(myRole)
+  // 現在のロールが選択肢に無い場合（自分より上位のロールを持つ対象など）は選択肢に追加して表示のみ
+  if (!roleOptions.includes(user.role)) roleOptions.push(user.role)
+
   const overlay = document.getElementById('modalOverlay')
   document.getElementById('modalTitle').textContent = '編集 — ユーザー'
   document.getElementById('modalBody').innerHTML = `
@@ -1394,11 +1493,11 @@ window.editUser = async function(uid) {
     </div>
     <div class="form-row">
       <label>ロール</label>
-      <select id="f_user_role">
-        <option value="student" ${user.role==='student'?'selected':''}>生徒</option>
-        <option value="teacher" ${user.role==='teacher'?'selected':''}>先生</option>
-        <option value="admin" ${user.role==='admin'?'selected':''}>管理者</option>
+      <select id="f_user_role" ${iCanChangeRole ? '' : 'disabled style="opacity:0.6;cursor:not-allowed"'}>
+        ${roleOptions.map(r => `<option value="${r}" ${user.role===r?'selected':''}>${R_LABELS[r]||r}</option>`).join('')}
       </select>
+      ${!iCanChangeRole ? '<div style="font-size:10px;color:var(--text-3);margin-top:3px">※ロールの変更権限がありません</div>' : ''}
+      ${iCanChangeRole ? '<div style="font-size:10px;color:var(--text-3);margin-top:3px">※自分と同等以下のロールにのみ変更できます</div>' : ''}
     </div>
     <div class="form-row-2 form-row" id="f_user_student_fields" style="${user.role==='student'?'':'display:none'}">
       <div>
@@ -1439,9 +1538,15 @@ window.editUser = async function(uid) {
     try {
       const data = {
         name: document.getElementById('f_user_name').value.trim(),
-        role: document.getElementById('f_user_role').value,
       }
-      if (data.role === 'student') {
+      if (iCanChangeRole) {
+        const newRole = document.getElementById('f_user_role').value
+        if (!canAssignRole(myRole, newRole)) {
+          throw new Error('そのロールへの変更権限がありません')
+        }
+        data.role = newRole
+      }
+      if ((data.role || user.role) === 'student') {
         const g = document.getElementById('f_user_grade').value
         const c = document.getElementById('f_user_class').value
         const n = document.getElementById('f_user_number').value
@@ -1464,6 +1569,12 @@ window.editUser = async function(uid) {
 }
 
 window.deleteUser = async function(uid, name) {
+  const target = allUsers.find(u => u.id === uid)
+  const myRole = myProfile?.role
+  if (!canManageRoles(myRole) || (target && !canManageTargetRole(myRole, target.role))) {
+    showToast('このユーザーを削除する権限がありません')
+    return
+  }
   if (!confirm(`ユーザー「${name}」の登録情報を削除しますか？\n※Firebase Authenticationのアカウント自体はFirebase Consoleから削除する必要があります。`)) return
   try {
     await deleteDoc(doc(db, 'users', uid))
