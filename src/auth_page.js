@@ -13,7 +13,7 @@ document.getElementById('mainCard').innerHTML = `
   <div class="section on" id="sec-login">
     <div class="form-group">
       <label class="form-label">メールアドレス <span class="req">必須</span></label>
-      <input class="form-input" id="loginEmail" type="email" placeholder="example@ibaraki.ed.jp" autocomplete="email">
+      <input class="form-input" id="loginEmail" type="email" placeholder="example@mito1-h.ibk.ed.jp" autocomplete="email">
     </div>
     <div class="form-group">
       <label class="form-label">パスワード <span class="req">必須</span></label>
@@ -55,7 +55,8 @@ document.getElementById('mainCard').innerHTML = `
       </div>
       <div class="form-group">
         <label class="form-label">メールアドレス <span class="req">必須</span></label>
-        <input class="form-input" id="regEmail" type="email" placeholder="example@ibaraki.ed.jp">
+        <input class="form-input" id="regEmail" type="email" placeholder="example@mito1-h.ibk.ed.jp">
+        <div style="font-size:11px;color:var(--text-3);margin-top:4px">※学校のメールアドレス（@mito1-h.ibk.ed.jp）の使用を推奨します。</div>
       </div>
       <div class="row2">
         <div class="form-group">
@@ -78,7 +79,8 @@ document.getElementById('mainCard').innerHTML = `
       </div>
       <div class="form-group">
         <label class="form-label">メールアドレス <span class="req">必須</span></label>
-        <input class="form-input" id="regTeacherEmail" type="email" placeholder="teacher@ibaraki.ed.jp">
+        <input class="form-input" id="regTeacherEmail" type="email" placeholder="teacher@mito1-h.ibk.ed.jp">
+        <div style="font-size:11px;color:var(--text-3);margin-top:4px">※学校のメールアドレス（@mito1-h.ibk.ed.jp）の使用を推奨します。</div>
       </div>
       <div class="row2">
         <div class="form-group">
