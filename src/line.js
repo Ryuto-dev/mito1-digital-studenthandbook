@@ -26,7 +26,7 @@
  *   （ローカル開発時は http://localhost:5173/line-callback.html も追加）
  */
 import { db } from './firebase.js'
-import { doc, updateDoc, getDoc, deleteField, serverTimestamp } from 'firebase/firestore'
+import { doc, updateDoc, getDoc, getDocs, collection, query, where, deleteField, serverTimestamp } from 'firebase/firestore'
 
 // Workers のベースURL（cases.js と同じデプロイ先）
 export const WORKERS_URL = 'https://mito1-hundbook.asanuma-ryuto.workers.dev'
@@ -126,6 +126,21 @@ export async function saveLineLink(uid, profile) {
     lineNotify:      true,          // LINE通知の有効/無効（将来的に個別設定できるように）
     lineLinkedAt:    serverTimestamp(),
   })
+
+  // 連携前に作成された進行中の申請ケースにも studentLineUserId を同期設定
+  try {
+    const q = query(
+      collection(db, 'cases'),
+      where('studentId', '==', uid)
+    )
+    const snap = await getDocs(q)
+    const updates = snap.docs
+      .filter(d => ['pending_supervisor', 'pending_homeroom'].includes(d.data().status))
+      .map(d => updateDoc(doc(db, 'cases', d.id), { studentLineUserId: profile.userId }))
+    await Promise.all(updates)
+  } catch (e) {
+    console.warn('[saveLineLink] failed to update pending cases with studentLineUserId:', e)
+  }
 }
 
 /**

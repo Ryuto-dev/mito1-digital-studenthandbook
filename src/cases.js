@@ -61,11 +61,23 @@ export async function createCase({ studentId, studentName, studentEmail, title, 
   const approveToken = genToken()
   const rejectToken  = genToken()
 
+  // 生徒のLINE連携IDを事前に取得（ケースに保持）
+  let studentLineUserId = ''
+  try {
+    const userSnap = await getDoc(doc(db, 'users', studentId))
+    if (userSnap.exists()) {
+      studentLineUserId = userSnap.data().lineUserId || ''
+    }
+  } catch (e) {
+    console.warn('[createCase] lineUserId fetch failed:', e)
+  }
+
   // Firestoreに保存
   const ref = await addDoc(collection(db, 'cases'), {
     studentId,
     studentName,
     studentEmail,
+    studentLineUserId,
     title,
     reason,
     reasonDetail: reasonDetail || '',
@@ -232,21 +244,27 @@ export async function processToken(token, action, caseIdFromUrl = null) {
         })
         // LINEプッシュ通知（担任承認完了時、Messaging API経由）
         try {
-          const userSnap = await getDoc(doc(db, 'users', caseData.studentId))
-          if (userSnap.exists()) {
-            const userData = userSnap.data()
-            if (userData.lineUserId) {
-              await sendEmail('/line/notify-complete', {
-                lineUserId: userData.lineUserId,
-                studentName: caseData.studentName,
-                title: caseData.title,
-                dates: caseData.dates,
-                reason: caseData.reason,
-                reasonDetail: caseData.reasonDetail || '',
-                appBaseUrl: APP_BASE,
-              })
+          let lineUserId = caseData.studentLineUserId || caseData.lineUserId || ''
+          if (!lineUserId) {
+            try {
+              const userSnap = await getDoc(doc(db, 'users', caseData.studentId))
+              if (userSnap.exists()) {
+                lineUserId = userSnap.data().lineUserId || ''
+              }
+            } catch (err) {
+              console.warn('[line-notify] client getDoc user failed:', err)
             }
           }
+          await sendEmail('/line/notify-complete', {
+            lineUserId: lineUserId || undefined,
+            studentId:  caseData.studentId,
+            studentName: caseData.studentName,
+            title: caseData.title,
+            dates: caseData.dates,
+            reason: caseData.reason,
+            reasonDetail: caseData.reasonDetail || '',
+            appBaseUrl: APP_BASE,
+          })
         } catch (e) {
           console.warn('[line-notify] failed:', e)
         }
@@ -309,21 +327,27 @@ export async function approveByTeacher(caseId, step, teacherUid) {
     })
     // LINEプッシュ通知（ダッシュボード承認完了時も）
     try {
-      const userSnap = await getDoc(doc(db, 'users', caseData.studentId))
-      if (userSnap.exists()) {
-        const userData = userSnap.data()
-        if (userData.lineUserId) {
-          await sendEmail('/line/notify-complete', {
-            lineUserId: userData.lineUserId,
-            studentName: caseData.studentName,
-            title: caseData.title,
-            dates: caseData.dates,
-            reason: caseData.reason,
-            reasonDetail: caseData.reasonDetail || '',
-            appBaseUrl: APP_BASE,
-          })
+      let lineUserId = caseData.studentLineUserId || caseData.lineUserId || ''
+      if (!lineUserId) {
+        try {
+          const userSnap = await getDoc(doc(db, 'users', caseData.studentId))
+          if (userSnap.exists()) {
+            lineUserId = userSnap.data().lineUserId || ''
+          }
+        } catch (err) {
+          console.warn('[line-notify] dashboard getDoc user failed:', err)
         }
       }
+      await sendEmail('/line/notify-complete', {
+        lineUserId: lineUserId || undefined,
+        studentId:  caseData.studentId,
+        studentName: caseData.studentName,
+        title: caseData.title,
+        dates: caseData.dates,
+        reason: caseData.reason,
+        reasonDetail: caseData.reasonDetail || '',
+        appBaseUrl: APP_BASE,
+      })
     } catch (e) {
       console.warn('[line-notify] dashboard approve failed:', e)
     }

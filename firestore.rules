@@ -105,8 +105,8 @@ service cloud.firestore {
     // Users collection
     // =============================================
     match /users/{userId} {
-      // 閲覧（get: 単一ドキュメント取得）: 本人 or 委員会スタッフ（モデレーター以上）
-      allow get: if isOwnerUid(userId) || isStaff();
+      // 閲覧（get: 単一ドキュメント取得）: 本人 or 委員会スタッフ（モデレーター以上） or 先生（teacher）
+      allow get: if isOwnerUid(userId) || isStaff() || isTeacherRole();
 
       // 閲覧（list: 一覧取得）:
       //  - 本人 or 委員会スタッフ（モデレーター以上）: 全件
