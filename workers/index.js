@@ -458,8 +458,8 @@ async function lineExchange(body, env) {
  * https://developers.line.biz/ja/reference/messaging-api/#issue-stateless-channel-access-token
  */
 async function issueMessagingToken(env) {
-  const clientId     = env.LINE_Channel_ID || env.LINE_CHANNEL_ID
-  const clientSecret = env.LINE_Channel_secret || env.LINE_CHANNEL_SECRET
+  const clientId     = env.LINE_Channel_ID || env.LINE_CHANNEL_ID || env.LINE_client_id || env.LINE_CLIENT_ID
+  const clientSecret = env.LINE_Channel_secret || env.LINE_CHANNEL_SECRET || env.LINE_client_secret || env.LINE_CLIENT_SECRET
 
   if (!clientId || !clientSecret) {
     throw new Error('LINE_Channel_ID / LINE_Channel_secret not set in Workers secrets')
@@ -487,7 +487,10 @@ async function issueMessagingToken(env) {
  * POST https://api.line.me/v2/bot/message/push
  */
 async function linePush(env, to, messages) {
-  const accessToken = await issueMessagingToken(env)
+  let accessToken = env.LINE_CHANNEL_ACCESS_TOKEN || env.LINE_CHANNEL_TOKEN || env.LINE_MESSAGING_ACCESS_TOKEN || env.LINE_ACCESS_TOKEN
+  if (!accessToken) {
+    accessToken = await issueMessagingToken(env)
+  }
 
   const res = await fetch(LINE_PUSH_URL, {
     method: 'POST',
@@ -642,16 +645,45 @@ function buildApprovalFlex({ studentName, title, dates, reason, reasonDetail, ba
 }
 
 /**
+ * Firestore REST API 経由で生徒の lineUserId を取得する
+ */
+async function getLineUserIdByStudentId(studentId, env) {
+  if (!studentId) return null
+  const projectId = env.FIREBASE_PROJECT_ID
+  if (!projectId) return null
+
+  try {
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${studentId}`
+    const res = await fetch(url)
+    if (res.ok) {
+      const docData = await res.json()
+      const lineUserId = docData.fields?.lineUserId?.stringValue
+      return lineUserId || null
+    } else {
+      console.error(`[getLineUserIdByStudentId] Firestore REST error (${res.status}):`, await res.text())
+    }
+  } catch (e) {
+    console.error('[getLineUserIdByStudentId] error:', e)
+  }
+  return null
+}
+
+/**
  * POST /line/notify-complete
- *   { lineUserId, studentName, title, dates, reason, reasonDetail, appBaseUrl }
+ *   { lineUserId, studentId, studentName, title, dates, reason, reasonDetail, appBaseUrl }
  *
  * 担任承認完了時に生徒の LINE へ完了通知（Flex Message）を送る。
  * lineUserId が無い（未連携）場合は skipped を返すだけで、呼び出し側の処理は止めない。
  */
 async function lineNotifyComplete(body, env) {
-  const { lineUserId, studentName, title, dates, reason, reasonDetail, appBaseUrl } = body || {}
+  const { lineUserId, studentId, studentName, title, dates, reason, reasonDetail, appBaseUrl } = body || {}
 
-  if (!lineUserId) {
+  let targetLineUserId = lineUserId
+  if (!targetLineUserId && studentId) {
+    targetLineUserId = await getLineUserIdByStudentId(studentId, env)
+  }
+
+  if (!targetLineUserId) {
     return json({ ok: true, skipped: true, reason: 'not_linked' })
   }
 
@@ -659,11 +691,23 @@ async function lineNotifyComplete(body, env) {
   const flex = buildApprovalFlex({ studentName, title, dates, reason, reasonDetail, base })
 
   try {
-    await linePush(env, lineUserId, [flex])
+    await linePush(env, targetLineUserId, [flex])
     return json({ ok: true })
   } catch (e) {
-    console.error('[line/notify-complete]', e)
-    return json({ error: 'line_push_failed', detail: e.message }, 500)
+    console.error('[line/notify-complete] flex push failed, trying text fallback:', e)
+    try {
+      const datesArr = Array.isArray(dates) ? dates : (dates ? [dates] : [])
+      const datesStr = datesArr.join('、') || '—'
+      const textMsg = {
+        type: 'text',
+        text: `【公欠申請 承認完了】\n${studentName || ''} さんの公欠申請「${title || ''}」（${datesStr}）が顧問・担任の両方に承認されました。\n\n詳細: ${base}/#mypage`
+      }
+      await linePush(env, targetLineUserId, [textMsg])
+      return json({ ok: true, fallback: true })
+    } catch (fallbackErr) {
+      console.error('[line/notify-complete] text fallback push failed:', fallbackErr)
+      return json({ error: 'line_push_failed', detail: e.message }, 500)
+    }
   }
 }
 
