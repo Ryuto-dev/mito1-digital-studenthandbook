@@ -230,6 +230,26 @@ export async function processToken(token, action, caseIdFromUrl = null) {
           dates: caseData.dates,
           appBaseUrl: APP_BASE,
         })
+        // LINEプッシュ通知（担任承認完了時、Messaging API経由）
+        try {
+          const userSnap = await getDoc(doc(db, 'users', caseData.studentId))
+          if (userSnap.exists()) {
+            const userData = userSnap.data()
+            if (userData.lineUserId) {
+              await sendEmail('/line/notify-complete', {
+                lineUserId: userData.lineUserId,
+                studentName: caseData.studentName,
+                title: caseData.title,
+                dates: caseData.dates,
+                reason: caseData.reason,
+                reasonDetail: caseData.reasonDetail || '',
+                appBaseUrl: APP_BASE,
+              })
+            }
+          }
+        } catch (e) {
+          console.warn('[line-notify] failed:', e)
+        }
         return { ok: true, result: 'approved', caseData }
       }
     }
@@ -287,6 +307,26 @@ export async function approveByTeacher(caseId, step, teacherUid) {
       dates: caseData.dates,
       appBaseUrl: APP_BASE,
     })
+    // LINEプッシュ通知（ダッシュボード承認完了時も）
+    try {
+      const userSnap = await getDoc(doc(db, 'users', caseData.studentId))
+      if (userSnap.exists()) {
+        const userData = userSnap.data()
+        if (userData.lineUserId) {
+          await sendEmail('/line/notify-complete', {
+            lineUserId: userData.lineUserId,
+            studentName: caseData.studentName,
+            title: caseData.title,
+            dates: caseData.dates,
+            reason: caseData.reason,
+            reasonDetail: caseData.reasonDetail || '',
+            appBaseUrl: APP_BASE,
+          })
+        }
+      }
+    } catch (e) {
+      console.warn('[line-notify] dashboard approve failed:', e)
+    }
   }
 }
 
