@@ -15,7 +15,44 @@
  *                      and set this variable to an address on that domain.
  *   FIREBASE_PROJECT_ID -- Firebase project ID (Plain text, e.g. "mito1-digital-handbook")
  *   FIREBASE_API_KEY    -- Firebase Web API Key (Plain text, for Firestore REST API)
+ *
+ * LINE Login channel (account linking):
+ *   LINE_client_id     -- LINE Login channel ID     (Secret)
+ *   LINE_client_secret -- LINE Login channel secret (Secret)
+ *
+ * LINE Messaging API channel (push notifications):
+ *   LINE_Channel_ID     -- Messaging API channel ID     (Secret)
+ *   LINE_Channel_secret -- Messaging API channel secret (Secret)
+ *
+ * =====================================================================
+ * LINE Developers Console — LINE Login チャネルに登録するコールバックURL
+ * =====================================================================
+ *   https://mito1-tetyo.tech/line-callback.html
+ *   （ローカル開発用に追加する場合）
+ *   http://localhost:5173/line-callback.html
+ *
+ * 認可リクエストは Workers の GET /line/authorize が組み立てて
+ * https://access.line.me/oauth2/v2.1/authorize へ 302 リダイレクトする。
+ * （client_id を露出させないため、フロントは Workers を経由する）
  */
+
+// LINE endpoints
+const LINE_AUTHORIZE_URL = 'https://access.line.me/oauth2/v2.1/authorize'
+const LINE_TOKEN_URL     = 'https://api.line.me/oauth2/v2.1/token'
+const LINE_PROFILE_URL   = 'https://api.line.me/v2/profile'
+// Messaging API
+const LINE_STATELESS_TOKEN_URL = 'https://api.line.me/oauth2/v3/token'
+const LINE_PUSH_URL            = 'https://api.line.me/v2/bot/message/push'
+
+// LINE Login のコールバックURLとして許可するオリジン（オープンリダイレクト対策）
+const ALLOWED_REDIRECT_ORIGINS = [
+  'https://mito1-tetyo.tech',
+  'https://www.mito1-tetyo.tech',
+  'https://ryuto-dev.github.io',
+  'http://localhost:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:5173',
+]
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -50,6 +87,11 @@ export default {
       return resolveToken(url.searchParams.get('token'), env)
     }
 
+    // GET /line/authorize -> redirect to the LINE authorization endpoint
+    if (request.method === 'GET' && url.pathname === '/line/authorize') {
+      return lineAuthorize(url, env)
+    }
+
     if (request.method !== 'POST') {
       return json({ error: 'Method not allowed' }, 405)
     }
@@ -61,6 +103,10 @@ export default {
     if (url.pathname === '/send-approval') return sendApproval(body, env)
     if (url.pathname === '/send-complete')  return sendComplete(body, env)
     if (url.pathname === '/send-reply')     return sendReply(body, env)
+
+    // LINE account linking / notifications
+    if (url.pathname === '/line/exchange')  return lineExchange(body, env)
+    if (url.pathname === '/line/notify-complete') return lineNotifyComplete(body, env)
 
     // Default -> Gemini proxy
     return gemini(body, env)
@@ -268,6 +314,357 @@ async function sendReply(body, env) {
     return json({ error: 'Email send failed', detail, status: r.status }, 500)
   }
   return json({ ok: true })
+}
+
+// =======================================================================
+// LINE アカウント連携（LINE Login チャネル・認可コードフロー）
+// =======================================================================
+
+function isAllowedRedirect(redirectUri) {
+  try {
+    const u = new URL(redirectUri)
+    if (!ALLOWED_REDIRECT_ORIGINS.includes(u.origin)) return false
+    // コールバックページ以外へは飛ばさない
+    return u.pathname === '/line-callback.html'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * GET /line/authorize?state=xxx&redirect_uri=https://.../line-callback.html
+ *
+ * https://developers.line.biz/ja/docs/line-login/integrate-line-login/#making-an-authorization-request
+ *   response_type = code       (必須)
+ *   client_id     = チャネルID  (必須・シークレット LINE_client_id)
+ *   redirect_uri  = コールバックURL（URLエンコード・必須）
+ *   state         = CSRF対策のランダム文字列（必須）
+ *   scope         = profile openid
+ *   bot_prompt    = normal     （公式アカウントの友だち追加オプションを表示）
+ */
+function lineAuthorize(url, env) {
+  const clientId = env.LINE_client_id || env.LINE_CLIENT_ID
+  if (!clientId) {
+    return json({ error: 'LINE_client_id not set in Workers secrets' }, 500)
+  }
+
+  const state       = url.searchParams.get('state')
+  const redirectUri = url.searchParams.get('redirect_uri')
+
+  if (!state)       return json({ error: 'state required' }, 400)
+  if (!redirectUri) return json({ error: 'redirect_uri required' }, 400)
+  if (!isAllowedRedirect(redirectUri)) {
+    return json({ error: 'redirect_uri not allowed' }, 400)
+  }
+
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id:     clientId,
+    redirect_uri:  redirectUri,
+    state,
+    scope:         'profile openid',
+    bot_prompt:    'normal',
+    ui_locales:    'ja-JP',
+  })
+
+  return Response.redirect(`${LINE_AUTHORIZE_URL}?${params.toString()}`, 302)
+}
+
+/**
+ * POST /line/exchange  { code, redirectUri }
+ *
+ * 1. 認可コード → アクセストークン
+ *    POST https://api.line.me/oauth2/v2.1/token
+ * 2. アクセストークン → LINEプロフィール（userId）
+ *    GET https://api.line.me/v2/profile
+ *
+ * userId のみをクライアントへ返す（アクセストークンは返さない）。
+ */
+async function lineExchange(body, env) {
+  const clientId     = env.LINE_client_id || env.LINE_CLIENT_ID
+  const clientSecret = env.LINE_client_secret || env.LINE_CLIENT_SECRET
+
+  if (!clientId || !clientSecret) {
+    return json({ error: 'LINE_client_id / LINE_client_secret not set in Workers secrets' }, 500)
+  }
+
+  const { code, redirectUri } = body || {}
+  if (!code)        return json({ error: 'code required' }, 400)
+  if (!redirectUri) return json({ error: 'redirectUri required' }, 400)
+  if (!isAllowedRedirect(redirectUri)) {
+    return json({ error: 'redirectUri not allowed' }, 400)
+  }
+
+  // --- 1. アクセストークン取得 ---
+  let tokenData
+  try {
+    const tokenRes = await fetch(LINE_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type:    'authorization_code',
+        code,
+        redirect_uri:  redirectUri,
+        client_id:     clientId,
+        client_secret: clientSecret,
+      }).toString(),
+    })
+    tokenData = await tokenRes.json().catch(() => ({}))
+    if (!tokenRes.ok || !tokenData.access_token) {
+      console.error('[line/exchange] token error:', tokenRes.status, JSON.stringify(tokenData))
+      return json({
+        error: 'line_token_failed',
+        error_description: tokenData?.error_description || 'アクセストークンの取得に失敗しました（認可コードの有効期限は10分・1回のみ有効です）',
+      }, 400)
+    }
+  } catch (e) {
+    console.error('[line/exchange] token network error:', e)
+    return json({ error: 'line_token_network_error', error_description: e.message }, 502)
+  }
+
+  // --- 2. プロフィール取得（userId） ---
+  try {
+    const profRes = await fetch(LINE_PROFILE_URL, {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    })
+    const prof = await profRes.json().catch(() => ({}))
+    if (!profRes.ok || !prof.userId) {
+      console.error('[line/exchange] profile error:', profRes.status, JSON.stringify(prof))
+      return json({
+        error: 'line_profile_failed',
+        error_description: prof?.message || 'LINEプロフィールの取得に失敗しました',
+      }, 400)
+    }
+
+    return json({
+      userId:      prof.userId,
+      displayName: prof.displayName || '',
+      pictureUrl:  prof.pictureUrl  || '',
+    })
+  } catch (e) {
+    console.error('[line/exchange] profile network error:', e)
+    return json({ error: 'line_profile_network_error', error_description: e.message }, 502)
+  }
+}
+
+// =======================================================================
+// LINE Messaging API（プッシュ通知）
+// =======================================================================
+
+/**
+ * ステートレスチャネルアクセストークンを発行する（15分間有効・発行数無制限）
+ * POST https://api.line.me/oauth2/v3/token
+ *   grant_type=client_credentials & client_id & client_secret
+ * https://developers.line.biz/ja/reference/messaging-api/#issue-stateless-channel-access-token
+ */
+async function issueMessagingToken(env) {
+  const clientId     = env.LINE_Channel_ID || env.LINE_CHANNEL_ID
+  const clientSecret = env.LINE_Channel_secret || env.LINE_CHANNEL_SECRET
+
+  if (!clientId || !clientSecret) {
+    throw new Error('LINE_Channel_ID / LINE_Channel_secret not set in Workers secrets')
+  }
+
+  const res = await fetch(LINE_STATELESS_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type:    'client_credentials',
+      client_id:     clientId,
+      client_secret: clientSecret,
+    }).toString(),
+  })
+
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || !data.access_token) {
+    throw new Error(`channel access token failed (${res.status}): ${data?.error_description || data?.error || 'unknown'}`)
+  }
+  return data.access_token
+}
+
+/**
+ * プッシュメッセージ送信
+ * POST https://api.line.me/v2/bot/message/push
+ */
+async function linePush(env, to, messages) {
+  const accessToken = await issueMessagingToken(env)
+
+  const res = await fetch(LINE_PUSH_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+      // 同じ内容の再送による重複配信を防ぐ
+      'X-Line-Retry-Key': crypto.randomUUID(),
+    },
+    body: JSON.stringify({ to, messages }),
+  })
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    throw new Error(`push failed (${res.status}): ${detail}`)
+  }
+  return true
+}
+
+/**
+ * 承認完了通知の Flex Message を組み立てる（モダンなカードデザイン）
+ * https://developers.line.biz/ja/docs/messaging-api/using-flex-messages/
+ */
+function buildApprovalFlex({ studentName, title, dates, reason, reasonDetail, base }) {
+  const datesArr = Array.isArray(dates) ? dates : (dates ? [dates] : [])
+  const datesStr = datesArr.join('、') || '—'
+  const reasonDisplay = reasonDetail ? `${reason}（${reasonDetail}）` : (reason || '—')
+
+  const row = (label, value) => ({
+    type: 'box',
+    layout: 'baseline',
+    spacing: 'sm',
+    contents: [
+      { type: 'text', text: label, color: '#9aa4b8', size: 'sm', flex: 2, weight: 'bold' },
+      { type: 'text', text: value, color: '#333333', size: 'sm', flex: 5, wrap: true },
+    ],
+  })
+
+  return {
+    type: 'flex',
+    altText: `【承認完了】公欠申請「${title}」が承認されました`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: '#1A2744',
+        paddingAll: '20px',
+        spacing: 'xs',
+        contents: [
+          {
+            type: 'box',
+            layout: 'horizontal',
+            spacing: 'md',
+            contents: [
+              {
+                type: 'box',
+                layout: 'vertical',
+                width: '36px',
+                height: '36px',
+                cornerRadius: '18px',
+                backgroundColor: '#27AE60',
+                justifyContent: 'center',
+                alignItems: 'center',
+                contents: [
+                  { type: 'text', text: '✓', color: '#FFFFFF', size: 'lg', weight: 'bold', align: 'center' },
+                ],
+              },
+              {
+                type: 'box',
+                layout: 'vertical',
+                spacing: 'none',
+                justifyContent: 'center',
+                contents: [
+                  { type: 'text', text: '公欠申請が承認されました', color: '#FFFFFF', size: 'md', weight: 'bold', wrap: true },
+                  { type: 'text', text: '顧問・担任の承認が完了しました', color: '#A0B0CC', size: 'xxs', margin: 'xs', wrap: true },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'md',
+        paddingAll: '20px',
+        contents: [
+          { type: 'text', text: title || '公欠申請', weight: 'bold', size: 'lg', color: '#111111', wrap: true },
+          { type: 'separator', color: '#EEEEE9' },
+          {
+            type: 'box',
+            layout: 'vertical',
+            spacing: 'sm',
+            contents: [
+              row('申請者', studentName || '—'),
+              row('事由',   reasonDisplay),
+              row('公欠日', datesStr),
+            ],
+          },
+          {
+            type: 'box',
+            layout: 'vertical',
+            backgroundColor: '#EAFAF1',
+            cornerRadius: '8px',
+            paddingAll: '12px',
+            contents: [
+              {
+                type: 'text',
+                text: '担任の先生の承認をもって手続きが完了しました。当日は担任の指示に従ってください。',
+                size: 'xxs',
+                color: '#1E8449',
+                wrap: true,
+              },
+            ],
+          },
+        ],
+      },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'sm',
+        paddingAll: '16px',
+        contents: [
+          {
+            type: 'button',
+            style: 'primary',
+            color: '#1A2744',
+            height: 'sm',
+            action: {
+              type: 'uri',
+              label: 'マイページで確認',
+              uri: `${base || 'https://mito1-tetyo.tech'}/#mypage`,
+            },
+          },
+          {
+            type: 'text',
+            text: 'デジタル生徒手帳 公欠申請システム',
+            size: 'xxs',
+            color: '#AAAAAA',
+            align: 'center',
+          },
+        ],
+      },
+      styles: {
+        header: { separator: false },
+        footer: { separator: true, separatorColor: '#EEEEE9' },
+      },
+    },
+  }
+}
+
+/**
+ * POST /line/notify-complete
+ *   { lineUserId, studentName, title, dates, reason, reasonDetail, appBaseUrl }
+ *
+ * 担任承認完了時に生徒の LINE へ完了通知（Flex Message）を送る。
+ * lineUserId が無い（未連携）場合は skipped を返すだけで、呼び出し側の処理は止めない。
+ */
+async function lineNotifyComplete(body, env) {
+  const { lineUserId, studentName, title, dates, reason, reasonDetail, appBaseUrl } = body || {}
+
+  if (!lineUserId) {
+    return json({ ok: true, skipped: true, reason: 'not_linked' })
+  }
+
+  const base = appBaseUrl || env.APP_BASE_URL || 'https://mito1-tetyo.tech'
+  const flex = buildApprovalFlex({ studentName, title, dates, reason, reasonDetail, base })
+
+  try {
+    await linePush(env, lineUserId, [flex])
+    return json({ ok: true })
+  } catch (e) {
+    console.error('[line/notify-complete]', e)
+    return json({ error: 'line_push_failed', detail: e.message }, 500)
+  }
 }
 
 // -- Resend API ---------------------------------------------------------

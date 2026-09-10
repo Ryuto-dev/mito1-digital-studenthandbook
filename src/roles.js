@@ -183,3 +183,57 @@ export function canUseTeacherSuggest(profile) {
 export function assignableRoles(myRole) {
   return Object.values(ROLES).filter(r => canAssignRole(myRole, r))
 }
+
+// =============================================
+// バッジ表示用ヘルパー（マイページ／管理パネル共通）
+// =============================================
+
+/**
+ * ロールバッジの表示情報を返す
+ * @param {string} role
+ * @returns {{label:string, color:string, bg:string}}
+ */
+export function roleBadge(role) {
+  return {
+    label: ROLE_LABELS[role] || role || '不明',
+    color: ROLE_COLORS[role] || '#888888',
+    bg:    ROLE_BGS[role]    || '#eeeeee',
+  }
+}
+
+/**
+ * 承認状態バッジの表示情報を返す。
+ * 生徒（role === 'student'）のみ「承認済み / 未承認」の概念があるため、
+ * それ以外のロールでは null を返す（バッジ非表示）。
+ * @param {object} profile users/{uid} のドキュメント（role, approved を含む）
+ * @returns {{label:string, color:string, bg:string, approved:boolean}|null}
+ */
+export function approvalBadge(profile) {
+  if (!profile || profile.role !== ROLES.STUDENT) return null
+  const approved = !!profile.approved
+  return approved
+    ? { label: '✓ 承認済み', color: '#155724', bg: '#d4edda', approved: true }
+    : { label: '未承認',     color: '#856404', bg: '#fff3cd', approved: false }
+}
+
+/**
+ * マイページに並べて表示するバッジ一覧を返す。
+ * 生徒: [ロール, 承認状態]  / それ以外: [ロール]
+ * @param {object} profile
+ * @returns {Array<{label:string,color:string,bg:string}>}
+ */
+export function profileBadges(profile) {
+  const badges = [roleBadge(profile?.role)]
+  const appr = approvalBadge(profile)
+  if (appr) badges.push({ label: appr.label, color: appr.color, bg: appr.bg })
+  return badges
+}
+
+/**
+ * 未承認の生徒に対して表示する制限事項の説明文（null = 制限なし）
+ */
+export function approvalNotice(profile) {
+  const appr = approvalBadge(profile)
+  if (!appr || appr.approved) return null
+  return '現在は未承認アカウントです。デジタル身分証や先生のメールアドレスサジェストなど、一部の機能がご利用いただけません。承認は生徒会（委員会）の担当者が行います。'
+}

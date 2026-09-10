@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#06c755">
+<meta name="robots" content="noindex">
+<title>LINE連携 — 水戸第一高等学校 デジタル生徒手帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#1a2744;--enjii:#8b1a2c;--line:#06c755;
+  --bg:#f6f6f4;--surface:#fff;--text:#111;--text-2:#444;--text-3:#888;--border:#e2e2de;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0e0e11;--surface:#18181d;--text:#e4e4e0;--text-2:#989894;--text-3:#565656;--border:#2a2a32}
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.card{background:var(--surface);border:1.5px solid var(--border);border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.10);padding:38px 32px;width:100%;max-width:460px;text-align:center}
+.line-mark{width:64px;height:64px;border-radius:16px;background:var(--line);display:flex;align-items:center;justify-content:center;margin:0 auto 18px}
+.line-mark svg{width:40px;height:40px;fill:#fff}
+.spinner{width:38px;height:38px;border:3px solid var(--border);border-top-color:var(--line);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 18px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ttl{font-size:19px;font-weight:700;color:var(--text);margin-bottom:10px;letter-spacing:.01em}
+.sub{font-size:13px;color:var(--text-3);line-height:1.9}
+.profile{display:flex;align-items:center;gap:12px;justify-content:center;background:rgba(6,199,85,.08);border:1px solid rgba(6,199,85,.25);border-radius:12px;padding:14px 16px;margin:20px 0}
+.profile img{width:44px;height:44px;border-radius:50%;object-fit:cover;background:var(--border)}
+.profile .pname{font-size:14px;font-weight:600;color:var(--text)}
+.profile .pmeta{font-size:11px;color:var(--text-3);margin-top:2px}
+.btn{display:block;width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-top:10px;font-family:inherit;text-decoration:none;transition:.15s}
+.btn-primary{background:var(--navy);color:#fff}
+.btn-primary:hover{background:#253a78}
+.btn-ghost{background:transparent;color:var(--text-2);border:1.5px solid var(--border)}
+.err{background:rgba(139,26,44,.08);border:1px solid rgba(139,26,44,.25);border-radius:10px;padding:13px 15px;font-size:12.5px;color:var(--enjii);line-height:1.8;text-align:left;margin:18px 0;word-break:break-word}
+.badge-ok{display:inline-flex;align-items:center;gap:6px;background:#d4edda;color:#155724;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:20px;margin-bottom:14px}
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div class="spinner"></div>
+  <div class="ttl">LINE連携を処理しています</div>
+  <div class="sub">そのままお待ちください…</div>
+</div>
+
+<script type="module" src="/src/line_callback.js"></script>
+</body>
+</html>

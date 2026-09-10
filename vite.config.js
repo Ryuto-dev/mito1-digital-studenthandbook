@@ -16,6 +16,7 @@ export default defineConfig({
         teacher: resolve(__dirname, 'teacher.html'),
         privacy: resolve(__dirname, 'privacy.html'),
         terms:   resolve(__dirname, 'terms.html'),
+        lineCallback: resolve(__dirname, 'line-callback.html'),
       }
     }
   }
