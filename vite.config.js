@@ -14,6 +14,8 @@ export default defineConfig({
         approve: resolve(__dirname, 'approve.html'),
         auth:    resolve(__dirname, 'auth.html'),
         teacher: resolve(__dirname, 'teacher.html'),
+        privacy: resolve(__dirname, 'privacy.html'),
+        terms:   resolve(__dirname, 'terms.html'),
       }
     }
   }
