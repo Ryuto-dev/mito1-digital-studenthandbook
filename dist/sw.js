@@ -1,9 +1,10 @@
 // ================================================
-// Service Worker - mito1 Digital Handbook v4
+// Service Worker - mito1 Digital Handbook v5
 // v4: Web Push対応（push / notificationclick追加）
+// v5: pushペイロードのデコードを堅牢化
 // 修正: Response.clone() を非同期処理の前に呼ぶ
 // ================================================
-const CACHE = 'mito1-v4';  // バージョン上げて古いキャッシュを強制削除
+const CACHE = 'mito1-v5';  // バージョン上げて古いキャッシュを強制削除
 const BASE  = '';
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -23,16 +24,30 @@ self.addEventListener('activate', e => {
 // ================================================
 self.addEventListener('push', e => {
   console.log('[mito1-sw] push received');
+
+  // ペイロードのデコード。
+  // 暗号化(aes128gcm)が壊れていると e.data.json() が例外になるので、
+  // テキスト → 空 の順にフォールバックする。
+  // iOSは userVisibleOnly 購読で通知を出さないと購読を失効させるため、
+  // 何があっても必ず showNotification を1回呼ぶこと。
   let data = {};
   try {
-    data = e.data ? e.data.json() : {};
-  } catch {
-    data = { body: e.data ? e.data.text() : '' };
+    if (e.data) {
+      const raw = e.data.text();
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        data = { body: raw };
+      }
+    }
+  } catch (err) {
+    console.log('[mito1-sw] payload decode failed:', err && err.message);
   }
+  if (!data || typeof data !== 'object') data = {};
 
   const title = data.title || '水一手帳';
   const options = {
-    body: data.body || '',
+    body: data.body || 'お知らせがあります',
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
     tag: data.tag || 'mito1-notify',

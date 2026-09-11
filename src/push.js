@@ -80,6 +80,28 @@ function urlBase64ToUint8Array(base64String) {
   return out
 }
 
+function bytesToBase64Url(buf) {
+  const bytes = new Uint8Array(buf)
+  let bin = ''
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+/**
+ * 既存のPushSubscriptionが、指定したVAPID公開鍵で作成されたものか判定する。
+ * 鍵をローテーションすると古い購読は無効（403 VapidPkHashMismatch）になるので、
+ * 一致しない場合は購読を作り直す必要がある。
+ */
+export function subscriptionMatchesKey(sub, publicKey) {
+  try {
+    const applied = sub.options && sub.options.applicationServerKey
+    if (!applied) return true // 判定不能なら既存を尊重する
+    return bytesToBase64Url(applied) === publicKey.replace(/=+$/, '')
+  } catch {
+    return true
+  }
+}
+
 async function swRegistration() {
   // index.html側ですでに /sw.js を登録済み。readyで取得する
   let reg = await navigator.serviceWorker.ready.catch(() => null)
@@ -136,11 +158,21 @@ export async function subscribePush(uid) {
 
   // 2. プッシュサーバーへ購読登録
   const reg = await swRegistration()
-  const old = await reg.pushManager.getSubscription().catch(() => null)
-  const sub = old || await reg.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-  })
+
+  // 既存購読があっても、それが「今のVAPID公開鍵」で作られたものとは限らない。
+  // 鍵をローテーションした場合、古い購読のままだとApple/Googleが
+  // 403 VapidPkHashMismatch を返し通知が届かないため、鍵が違えば作り直す。
+  let sub = await reg.pushManager.getSubscription().catch(() => null)
+  if (sub && !subscriptionMatchesKey(sub, VAPID_PUBLIC_KEY)) {
+    await sub.unsubscribe().catch(() => {})
+    sub = null
+  }
+  if (!sub) {
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    })
+  }
   const json = sub.toJSON()
 
   // 3. Firestoreに保存（本人専用サブコレクション）

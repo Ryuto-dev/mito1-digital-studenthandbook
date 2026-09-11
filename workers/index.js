@@ -953,8 +953,11 @@ async function webPushSend(subscription, message, { vapidPublic, vapidPrivate, s
   }
   if (!res.ok) {
     const detail = await res.text().catch(() => '')
+    // 403 は VAPID鍵の不一致（購読時の鍵とサーバー鍵が別物）が典型。
+    // フロントの VAPID_PUBLIC_KEY と Workers の鍵ペアが揃っているか確認すること。
     throw new Error(`push endpoint error (${res.status}): ${detail.slice(0, 200)}`)
   }
+  // Apple/Google は成功時 201 Created を返す。200 や 2xx でも受理扱いにする。
   return res.status
 }
 
@@ -1015,14 +1018,25 @@ async function encryptAes128gcm(clientP256dhB64, clientAuthB64, plaintextBytes) 
   const cek   = await hkdfExpand(prk, concatBytes(te.encode('Content-Encoding: aes128gcm'), new Uint8Array([0])), 16)
   const nonce = await hkdfExpand(prk, concatBytes(te.encode('Content-Encoding: nonce'), new Uint8Array([0])), 12)
 
-  // 単一レコード: 2Bパディング長(0) + 平文
-  const plain = concatBytes(new Uint8Array([0, 0]), plaintextBytes)
+  // 単一レコード（RFC8188 §2）: 平文 + パディングデリミタ。
+  //
+  // ★ここが「200が返るのに通知が出ない」原因だった。
+  //   aes128gcm(RFC8188)のレコードは「平文 || デリミタ(1B) || パディング(0x00...)」で、
+  //   最終レコードのデリミタは 0x02、非最終レコードは 0x01 と決まっている。
+  //   旧実装は aesgcm(draft-04)形式の「2Bパディング長を先頭に付ける」レイアウトを
+  //   使っていたため、復号自体は成功する（AES-GCM認証タグは正しい＝Appleは201を返す）
+  //   一方で、ブラウザ側のRFC8188デコーダがレコード末尾にデリミタを見つけられず
+  //   パースに失敗し、pushイベントが配送されずに黙って捨てられていた。
+  //   さらに先頭2バイトのゴミにより e.data.json() も壊れる。
+  const plain = concatBytes(plaintextBytes, new Uint8Array([0x02]))
   const cekKey = await crypto.subtle.importKey('raw', cek, { name: 'AES-GCM' }, false, ['encrypt'])
   const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, cekKey, plain))
 
-  // ヘッダ: salt(16) + rs=4096(4B BE) + idlen(1B) + keyid(serverPub)
+  // ヘッダ: salt(16) + rs(4B BE) + idlen(1B) + keyid(serverPub=65B)
+  const rs = 4096
   const header = concatBytes(
-    salt, new Uint8Array([0, 0, 0x10, 0x00]),
+    salt,
+    new Uint8Array([(rs >>> 24) & 0xff, (rs >>> 16) & 0xff, (rs >>> 8) & 0xff, rs & 0xff]),
     new Uint8Array([serverPubRaw.length]), serverPubRaw
   )
   return { body: concatBytes(header, ct) }
