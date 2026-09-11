@@ -1388,6 +1388,7 @@ function renderUsers() {
             <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">クラス</th>
             <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">番号</th>
             <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">承認</th>
+            <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">LINE連携</th>
             <th style="padding:9px 12px;border-bottom:2px solid var(--border)"></th>
           </tr>
         </thead>
@@ -1419,6 +1420,11 @@ function renderUsers() {
               <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center;color:var(--text-2)">${u.number||'—'}</td>
               <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center">
                 ${approvedCell}
+              </td>
+              <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center">
+                ${u.lineUserId
+                  ? `<span title="${escHtml(u.lineDisplayName ? `LINE: ${u.lineDisplayName}` : 'LINE連携済み')}" style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:10px;color:#155724;background:#d4edda">✓ 連携済み</span>`
+                  : `<span style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:10px;color:#856404;background:#f8f9fa">未連携</span>`}
               </td>
               <td style="padding:9px 12px;border-bottom:1px solid var(--border-2)">
                 <div style="display:flex;gap:4px;justify-content:flex-end">
