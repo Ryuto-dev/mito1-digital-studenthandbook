@@ -27,6 +27,16 @@
  *   LINE_Channel_ID     -- Messaging API channel ID     (Secret)
  *   LINE_Channel_secret -- Messaging API channel secret (Secret)
  *
+ * Web Push (PWA push notifications):
+ *   VAPID_PUBLIC_KEY  -- VAPID public key, base64url (Secret or Plain text)
+ *   VAPID_PRIVATE_KEY -- VAPID private key, base64url (Secret)
+ *   VAPID_SUBJECT     -- contact, e.g. "mailto:noreply@mito1-tetyo.tech" (Plain text)
+ *   Key generation (run once locally, never commit the private key):
+ *     node -e "const c=require('crypto');const e=c.createECDH('prime256v1');e.generateKeys();const b=(x)=>Buffer.from(x).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');console.log('PUBLIC:'+b(e.getPublicKey()));console.log('PRIVATE:'+b(e.getPrivateKey()))"
+ *   Registration:
+ *     npx wrangler secret put VAPID_PRIVATE_KEY --config workers/wrangler.toml
+ *     npx wrangler secret put VAPID_PUBLIC_KEY  --config workers/wrangler.toml
+ *
  * =====================================================================
  * LINE Developers Console — LINE Login チャネルに登録するコールバックURL
  * =====================================================================
@@ -115,6 +125,9 @@ export default {
     // LINE account linking / notifications
     if (url.pathname === '/line/exchange')  return lineExchange(body, env)
     if (url.pathname === '/line/notify-complete') return lineNotifyComplete(body, env)
+
+    // Web Push (PWA push notifications)
+    if (url.pathname === '/push/send') return pushSend(body, env)
 
     // Default -> Gemini proxy
     return gemini(body, env)
@@ -862,6 +875,196 @@ async function lineNotifyComplete(body, env) {
       return json({ error: 'line_push_failed', detail: e.message }, 500)
     }
   }
+}
+
+// =======================================================================
+// Web Push（PWAプッシュ通知送信・依存なしWebCrypto実装）
+// =======================================================================
+//
+// フロー:
+//   1. クライアント(src/push.js)がPush APIで購読し、購読情報{endpoint,keys}を
+//      Firestore users/{uid}/pushSubscriptions に保存（クライアントSDK経由）
+//   2. 承認完了時などに先生側クライアントが購読情報を読み、
+//      POST /push/send { subscription, payload } で本エンドポイントを呼ぶ
+//      （Workersは秘密鍵のみ保持し、Firestoreを読まない設計）
+//   3. VAPID署名＋aes128gcm暗号化（RFC8292/RFC8188）してpush endpointへPOST
+//
+// 404/410応答時は購読切れ → { ok:false, gone:true } を返すので、
+// 呼び出し側は該当購読をFirestoreから削除すること。
+
+/** POST /push/send */
+async function pushSend(body, env) {
+  const { subscription, payload } = body || {}
+  if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+    return json({ error: 'subscription required (endpoint, keys.p256dh, keys.auth)' }, 400)
+  }
+
+  const vapidPublic  = env.VAPID_PUBLIC_KEY
+  const vapidPrivate = env.VAPID_PRIVATE_KEY
+  const subject = env.VAPID_SUBJECT || 'mailto:noreply@mito1-tetyo.tech'
+  if (!vapidPublic || !vapidPrivate) {
+    return json({ error: 'VAPID keys not set in Workers secrets' }, 500)
+  }
+
+  try {
+    const message = JSON.stringify({
+      title: payload?.title || '水一手帳',
+      body:  payload?.body  || '',
+      url:   payload?.url   || '/',
+      tag:   payload?.tag   || 'mito1-notify',
+    })
+    const status = await webPushSend(subscription, message, { vapidPublic, vapidPrivate, subject })
+    return json({ ok: true, status })
+  } catch (e) {
+    const msg = String((e && e.message) || e)
+    // 購読切れ（ブラウザ側で削除済み等）
+    if (/\(410\)|\(404\)/.test(msg)) {
+      return json({ ok: false, gone: true, detail: msg }, 410)
+    }
+    console.error('[push/send] failed:', msg)
+    return json({ error: 'push_failed', detail: msg }, 502)
+  }
+}
+
+async function webPushSend(subscription, message, { vapidPublic, vapidPrivate, subject }) {
+  const endpoint = new URL(subscription.endpoint)
+  const audience = `${endpoint.protocol}//${endpoint.host}`
+  const jwt = await vapidJwt(audience, subject, vapidPublic, vapidPrivate)
+  const { body } = await encryptAes128gcm(
+    subscription.keys.p256dh,
+    subscription.keys.auth,
+    new TextEncoder().encode(message)
+  )
+
+  const res = await fetch(subscription.endpoint, {
+    method: 'POST',
+    headers: {
+      'TTL': '86400',
+      'Content-Encoding': 'aes128gcm',
+      'Content-Type': 'application/octet-stream',
+      'Authorization': `vapid t=${jwt}, k=${vapidPublic}`,
+    },
+    body,
+  })
+
+  if (res.status === 404 || res.status === 410) {
+    throw new Error(`subscription gone (${res.status})`)
+  }
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    throw new Error(`push endpoint error (${res.status}): ${detail.slice(0, 200)}`)
+  }
+  return res.status
+}
+
+// ---- VAPID JWT (ES256) ----
+async function vapidJwt(audience, subject, vapidPublicB64, vapidPrivateB64) {
+  const pubBytes = b64urlToBytes(vapidPublicB64) // 65B uncompressed: 0x04 || X(32) || Y(32)
+  if (pubBytes.length !== 65 || pubBytes[0] !== 0x04) {
+    throw new Error('invalid VAPID_PUBLIC_KEY')
+  }
+  const jwk = {
+    kty: 'EC',
+    crv: 'P-256',
+    x: bytesToB64url(pubBytes.slice(1, 33)),
+    y: bytesToB64url(pubBytes.slice(33, 65)),
+    d: vapidPrivateB64,
+    ext: true,
+  }
+  const key = await crypto.subtle.importKey(
+    'jwk', jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']
+  )
+  const header  = bytesToB64url(new TextEncoder().encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })))
+  const exp = Math.floor(Date.now() / 1000) + 12 * 3600
+  const payload = bytesToB64url(new TextEncoder().encode(JSON.stringify({ aud: audience, exp, sub: subject })))
+  const unsignedToken = `${header}.${payload}`
+  // WebCryptoのECDSA署名はJWS用の生R||S形式（64B）で返る
+  const sig = new Uint8Array(await crypto.subtle.sign(
+    { name: 'ECDSA', hash: 'SHA-256' }, key, new TextEncoder().encode(unsignedToken)
+  ))
+  return `${unsignedToken}.${bytesToB64url(sig)}`
+}
+
+// ---- aes128gcm 本文暗号化 (RFC8188 §4.3) ----
+async function encryptAes128gcm(clientP256dhB64, clientAuthB64, plaintextBytes) {
+  const te = new TextEncoder()
+  const clientPub  = b64urlToBytes(clientP256dhB64)
+  const authSecret = b64urlToBytes(clientAuthB64)
+
+  // サーバー側エフェメラル鍵
+  const serverKeys = await crypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']
+  )
+  const serverPubRaw = new Uint8Array(await crypto.subtle.exportKey('raw', serverKeys.publicKey))
+  const clientPubKey = await crypto.subtle.importKey(
+    'raw', clientPub, { name: 'ECDH', namedCurve: 'P-256' }, false, []
+  )
+  const shared = new Uint8Array(await crypto.subtle.deriveBits(
+    { name: 'ECDH', public: clientPubKey }, serverKeys.privateKey, 256
+  ))
+
+  const prkKey = await hkdfExtract(authSecret, shared)
+  const keyInfo = concatBytes(
+    te.encode('WebPush: info'), new Uint8Array([0]), clientPub, serverPubRaw
+  )
+  const ikm = await hkdfExpand(prkKey, keyInfo, 32)
+
+  const salt = crypto.getRandomValues(new Uint8Array(16))
+  const prk = await hkdfExtract(salt, ikm)
+  const cek   = await hkdfExpand(prk, concatBytes(te.encode('Content-Encoding: aes128gcm'), new Uint8Array([0])), 16)
+  const nonce = await hkdfExpand(prk, concatBytes(te.encode('Content-Encoding: nonce'), new Uint8Array([0])), 12)
+
+  // 単一レコード: 2Bパディング長(0) + 平文
+  const plain = concatBytes(new Uint8Array([0, 0]), plaintextBytes)
+  const cekKey = await crypto.subtle.importKey('raw', cek, { name: 'AES-GCM' }, false, ['encrypt'])
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, cekKey, plain))
+
+  // ヘッダ: salt(16) + rs=4096(4B BE) + idlen(1B) + keyid(serverPub)
+  const header = concatBytes(
+    salt, new Uint8Array([0, 0, 0x10, 0x00]),
+    new Uint8Array([serverPubRaw.length]), serverPubRaw
+  )
+  return { body: concatBytes(header, ct) }
+}
+
+// ---- Web Push用バイト列ユーティリティ ----
+function b64urlToBytes(s) {
+  const pad = '='.repeat((4 - (s.length % 4)) % 4)
+  const b64 = (s + pad).replace(/-/g, '+').replace(/_/g, '/')
+  const bin = atob(b64)
+  const out = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
+  return out
+}
+
+function bytesToB64url(bytes) {
+  const arr = new Uint8Array(bytes)
+  let bin = ''
+  const CHUNK = 0x8000
+  for (let i = 0; i < arr.length; i += CHUNK) {
+    bin += String.fromCharCode.apply(null, arr.subarray(i, i + CHUNK))
+  }
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+function concatBytes(...arrs) {
+  const total = arrs.reduce((n, a) => n + a.length, 0)
+  const out = new Uint8Array(total)
+  let off = 0
+  for (const a of arrs) { out.set(a, off); off += a.length }
+  return out
+}
+
+async function hkdfExtract(salt, ikm) {
+  const key = await crypto.subtle.importKey('raw', salt, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  return new Uint8Array(await crypto.subtle.sign('HMAC', key, ikm))
+}
+
+async function hkdfExpand(prk, info, len) {
+  const key = await crypto.subtle.importKey('raw', prk, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  const input = concatBytes(info, new Uint8Array([1]))
+  const out = new Uint8Array(await crypto.subtle.sign('HMAC', key, input))
+  return out.slice(0, len)
 }
 
 // -- Resend API ---------------------------------------------------------

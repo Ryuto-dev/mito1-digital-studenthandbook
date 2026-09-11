@@ -1880,6 +1880,25 @@ select.cf-input{cursor:pointer}
         </div>
       </div>
 
+      <!-- ============ プッシュ通知（PWA） ============ -->
+      <div id="pushCard" class="line-linked" style="display:none;border-color:rgba(26,39,68,.28);border-left-color:#1a2744">
+        <div class="line-linked-row">
+          <div class="line-linked-ava" style="background:#1a2744">
+            <svg viewBox="0 0 24 24" style="width:22px;height:22px;stroke:#fff;fill:none;stroke-width:1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+              <span class="line-linked-badge" id="pushStatusBadge" style="background:rgba(26,39,68,.1);color:#1a2744">プッシュ通知: 確認中...</span>
+            </div>
+            <div class="line-linked-sub" id="pushStatusText">端末の対応状況を確認しています。</div>
+          </div>
+          <button type="button" class="line-unlink-btn" id="pushToggleBtn" onclick="togglePushFront()">通知をONにする</button>
+        </div>
+        <div id="pushTestRow" style="display:none;margin-top:10px;text-align:right">
+          <button type="button" class="line-unlink-btn" onclick="sendTestPushFront()">テスト通知を送る</button>
+        </div>
+      </div>
+
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
         <div style="font-size:14px;font-weight:600;color:var(--text)">公欠申請の履歴</div>
         <button onclick="nav('apply')" style="font-size:12px;padding:6px 14px;background:var(--navy);color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:inherit">＋ 新しい申請</button>
@@ -2439,6 +2458,10 @@ import { onAuth, getCurrentProfile, logout, getTeacherDirectory } from '/src/aut
 import { createCase, getMyCases, deleteCaseByStudent } from '/src/cases.js'
 import { canUseTeacherSuggest, profileBadges, approvalNotice } from '/src/roles.js'
 import { startLineLink, unlinkLine, isLinked } from '/src/line.js'
+import {
+  pushAvailability, getPushState,
+  subscribePush, unsubscribePush, sendTestPush,
+} from '/src/push.js'
 
 loadAllData().catch(e => console.error('[Firestore]', e))
 
@@ -2533,6 +2556,9 @@ function updateAuthUI() {
 
     // LINE連携の状態表示
     renderLineLinkUI(profile)
+
+    // PWAプッシュ通知の状態表示
+    renderPushUI()
 
     // 現在マイページを表示中なら即座にケース一覧を読み込む
     const mypageSec = document.getElementById('pg-mypage')
@@ -2944,6 +2970,91 @@ window.doLogoutFront = async function() {
   _currentProfile = null
   updateAuthUI()
   nav('home')
+}
+
+// =============================================
+// マイページ：PWAプッシュ通知
+// 購読ON/OFFは必ずタップ操作内から行う（iOSの通知許可ダイアログ要件）。
+// =============================================
+let _pushBusy = false
+
+async function renderPushUI() {
+  const card  = document.getElementById('pushCard')
+  const badge = document.getElementById('pushStatusBadge')
+  const text  = document.getElementById('pushStatusText')
+  const btn   = document.getElementById('pushToggleBtn')
+  const testRow = document.getElementById('pushTestRow')
+  if (!card || !_currentUser) { if (card) card.style.display = 'none'; return }
+  card.style.display = ''
+
+  const avail = pushAvailability()
+  if (!avail.supported) {
+    if (avail.reason === 'ios-browser') {
+      badge.textContent = 'プッシュ通知: 設定が必要'
+      text.innerHTML = 'iPhoneではSafariから「共有 → ホーム画面に追加」し、追加したアプリアイコンから開くと通知を受け取れます。'
+    } else {
+      badge.textContent = 'プッシュ通知: 非対応'
+      text.textContent = 'このブラウザはプッシュ通知に対応していません。'
+    }
+    btn.style.display = 'none'
+    if (testRow) testRow.style.display = 'none'
+    return
+  }
+  btn.style.display = ''
+
+  try {
+    const st = await getPushState()
+    if (st.permission === 'denied') {
+      badge.textContent = 'プッシュ通知: ブロック中'
+      text.textContent = 'ブラウザ設定で通知を許可してください（iPhone: 設定 → アプリ → 通知）。'
+      btn.textContent = '通知をONにする'
+      if (testRow) testRow.style.display = 'none'
+    } else if (st.subscribed) {
+      badge.textContent = '✓ プッシュ通知: ON'
+      text.textContent = '承認完了などのお知らせをこの端末にプッシュ通知します。'
+      btn.textContent = '通知をOFFにする'
+      if (testRow) testRow.style.display = ''
+    } else {
+      badge.textContent = 'プッシュ通知: OFF'
+      text.textContent = 'ONにすると承認完了などのお知らせをこの端末にプッシュ通知します。'
+      btn.textContent = '通知をONにする'
+      if (testRow) testRow.style.display = 'none'
+    }
+  } catch {
+    badge.textContent = 'プッシュ通知: 確認失敗'
+    text.textContent = '状態の確認に失敗しました。'
+  }
+}
+
+window.togglePushFront = async function() {
+  if (!_currentUser || _pushBusy) return
+  _pushBusy = true
+  const btn = document.getElementById('pushToggleBtn')
+  const prev = btn ? btn.textContent : ''
+  if (btn) { btn.disabled = true; btn.textContent = '処理中...' }
+  try {
+    const st = await getPushState()
+    if (st.subscribed) {
+      await unsubscribePush(_currentUser.uid)
+    } else {
+      await subscribePush(_currentUser.uid)
+    }
+    await renderPushUI()
+  } catch (e) {
+    alert(e?.message || String(e))
+    if (btn) btn.textContent = prev
+  } finally {
+    if (btn) btn.disabled = false
+    _pushBusy = false
+  }
+}
+
+window.sendTestPushFront = async function() {
+  try {
+    await sendTestPush()
+  } catch (e) {
+    alert('テスト送信に失敗: ' + (e?.message || String(e)))
+  }
 }
 
 // マイページ：申請取り下げ

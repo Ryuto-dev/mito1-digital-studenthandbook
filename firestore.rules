@@ -140,6 +140,20 @@ service cloud.firestore {
     }
 
     // =============================================
+    // Push subscriptions (Web Push / PWA通知)
+    // users/{userId}/pushSubscriptions/{subId}
+    //  - 書き込み: 本人のみ（購読ON/OFFは本人の操作）
+    //  - 読み取り: 本人 or 先生・委員会スタッフ
+    //    （承認完了通知の送信時に先生側クライアントが購読情報を読むため。
+    //     Workersは秘密鍵のみ保持しFirestoreを読まない設計）
+    // =============================================
+    match /users/{userId}/pushSubscriptions/{subId} {
+      allow read: if isOwnerUid(userId) || isStaff() || isTeacherRole();
+      allow create, update: if isOwnerUid(userId);
+      allow delete: if isOwnerUid(userId);
+    }
+
+    // =============================================
     // Cases (absence applications) collection
     // 公欠申請ケース: モデレーター・管理者(生徒)は閲覧不可
     // =============================================
