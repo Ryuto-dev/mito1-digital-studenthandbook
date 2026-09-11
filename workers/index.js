@@ -914,6 +914,7 @@ async function pushSend(body, env) {
       tag:   payload?.tag   || 'mito1-notify',
     })
     const status = await webPushSend(subscription, message, { vapidPublic, vapidPrivate, subject })
+    console.log(`[push/send] delivered: appleStatus=${status} host=${new URL(subscription.endpoint).host}`)
     return json({ ok: true, status })
   } catch (e) {
     const msg = String((e && e.message) || e)

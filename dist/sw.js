@@ -22,6 +22,7 @@ self.addEventListener('activate', e => {
 // payload: { title, body, url, tag }
 // ================================================
 self.addEventListener('push', e => {
+  console.log('[mito1-sw] push received');
   let data = {};
   try {
     data = e.data ? e.data.json() : {};
@@ -39,7 +40,11 @@ self.addEventListener('push', e => {
     data: { url: data.url || '/' },
   };
 
-  e.waitUntil(self.registration.showNotification(title, options));
+  e.waitUntil(
+    self.registration.showNotification(title, options)
+      .then(() => console.log('[mito1-sw] notification shown'))
+      .catch(err => console.log('[mito1-sw] showNotification failed:', err && err.message))
+  );
 });
 
 // 通知タップ → アプリを開く／フォーカス
