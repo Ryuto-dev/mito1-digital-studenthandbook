@@ -328,6 +328,7 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
 .history-row:last-child{border-bottom:none}
 .history-year-cell{font-size:12.5px;color:var(--text-3);font-family:'Noto Sans JP',sans-serif}
 .history-event-cell{font-size:13.5px;color:var(--text-2)}
+.principals-row{grid-template-columns:60px 1fr 1fr auto}
 
 /* Loading */
 .loading-spinner{
@@ -412,6 +413,125 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
 }
 .dash-welcome-title{font-family:'Noto Serif JP',serif;font-size:18px;font-weight:600;margin-bottom:4px}
 .dash-welcome-sub{font-size:12px;color:rgba(255,255,255,.65)}
+
+/* ===== RESPONSIVE: hamburger / drawer (hidden on desktop) ===== */
+.adm-menu-btn{
+  display:none;align-items:center;justify-content:center;
+  width:38px;height:38px;flex-shrink:0;
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);
+  border-radius:8px;cursor:pointer;color:#fff;
+}
+.adm-menu-btn svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2}
+.sb-close-btn{
+  display:none;align-items:center;justify-content:center;
+  width:34px;height:34px;margin-left:auto;margin-bottom:6px;
+  background:none;border:none;border-radius:7px;cursor:pointer;color:var(--text-3);
+}
+.sb-close-btn:hover{background:var(--surface2);color:var(--text)}
+.sb-close-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
+.sb-overlay{display:none}
+
+/* Tables: touch-friendly horizontal scroll */
+.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* ===== Tablet (<=900px): sidebar becomes a drawer ===== */
+@media (max-width:900px){
+  .adm-menu-btn{display:flex}
+  .adm-sidebar{
+    top:0;z-index:300;width:min(270px,80vw);
+    padding:14px 12px calc(20px + env(safe-area-inset-bottom));
+    transform:translateX(-105%);transition:transform .22s ease;
+    box-shadow:none;
+  }
+  .adm-sidebar.open{transform:none;box-shadow:8px 0 32px rgba(0,0,0,.18)}
+  .sb-close-btn{display:flex}
+  .sb-overlay.show{
+    display:block;position:fixed;inset:0;z-index:250;
+    background:rgba(0,0,0,.42);
+  }
+  .adm-main{margin-left:0;padding:20px 16px}
+  .adm-section-header{flex-wrap:wrap;gap:12px}
+  .adm-section-title{font-size:18px}
+  .adm-sb-item{padding:11px 12px;font-size:14px}
+  .btn-icon{width:34px;height:34px}
+  /* 9-column users table: keep readable via scroll instead of crushing */
+  .users-table{min-width:840px}
+  .history-row{grid-template-columns:1fr auto}
+  .history-year-cell{grid-column:1/-1;font-size:11.5px}
+  .principals-row{grid-template-columns:auto 1fr auto}
+  .principals-row .history-year-cell{grid-column:1/-1}
+}
+
+/* ===== Phone (<=640px): cards, stacked layouts ===== */
+@media (max-width:640px){
+  #loginScreen{padding:20px}
+  .login-box{padding:32px 24px}
+  .adm-header{padding:0 12px;gap:8px}
+  .adm-header-user{display:none}
+  .adm-brand-name{font-size:12px}
+  .adm-main{padding:16px 12px}
+  .adm-section-title{font-size:17px}
+  .adm-section-sub{font-size:11px}
+  .btn-add{height:42px;padding:0 14px;font-size:12.5px}
+  .form-row-2{grid-template-columns:1fr}
+
+  /* Dashboard: compact 2-column cards */
+  .dash-welcome{padding:18px;margin-bottom:18px}
+  .dash-welcome-title{font-size:16px}
+  .dash-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .dash-card-top{padding:14px 14px 10px;gap:10px}
+  .dash-card-icon{width:36px;height:36px;border-radius:9px}
+  .dash-card-icon svg{width:17px;height:17px}
+  .dash-card-num{font-size:20px}
+  .dash-card-label{font-size:11px}
+  .dash-card-bottom{padding:8px 14px}
+  .dash-summary{grid-template-columns:repeat(2,1fr);gap:10px}
+  .dash-summary-card{padding:12px 14px;gap:10px}
+
+  /* Users table -> stacked cards */
+  .users-table{min-width:0}
+  .users-table thead{display:none}
+  .users-table,.users-table tbody,.users-table tr,.users-table td{display:block;width:100%}
+  .users-table tr{
+    background:var(--surface);border:1.5px solid var(--border);
+    border-radius:var(--r);margin-bottom:10px;overflow:hidden;
+  }
+  .users-table td{
+    display:flex!important;align-items:center;justify-content:space-between;
+    gap:12px;text-align:right!important;
+    padding:8px 14px!important;border-bottom:1px solid var(--border-2)!important;
+  }
+  .users-table td:last-child{border-bottom:none!important}
+  .users-table td::before{
+    content:attr(data-label);
+    font-size:11px;font-weight:600;color:var(--text-3);flex-shrink:0;
+  }
+  .users-table td[data-label="操作"] > div{justify-content:flex-end!important;width:100%}
+  .users-filters select{flex:1 1 calc(50% - 4px);height:38px}
+  .users-filters input{flex:1 1 100%!important;height:38px}
+
+  /* Curriculum table keeps columns via scroll */
+  .curriculum-table{min-width:620px}
+
+  /* Modal: near full-screen */
+  .modal-overlay{padding:10px}
+  .modal{max-height:94vh;border-radius:11px}
+  .modal-header{padding:14px 16px 12px}
+  .modal-body{padding:16px}
+  .modal-footer{padding:12px 16px}
+
+  .toast{white-space:normal;max-width:calc(100vw - 32px);text-align:center}
+  .item-card-header{padding:12px}
+  .item-card-body{padding:10px 12px 14px}
+}
+
+/* ===== Small phone (<=380px) ===== */
+@media (max-width:380px){
+  .dash-grid{grid-template-columns:1fr 1fr;gap:8px}
+  .dash-card-num{font-size:18px}
+  .adm-brand-badge{display:none}
+  .modal-footer .btn-cancel,.modal-footer .btn-save{flex:1}
+}
 </style>
 </head>
 <body>
@@ -441,6 +561,9 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
 <!-- APP -->
 <div id="appShell">
   <header class="adm-header">
+    <button class="adm-menu-btn" id="menuBtn" aria-label="メニューを開く" aria-expanded="false" aria-controls="admSidebar">
+      <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
     <div class="adm-header-brand">
       <div class="adm-crest"><img src="/crest_touka.png" alt="校章"></div>
       <span class="adm-brand-name">デジタル生徒手帳</span>
@@ -452,7 +575,10 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
 
   <div class="adm-body">
     <!-- SIDEBAR -->
-    <aside class="adm-sidebar">
+    <aside class="adm-sidebar" id="admSidebar" aria-label="管理メニュー">
+      <button class="sb-close-btn" id="sbCloseBtn" aria-label="メニューを閉じる">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
       <div class="sb-section-label">概要</div>
       <button class="adm-sb-item on" data-sec="dashboard">
         <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -523,6 +649,7 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
         ユーザー一覧
       </button>
     </aside>
+    <div class="sb-overlay" id="sbOverlay"></div>
 
     <!-- MAIN -->
     <main class="adm-main">
@@ -762,7 +889,7 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
             <div class="adm-section-sub">登録ユーザーの閲覧・編集・削除</div>
           </div>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+        <div class="users-filters" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
           <select style="font-size:12px;padding:6px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)" onchange="filterUsers('role',this.value)">
             <option value="all">すべてのロール</option>
             <option value="student">生徒</option>
