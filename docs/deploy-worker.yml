@@ -1,0 +1,41 @@
+# ============================================================
+#  設置方法: このファイルを .github/workflows/deploy-worker.yml
+#            としてコピーしてください。
+#            （自動PRでは workflows 権限の制約により
+#              .github/workflows へ直接追加できないため docs/ に置いています）
+#
+#  必要なリポジトリシークレット:
+#    CLOUDFLARE_API_TOKEN  ... Workers の編集権限を持つ API トークン
+#    CLOUDFLARE_ACCOUNT_ID ... Cloudflare のアカウント ID
+# ============================================================
+name: Deploy Cloudflare Worker
+
+# workers/ 配下が変更されたら自動で Cloudflare に反映する。
+# これまで手動デプロイだったため「リポジトリのコードは直っているのに
+# 本番 Worker は古いモデル名のまま 404」という乖離が発生していた。
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'workers/**'
+      - '.github/workflows/deploy-worker.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config workers/wrangler.toml

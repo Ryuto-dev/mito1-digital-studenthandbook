@@ -1,0 +1,38 @@
+#:schema node_modules/wrangler/config-schema.json
+#
+# mito1-hundbook Cloudflare Worker 設定
+#
+# これまで Worker は Cloudflare ダッシュボードから手動で貼り付けデプロイしていたため、
+# リポジトリのコードと実際に動いている Worker が乖離し、
+# 「コードを直したのに 404 のまま」という状態が起きていた。
+# この設定と .github/workflows/deploy-worker.yml により、
+# workers/index.js の変更が自動で本番へ反映される。
+#
+# 手動デプロイ:
+#   npx wrangler deploy --config workers/wrangler.toml
+#
+# シークレット登録（値はコミットしない）:
+#   npx wrangler secret put GEMINI_API_KEY --config workers/wrangler.toml
+#   npx wrangler secret put RESEND_API_KEY --config workers/wrangler.toml
+#   npx wrangler secret put LINE_client_id --config workers/wrangler.toml
+#   npx wrangler secret put LINE_client_secret --config workers/wrangler.toml
+#   npx wrangler secret put LINE_Channel_ID --config workers/wrangler.toml
+#   npx wrangler secret put LINE_Channel_secret --config workers/wrangler.toml
+#   npx wrangler secret put LINE_CHANNEL_ACCESS_TOKEN --config workers/wrangler.toml
+
+name = "mito1-hundbook"
+main = "index.js"
+compatibility_date = "2025-09-01"
+
+[vars]
+APP_BASE_URL = "https://mito1-tetyo.tech"
+
+# 使用する Gemini モデル。カンマ区切りで優先順に複数指定できる。
+# 空にすると workers/index.js 内の候補リストが上から順に自動で試される。
+# このキーで使えるモデルは GET /ai/diag で確認できる。
+GEMINI_MODEL = "gemini-3.5-flash-lite,gemini-3.5-flash,gemini-3.6-flash"
+
+# Firestore REST API 用（公開情報なので vars で問題ない）
+# FIREBASE_PROJECT_ID = "..."
+# FIREBASE_API_KEY    = "..."
+# RESEND_FROM         = "mito1-handbook <noreply@mito1-tetyo.tech>"
