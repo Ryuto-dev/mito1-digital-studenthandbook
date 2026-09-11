@@ -2200,7 +2200,24 @@ ${q}`;
       body: JSON.stringify({ contents:[{ parts:[{ text: prompt }] }] })
     });
     const text = await res.text();
-    if(!res.ok){ console.error('[AI] HTTP',res.status,text); return `AIサーバーエラー（${res.status}）`; }
+    if(!res.ok){
+      console.error('[AI] HTTP',res.status,text);
+      // サーバーが返した理由をユーザーにも伝える（404の原因が分からないのを防ぐ）
+      let detail = '', status = '';
+      try{
+        const ed = JSON.parse(text);
+        detail = typeof ed.error === 'string' ? ed.error : (ed.error?.message || '');
+        status = ed.error?.status || '';
+      }catch(_){ detail = text.slice(0,200); }
+      if(status === 'MODEL_UNAVAILABLE' || (res.status === 404 && /model/i.test(detail))){
+        return 'AIモデルを利用できません。APIキーを発行したGoogle Cloudプロジェクトで'
+             + '利用可能なモデルを確認し、Workers の環境変数 GEMINI_MODEL に設定してください。\n'
+             + '（診断: Worker の /ai/diag を開くと利用可能なモデル一覧が確認できます）';
+      }
+      return detail
+        ? `AIサーバーエラー（${res.status}）: ${detail.slice(0,180)}`
+        : `AIサーバーエラー（${res.status}）`;
+    }
     if(!text.trim().startsWith('{')) return text.trim() || '回答を生成できませんでした。';
     let d; try{ d=JSON.parse(text); }catch(e){ return text; }
     if(d.candidates?.[0]?.content?.parts?.[0]?.text) return d.candidates[0].content.parts[0].text;

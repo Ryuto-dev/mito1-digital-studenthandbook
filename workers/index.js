@@ -6,6 +6,9 @@
  *
  * Secrets (Settings > Variables and Secrets):
  *   GEMINI_API_KEY  -- Gemini API key (Secret)
+ *   GEMINI_MODEL    -- 使用するモデル名（Plain text / 任意・カンマ区切りで優先順に複数可）
+ *                      未設定なら GEMINI_MODEL_CANDIDATES を上から順に自動フォールバック。
+ *                      GET /ai/diag でこのキーが使えるモデル一覧を確認できる。
  *   RESEND_API_KEY  -- Resend API key (Secret)
  *   APP_BASE_URL    -- https://mito1-tetyo.tech (Plain text)
  *   RESEND_FROM     -- Verified sender (Plain text, e.g. "mito1-handbook <noreply@yourdomain.com>")
@@ -92,6 +95,11 @@ export default {
       return lineAuthorize(url, env)
     }
 
+    // GET /ai/diag -> Gemini の疎通診断（キーの有無・利用可能モデル一覧）
+    if (request.method === 'GET' && url.pathname === '/ai/diag') {
+      return geminiDiag(env)
+    }
+
     if (request.method !== 'POST') {
       return json({ error: 'Method not allowed' }, 405)
     }
@@ -165,18 +173,163 @@ async function resolveToken(token, env) {
 }
 
 // -- Gemini proxy -------------------------------------------------------
-async function gemini(body, env) {
+/**
+ * 404 の主因は「モデル名の綴り」ではなく、
+ *   ① API キーを作り直した Google Cloud プロジェクトで
+ *      そのモデルが有効化されていない／"no longer available to new users" 扱いになる
+ *   ② コードを直しても Worker を再デプロイしていないため旧モデル名が生きている
+ * の2点。そこで
+ *   - 候補モデルを順に試し、404/NOT_FOUND なら次の候補へフォールバック
+ *   - 成功したモデル名を isolate 内にキャッシュして以降の待ち時間をゼロにする
+ *   - どれも駄目なら ListModels の結果を添えて返す（原因が一目で分かる）
+ * という実装にする。
+ */
+const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
+
+// 上から順に試す。env.GEMINI_MODEL があればそれが最優先。
+const GEMINI_MODEL_CANDIDATES = [
+  'gemini-3.5-flash-lite',
+  'gemini-3.5-flash',
+  'gemini-3.6-flash',
+  'gemini-flash-latest',
+  'gemini-2.5-flash',
+]
+
+// isolate 単位のキャッシュ（この Worker インスタンスで確実に動いたモデル名）
+let _resolvedGeminiModel = null
+
+function geminiApiKey(env) {
   // Support both GEMINI_KEY and GEMINI_API_KEY for backwards compatibility
-  const apiKey = env.GEMINI_API_KEY || env.GEMINI_KEY
+  return env.GEMINI_API_KEY || env.GEMINI_KEY || env.GOOGLE_API_KEY || ''
+}
+
+function geminiModelCandidates(env) {
+  const configured = (env.GEMINI_MODEL || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+
+  const list = [
+    ...(_resolvedGeminiModel ? [_resolvedGeminiModel] : []),
+    ...configured,
+    ...GEMINI_MODEL_CANDIDATES,
+  ]
+  // 重複排除（順序維持）
+  return [...new Set(list)]
+}
+
+/** そのエラーが「モデルが使えない」系かどうか */
+function isModelUnavailable(status, data) {
+  if (status === 404) return true
+  const msg = String(data?.error?.message || '')
+  if (status === 400 && /not (found|supported)|is not available|no longer available/i.test(msg)) return true
+  if (status === 403 && /not (supported|available)|does not have access/i.test(msg)) return true
+  return false
+}
+
+async function callGeminiModel(model, body, apiKey) {
+  const res = await fetch(
+    `${GEMINI_API_BASE}/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  )
+  let data
+  try { data = await res.json() }
+  catch { data = { error: { code: res.status, message: 'Invalid JSON from Gemini API' } } }
+  return { status: res.status, data }
+}
+
+/** API キーで実際に generateContent が使えるモデル一覧を取得（診断用） */
+async function listGeminiModels(apiKey) {
+  try {
+    const res = await fetch(`${GEMINI_API_BASE}/models?key=${apiKey}&pageSize=200`)
+    if (!res.ok) {
+      return { ok: false, status: res.status, error: (await res.text()).slice(0, 500) }
+    }
+    const data = await res.json()
+    const models = (data.models || [])
+      .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+      .map(m => String(m.name || '').replace(/^models\//, ''))
+    return { ok: true, models }
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) }
+  }
+}
+
+async function gemini(body, env) {
+  const apiKey = geminiApiKey(env)
   if (!apiKey) {
     return json({ error: { code: 500, message: 'GEMINI_API_KEY not set in Workers secrets' } }, 500)
   }
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
-  )
-  const data = await res.json()
-  return json(data, res.status)
+
+  const candidates = geminiModelCandidates(env)
+  const attempts = []
+
+  for (const model of candidates) {
+    const { status, data } = await callGeminiModel(model, body, apiKey)
+
+    if (status >= 200 && status < 300) {
+      _resolvedGeminiModel = model            // 次回以降はこのモデルを最優先
+      return json(data, status)
+    }
+
+    attempts.push({ model, status, message: String(data?.error?.message || '').slice(0, 200) })
+
+    if (isModelUnavailable(status, data)) {
+      if (_resolvedGeminiModel === model) _resolvedGeminiModel = null
+      console.warn(`[gemini] model "${model}" unavailable (${status}) -> try next`)
+      continue                                 // 次の候補モデルへ
+    }
+
+    // モデル以外の理由（キー無効・レート制限・入力不正など）はそのまま返す
+    console.error(`[gemini] non-model error on "${model}" (${status})`, data?.error)
+    return json(data, status)
+  }
+
+  // すべての候補が駄目 → このキーで本当に使えるモデルを添えて返す
+  const available = await listGeminiModels(apiKey)
+  console.error('[gemini] all candidates failed', JSON.stringify({ attempts, available }).slice(0, 800))
+
+  return json({
+    error: {
+      code: 502,
+      status: 'MODEL_UNAVAILABLE',
+      message:
+        'このGemini APIキーでは候補モデルがいずれも利用できませんでした。' +
+        'Google AI Studio で新しいキーを発行したプロジェクトの有効モデルを確認し、' +
+        'Workers の環境変数 GEMINI_MODEL に設定してください。',
+      attempts,
+      availableModels: available.ok ? available.models.slice(0, 40) : undefined,
+      listModelsError: available.ok ? undefined : available,
+    },
+  }, 502)
+}
+
+/**
+ * GET /ai/diag
+ *   キーの有無・候補モデル・実際に使えるモデル一覧を返す診断用エンドポイント。
+ *   API キーそのものは絶対に返さない（長さと先頭数文字のみ）。
+ */
+async function geminiDiag(env) {
+  const apiKey = geminiApiKey(env)
+  if (!apiKey) {
+    return json({ ok: false, hasKey: false, message: 'GEMINI_API_KEY not set in Workers secrets' }, 500)
+  }
+
+  const available = await listGeminiModels(apiKey)
+  const candidates = geminiModelCandidates(env)
+  const usable = available.ok ? candidates.filter(m => available.models.includes(m)) : []
+
+  return json({
+    ok: available.ok && usable.length > 0,
+    hasKey: true,
+    keyPreview: `${apiKey.slice(0, 6)}...(${apiKey.length} chars)`,
+    configuredModel: env.GEMINI_MODEL || null,
+    cachedModel: _resolvedGeminiModel,
+    candidates,
+    usableCandidates: usable,
+    availableModels: available.ok ? available.models : undefined,
+    listModelsError: available.ok ? undefined : available,
+  }, available.ok ? 200 : 502)
 }
 
 // -- Approval request email ---------------------------------------------

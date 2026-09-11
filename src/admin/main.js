@@ -1128,7 +1128,12 @@ window.draftReply = async function(id, subject, body) {
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     })
     const text = await res.text()
-    const d = JSON.parse(text)
+    let d
+    try { d = JSON.parse(text) } catch { throw new Error(`AIサーバーの応答を解析できません (${res.status})`) }
+    if (!res.ok || d.error) {
+      const msg = typeof d.error === 'string' ? d.error : (d.error?.message || `HTTP ${res.status}`)
+      throw new Error(msg)
+    }
     const answer = d.candidates?.[0]?.content?.parts?.[0]?.text || d.text || d.result || '生成できませんでした'
     ta.value = answer
   } catch(e) {

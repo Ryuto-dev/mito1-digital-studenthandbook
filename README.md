@@ -10,7 +10,7 @@
 
 - **デジタル生徒手帳コンテンツ**: 校則（諸規定）、沿革、歴代校長、校歌・応援歌歌詞、年間主要行事予定、教育課程、知道生徒会憲章・関係諸規定、生徒会活動、就学の目標などを網羅。
 - **デジタル身分証**: 承認済みの生徒に対してデジタル身分証を表示。学年・クラス・出席番号やデジタル発行情報を一目で確認可能。
-- **AI アシスタント**: Google Gemini 2.5 Flash を活用し、手帳の内容（校則・行事等）に基づいた質問に回答。複雑な規定の中から必要な情報を素早く検索・要約します。
+- **AI アシスタント**: Google Gemini を活用し、手帳の内容（校則・行事等）に基づいた質問に回答。複雑な規定の中から必要な情報を素早く検索・要約します。利用モデルは Workers 側で自動フォールバックされるため、Google 側のモデル提供終了で停止しません。
 - **全文検索**: 手帳内の全コンテンツ（各条文、前文、説明文など）を対象としたリアルタイムインデックス検索。
 - **公欠申請システム**:
   - 生徒によるオンライン申請作成およびリアルタイム進捗追跡（顧問承認前の取り下げも可）。
@@ -35,7 +35,7 @@
 - **フロントエンド**: Vite, JavaScript (Vanilla ES Modules), CSS3 (Custom Properties)
 - **バックエンド / データベース**: Firebase (Firestore, Authentication)
 - **サーバーレス関数 / プロキシ**: Cloudflare Workers (ES Module Worker)
-- **AI**: Google Gemini 2.5 Flash
+- **AI**: Google Gemini（モデルは `GEMINI_MODEL` で指定／未指定時は自動フォールバック）
 - **メール配信**: Resend API
 - **LINE連携**: LINE Login API, LINE Messaging API (Flex Messages)
 - **アクセス解析**: Google Analytics (gtag.js)
@@ -69,6 +69,7 @@
 `workers/index.js` を Cloudflare Workers にデプロイし、以下の環境変数・シークレットを設定します。
 
 - `GEMINI_API_KEY`: Google AI Studio から取得した Gemini API キー（Secret）。
+- `GEMINI_MODEL`: 使用する Gemini モデル名（Plain text・任意）。カンマ区切りで優先順に複数指定可。未設定の場合は `workers/index.js` の候補リストを上から順に試し、`404 / NOT_FOUND` なら次の候補へ自動フォールバックします。
 - `RESEND_API_KEY`: Resend から取得した API キー（Secret）。
 - `RESEND_FROM`: 送信元メールアドレス（例: `mito1-handbook <noreply@yourdomain.com>`）。※Resendでドメイン認証済みである必要があります。
 - `APP_BASE_URL`: アプリケーションのベースURL（例: `https://mito1-tetyo.tech`）。
@@ -86,7 +87,21 @@
 
 - **フロントエンド**: `npm run build` を実行し、生成された `dist` ディレクトリの内容をホスティング環境にデプロイします。
 - **Firestore**: `firestore.rules` を Firebase Console に適用してください。
-- **Workers**: Wrangler を使用するか、Cloudflare ダッシュボードから `workers/index.js` をデプロイします。
+- **Workers**: 手動デプロイは `npx wrangler deploy --config workers/wrangler.toml` です。
+  自動デプロイを有効にするには `docs/deploy-worker.yml` を `.github/workflows/deploy-worker.yml` にコピーし、
+  リポジトリシークレットに `CLOUDFLARE_API_TOKEN` と `CLOUDFLARE_ACCOUNT_ID` を登録してください。
+  以降は `main` ブランチの `workers/` 配下が更新されるたびに自動で Cloudflare へ反映されます。
+  **コードを直しただけでは本番に反映されません。必ず Worker を再デプロイしてください。**
+
+### AI 検索が動かないときの切り分け
+
+1. `https://<your-worker>.workers.dev/ai/diag` を開く（GET）。
+   - `hasKey: false` → `GEMINI_API_KEY` が未設定。
+   - `availableModels` → そのキーで実際に `generateContent` が使えるモデル一覧。
+   - `usableCandidates` が空 → 候補モデルがどれも使えないので、`availableModels` から1つ選んで `GEMINI_MODEL` に設定する。
+2. API キーを作り直した場合、**キーが紐づく Google Cloud プロジェクトが変わると利用可能モデルも変わります**。
+   新規プロジェクトでは古い世代のモデル（例: `gemini-2.5-flash`）が `no longer available to new users` として 404 になります。
+3. コードを修正しただけでは本番に反映されません。必ず Worker を再デプロイしてください（上記の自動デプロイ推奨）。
 
 ## ディレクトリ・ファイル構成
 
