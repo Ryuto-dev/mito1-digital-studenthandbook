@@ -43,6 +43,14 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => switchSec(btn.dataset.sec))
   })
 
+  // Mobile drawer navigation
+  document.getElementById('menuBtn')?.addEventListener('click', toggleSidebar)
+  document.getElementById('sbCloseBtn')?.addEventListener('click', closeSidebar)
+  document.getElementById('sbOverlay')?.addEventListener('click', closeSidebar)
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeSidebar()
+  })
+
   // Add buttons
   document.querySelectorAll('[data-add]').forEach(btn => {
     btn.addEventListener('click', () => openModal(btn.dataset.add))
@@ -153,8 +161,27 @@ async function doLogout() {
 // =============================================
 // NAVIGATION
 // =============================================
+// Mobile drawer (<=900px ではサイドバーがドロワー表示になる)
+function toggleSidebar() {
+  const sb = document.getElementById('admSidebar')
+  const isOpen = sb?.classList.toggle('open')
+  document.getElementById('sbOverlay')?.classList.toggle('show', !!isOpen)
+  const menuBtn = document.getElementById('menuBtn')
+  if (menuBtn) menuBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false')
+  // ドロワー表示中は背面スクロールを抑止
+  document.body.style.overflow = isOpen ? 'hidden' : ''
+}
+
+function closeSidebar() {
+  document.getElementById('admSidebar')?.classList.remove('open')
+  document.getElementById('sbOverlay')?.classList.remove('show')
+  document.getElementById('menuBtn')?.setAttribute('aria-expanded', 'false')
+  document.body.style.overflow = ''
+}
+
 function switchSec(sec) {
   currentSection = sec
+  closeSidebar() // モバイルではメニュー選択後にドロワーを閉じる
   document.querySelectorAll('.adm-section').forEach(s => s.classList.remove('on'))
   document.querySelectorAll('.adm-sb-item').forEach(s => s.classList.remove('on'))
   document.getElementById('sec-' + sec)?.classList.add('on')
@@ -389,7 +416,7 @@ function renderPrincipalsList(items) {
   const el = document.getElementById('principalsList')
   if (!items.length) { el.innerHTML = emptyState(); return }
   el.innerHTML = items.map(item => `
-    <div class="history-row" style="grid-template-columns:60px 1fr 1fr auto">
+    <div class="history-row principals-row">
       <div><span class="item-num">${item.gen || ''}</span></div>
       <div class="history-event-cell">${item.name || ''}</div>
       <div class="history-year-cell">${item.term || ''}</div>
@@ -517,8 +544,8 @@ function renderCurriculumList(items) {
         <span class="item-num">${year}年度入学</span>
         <span class="item-title">${rows.length}科目</span>
       </div>
-      <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <div class="table-scroll" style="overflow-x:auto">
+        <table class="curriculum-table" style="width:100%;border-collapse:collapse;font-size:13px">
           <thead><tr style="background:var(--surface2)">
             <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">教科</th>
             <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">科目</th>
@@ -1377,8 +1404,8 @@ function renderUsers() {
     <div style="margin-bottom:8px;font-size:12px;color:var(--text-3)">
       全${allUsers.length}件中 ${filtered.length}件表示
     </div>
-    <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <div class="table-scroll" style="overflow-x:auto">
+      <table class="users-table" style="width:100%;border-collapse:collapse;font-size:13px">
         <thead>
           <tr style="background:var(--surface2)">
             <th style="padding:9px 12px;text-align:left;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">氏名</th>
@@ -1410,23 +1437,23 @@ function renderUsers() {
 
             return `
             <tr>
-              <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);color:var(--text);font-weight:500">${escHtml(u.name||'')}</td>
-              <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);color:var(--text-2);font-size:12px">${escHtml(u.email||'')}</td>
-              <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center">
+              <td data-label="氏名" style="padding:9px 12px;border-bottom:1px solid var(--border-2);color:var(--text);font-weight:500">${escHtml(u.name||'')}</td>
+              <td data-label="メール" style="padding:9px 12px;border-bottom:1px solid var(--border-2);color:var(--text-2);font-size:12px;overflow-wrap:anywhere">${escHtml(u.email||'')}</td>
+              <td data-label="ロール" style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center">
                 <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;color:${R_COLORS[u.role]||'#888'};background:${R_BGS[u.role]||'#eee'}">${R_LABELS[u.role]||u.role||'不明'}</span>
               </td>
-              <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center;color:var(--text-2)">${u.grade||'—'}</td>
-              <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center;color:var(--text-2)">${u.class||'—'}</td>
-              <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center;color:var(--text-2)">${u.number||'—'}</td>
-              <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center">
+              <td data-label="学年" style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center;color:var(--text-2)">${u.grade||'—'}</td>
+              <td data-label="クラス" style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center;color:var(--text-2)">${u.class||'—'}</td>
+              <td data-label="番号" style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center;color:var(--text-2)">${u.number||'—'}</td>
+              <td data-label="承認" style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center">
                 ${approvedCell}
               </td>
-              <td style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center">
+              <td data-label="LINE連携" style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center">
                 ${u.lineUserId
                   ? `<span title="${escHtml(u.lineDisplayName ? `LINE: ${u.lineDisplayName}` : 'LINE連携済み')}" style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:10px;color:#155724;background:#d4edda">✓ 連携済み</span>`
                   : `<span style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:10px;color:#856404;background:#f8f9fa">未連携</span>`}
               </td>
-              <td style="padding:9px 12px;border-bottom:1px solid var(--border-2)">
+              <td data-label="操作" style="padding:9px 12px;border-bottom:1px solid var(--border-2)">
                 <div style="display:flex;gap:4px;justify-content:flex-end">
                   ${canOpEdit ? `
                   <button onclick="editUser('${u.id}')"
