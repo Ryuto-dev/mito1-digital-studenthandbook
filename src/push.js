@@ -19,7 +19,7 @@ import {
 
 // VAPID公開鍵（Workersの VAPID_PRIVATE_KEY とペア。公開情報なのでコミット可）
 export const VAPID_PUBLIC_KEY =
-  'BAOmYxF65ujkfeeLCoExXC-oZhHp5krw5nOOApQm07Da2uKSVL3EZKEK-yIibfPsVxkHW1Z25_Sdq5ZrwuuyoWs'
+  'BKkk44MwpNWv4Mo66MvsEGTC08FmqU6EYOpdGExqhZ9Dl90ZylQgQhlVHZwqBmbqYQ4NgKND6LgwFW-meoVs7HE'
 
 // Workers のベースURL（line.js / cases.js と同じデプロイ先）
 export const WORKERS_URL = 'https://mito1-hundbook.asanuma-ryuto.workers.dev'
