@@ -642,6 +642,42 @@ a{text-decoration:none;color:inherit}
 @keyframes aiP{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.75)}}
 .ai-answer-text{font-size:13.5px;color:var(--text-2);line-height:1.8}
 
+/* AI Markdown Styles */
+.ai-answer-text p, .ai-msg.bot .ai-bubble p { margin: 0 0 8px 0; }
+.ai-answer-text p:last-child, .ai-msg.bot .ai-bubble p:last-child { margin-bottom: 0; }
+
+.ai-answer-text h1, .ai-answer-text h2 { font-size: 15px; font-weight: 700; color: var(--navy); margin: 12px 0 6px; }
+.ai-answer-text h3, .ai-answer-text h4, .ai-answer-text h5, .ai-answer-text h6 { font-size: 14px; font-weight: 600; color: var(--navy); margin: 10px 0 4px; }
+.ai-msg.bot .ai-bubble h1, .ai-msg.bot .ai-bubble h2 { font-size: 13.5px; font-weight: 700; color: var(--navy); margin: 8px 0 4px; }
+.ai-msg.bot .ai-bubble h3, .ai-msg.bot .ai-bubble h4, .ai-msg.bot .ai-bubble h5, .ai-msg.bot .ai-bubble h6 { font-size: 13px; font-weight: 600; color: var(--navy); margin: 6px 0 3px; }
+
+[data-theme="dark"] .ai-answer-text h1, [data-theme="dark"] .ai-answer-text h2,
+[data-theme="dark"] .ai-answer-text h3, [data-theme="dark"] .ai-answer-text h4,
+[data-theme="dark"] .ai-msg.bot .ai-bubble h1, [data-theme="dark"] .ai-msg.bot .ai-bubble h2,
+[data-theme="dark"] .ai-msg.bot .ai-bubble h3, [data-theme="dark"] .ai-msg.bot .ai-bubble h4 { color: #8fb4ff; }
+
+.ai-answer-text ul, .ai-answer-text ol, .ai-msg.bot .ai-bubble ul, .ai-msg.bot .ai-bubble ol { margin: 6px 0 8px 0; padding-left: 20px; }
+.ai-answer-text li, .ai-msg.bot .ai-bubble li { margin-bottom: 3px; }
+
+.ai-answer-text strong, .ai-msg.bot .ai-bubble strong { font-weight: 700; color: var(--text); }
+
+.ai-answer-text code, .ai-msg.bot .ai-bubble code { font-family: SFMono-Regular, Consolas, monospace; font-size: 0.88em; background: rgba(26,39,68,0.08); padding: 2px 5px; border-radius: 4px; color: var(--navy); }
+[data-theme="dark"] .ai-answer-text code, [data-theme="dark"] .ai-msg.bot .ai-bubble code { background: rgba(255,255,255,0.12); color: #8fb4ff; }
+
+.ai-answer-text pre, .ai-msg.bot .ai-bubble pre { background: var(--bg); border: 1px solid var(--border); padding: 8px 10px; border-radius: 6px; overflow-x: auto; margin: 8px 0; }
+.ai-answer-text pre code, .ai-msg.bot .ai-bubble pre code { background: transparent; padding: 0; border-radius: 0; display: block; color: var(--text); }
+
+.ai-answer-text blockquote, .ai-msg.bot .ai-bubble blockquote { border-left: 3px solid var(--enjii); margin: 8px 0; padding: 4px 0 4px 10px; color: var(--text-2); background: rgba(139,26,44,0.04); border-radius: 0 4px 4px 0; }
+
+.ai-answer-text table, .ai-msg.bot .ai-bubble table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; display: block; overflow-x: auto; }
+.ai-answer-text th, .ai-answer-text td, .ai-msg.bot .ai-bubble th, .ai-msg.bot .ai-bubble td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
+.ai-answer-text th, .ai-msg.bot .ai-bubble th { background: var(--surface2); font-weight: 600; color: var(--text); }
+
+.ai-answer-text a, .ai-msg.bot .ai-bubble a { color: var(--navy); text-decoration: underline; font-weight: 500; word-break: break-all; }
+[data-theme="dark"] .ai-answer-text a, [data-theme="dark"] .ai-msg.bot .ai-bubble a { color: #8fb4ff; }
+
+.ai-answer-text hr, .ai-msg.bot .ai-bubble hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+
 .search-empty{
   text-align:center;padding:40px 20px;
 }
@@ -2144,7 +2180,7 @@ function runSearchPage(q){
       box.innerHTML=`
         <div class="ai-answer-box">
           <div class="ai-answer-label"><div class="ai-dot-spin"></div>AI の回答</div>
-          <div class="ai-answer-text">${ans.replace(/\n/g,'<br>')}</div>
+          <div class="ai-answer-text">${typeof window.renderMarkdown==='function'?window.renderMarkdown(ans):ans.replace(/\n/g,'<br>')}</div>
         </div>
         ${doSearch(q).map(r=>`
         <div class="sp-result-item" onclick="nav('${r.page}');${r.id?`scrollArt('${r.id}');`:''}">
@@ -2183,6 +2219,7 @@ async function callGemini(q){
 以下の手帳の全データをもとに、在校生の質問に丁寧・正確な日本語で答えてください。
 データにない内容は「手帳に記載がないため確認できません」と答えてください。
 回答は簡潔にまとめ、該当する条文番号があれば明記してください。
+なお、回答では見出し、箇条書き、太字、表などのマークダウン表記（Markdown）が利用可能です。読みやすく分かりやすい回答になるよう、マークダウンを適宜使用して回答してください。
 
 【手帳の全データ】
 ${fullContext}
@@ -2334,7 +2371,10 @@ function addAIMsg(txt,role){
   const w=document.getElementById('aiMsgs');
   const d=document.createElement('div');
   d.className='ai-msg '+role;
-  d.innerHTML=`<div class="ai-bubble">${txt.replace(/\n/g,'<br>')}</div>`;
+  const content = role === 'bot'
+    ? (typeof window.renderMarkdown==='function' ? window.renderMarkdown(txt) : txt.replace(/\n/g,'<br>'))
+    : String(txt).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  d.innerHTML=`<div class="ai-bubble">${content}</div>`;
   w.appendChild(d);w.scrollTop=w.scrollHeight;
 }
 function addAILoading(id){
