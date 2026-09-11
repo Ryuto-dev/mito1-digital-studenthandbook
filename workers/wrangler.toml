@@ -36,3 +36,10 @@ GEMINI_MODEL = "gemini-3.5-flash-lite,gemini-3.5-flash,gemini-3.6-flash"
 # FIREBASE_PROJECT_ID = "..."
 # FIREBASE_API_KEY    = "..."
 # RESEND_FROM         = "mito1-handbook <noreply@mito1-tetyo.tech>"
+
+# Web Push (PWA通知) 用。公開鍵はフロント src/push.js の定数と一致させる。
+# 秘密鍵はコミット禁止。登録コマンド:
+#   npx wrangler secret put VAPID_PRIVATE_KEY --config workers/wrangler.toml
+#   npx wrangler secret put VAPID_PUBLIC_KEY  --config workers/wrangler.toml
+# [vars]
+# VAPID_SUBJECT = "mailto:noreply@mito1-tetyo.tech"

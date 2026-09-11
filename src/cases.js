@@ -7,6 +7,22 @@ import {
   collection, doc, addDoc, updateDoc, getDoc, getDocs, deleteDoc,
   query, where, orderBy, serverTimestamp,
 } from 'firebase/firestore'
+import { notifyStudentPush } from './push.js'
+
+// 承認完了時のPWAプッシュ通知（購読済み端末へ。失敗しても承認処理は止めない）
+async function notifyApprovedPush(caseId, caseData) {
+  try {
+    const datesStr = (caseData.dates || []).join('、')
+    await notifyStudentPush(caseData.studentId, {
+      title: '公欠申請が承認されました',
+      body: `${caseData.title || ''}（${datesStr}）`,
+      url: '/#mypage',
+      tag: `case-approved-${caseId}`,
+    })
+  } catch (e) {
+    console.warn('[push-notify] failed:', e)
+  }
+}
 
 // NOTE: "hundbook" might be a typo for "handbook". Please verify against the Worker deployment.
 const WORKERS_URL = 'https://mito1-hundbook.asanuma-ryuto.workers.dev'
@@ -268,6 +284,8 @@ export async function processToken(token, action, caseIdFromUrl = null) {
         } catch (e) {
           console.warn('[line-notify] failed:', e)
         }
+        // PWAプッシュ通知（購読済み端末へ）
+        await notifyApprovedPush(caseId, caseData)
         return { ok: true, result: 'approved', caseData }
       }
     }
@@ -351,6 +369,8 @@ export async function approveByTeacher(caseId, step, teacherUid) {
     } catch (e) {
       console.warn('[line-notify] dashboard approve failed:', e)
     }
+    // PWAプッシュ通知（購読済み端末へ）
+    await notifyApprovedPush(caseId, caseData)
   }
 }
 
