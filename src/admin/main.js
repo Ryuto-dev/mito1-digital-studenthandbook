@@ -7,7 +7,7 @@ import {
 import {
   collection, doc, getDocs, getDoc,
   addDoc, setDoc, updateDoc, deleteDoc,
-  orderBy, query, writeBatch,
+  orderBy, query, where, serverTimestamp, Timestamp, writeBatch,
 } from 'firebase/firestore'
 import { getCurrentProfile } from '../auth.js'
 import {
@@ -340,6 +340,7 @@ async function loadSection(sec) {
     case 'council-charter':    return Promise.all([loadList('council-charter', renderArticleList('councilCharterList')), loadCharterPreambleForm()])
     case 'council-rules':      return loadList('council-rules', renderArticleList('councilRulesList'))
     case 'inquiries':          return loadInquiries()
+    case 'announcements':      return loadAnnouncements()
     case 'cases':              return canViewCasesAdmin(myProfile?.role) ? loadAdminCases() : renderCasesForbidden()
     case 'users':              return loadUsers()
   }
@@ -615,6 +616,14 @@ async function loadBadgeCounts() {
       if (badge) { badge.textContent = pending; badge.style.display = pending ? '' : 'none' }
     } catch { /* ignore */ }
   }
+
+  try {
+    // お知らせバッジ（公開中の件数。過去履歴の確認導線）
+    const anSnap = await getDocs(collection(db, 'announcements'))
+    const pubCount = anSnap.docs.filter(d => (d.data().status || 'published') === 'published').length
+    const anBadge = document.getElementById('annBadge')
+    if (anBadge) { anBadge.textContent = `${pubCount}件公開中`; anBadge.style.display = pubCount ? '' : 'none' }
+  } catch(e) { /* ignore */ }
 }
 
 // =============================================
@@ -1378,6 +1387,7 @@ const REQUIRED_FIELDS = {
   special:            [['f_number', '条番号']],
   'council-charter':  [['f_number', '条番号']],
   'council-rules':    [['f_number', '条番号']],
+  announcements:      [['f_ann_title', 'タイトル'], ['f_ann_body', '本文']],
 }
 
 function validateModal(type) {
@@ -1471,13 +1481,19 @@ async function saveModal({ keepOpen = false } = {}) {
 
   try {
     const data = cfg.getData(type)
+    // お知らせ (Issue #37): 新規作成時に createdAt を付与（必須チェックは REQUIRED_FIELDS 側で行う）
+    if (type === 'announcements' && !editingId) data.createdAt = serverTimestamp()
 
     if (editingId) {
       await updateDoc(doc(db, type, editingId), data)
-      showToast('更新しました')
+      showToast(type === 'announcements' ? 'お知らせを更新しました' : '更新しました')
     } else {
       await addDoc(collection(db, type), data)
-      showToast(keepOpen ? '保存しました。続けて入力できます' : '追加しました')
+      if (type === 'announcements') {
+        showToast(data.status === 'published' ? 'お知らせを配信しました' : '下書きを保存しました')
+      } else {
+        showToast(keepOpen ? '保存しました。続けて入力できます' : '追加しました')
+      }
     }
 
     // 引き継ぎ対象の値を保存（次回モーダルを開いたときの初期値になる）
@@ -1529,6 +1545,198 @@ window.resetAdminSticky = function (type) {
   if (type) clearSticky(type)
   else { stickyStore = {}; try { localStorage.removeItem(STICKY_KEY) } catch { /* ignore */ } }
   showToast('入力の引き継ぎをリセットしました')
+}
+
+// =============================================
+// お知らせ配信 (Issue #37)
+// 管理画面から配信・過去履歴の確認。Push通知連携なし。
+// =============================================
+const ANN_CATEGORIES = {
+  info:      { label: 'お知らせ', color: '#1a2744', bg: 'rgba(26,39,68,.08)' },
+  update:    { label: '更新',     color: '#0e6655', bg: '#d1f2eb' },
+  feature:   { label: '新機能',   color: '#5b2c6f', bg: '#e8daef' },
+  important: { label: '重要',     color: '#922b21', bg: '#fadbd8' },
+  welcome:   { label: 'ウェルカム', color: '#7d6608', bg: '#fcf3cf' },
+}
+const ANN_PAGES = [
+  { v: '', label: 'リンクなし' },
+  { v: 'home', label: 'ホーム' },
+  { v: 'notices', label: 'お知らせ' },
+  { v: 'rules', label: '諸規定' },
+  { v: 'special', label: '特別教育活動' },
+  { v: 'events', label: '年間主要行事' },
+  { v: 'curriculum', label: '教育課程' },
+  { v: 'songs', label: '歌詞' },
+  { v: 'council-charter', label: '知道生徒会憲章' },
+  { v: 'council-rules', label: '生徒会関係諸規定' },
+  { v: 'council-activities', label: '生徒会活動' },
+  { v: 'apply', label: '公欠申請' },
+  { v: 'contact', label: 'お問い合わせ' },
+]
+
+function annMillis(v) {
+  if (v == null) return 0
+  try {
+    if (typeof v?.toMillis === 'function') return v.toMillis()
+    if (typeof v?.toDate === 'function') return v.toDate().getTime()
+  } catch { /* ignore */ }
+  if (v instanceof Date) return v.getTime()
+  if (typeof v === 'number') return v
+  const t = Date.parse(v)
+  return Number.isNaN(t) ? 0 : t
+}
+
+function annDateStr(v) {
+  const ms = annMillis(v)
+  if (!ms) return '—'
+  return new Date(ms).toLocaleString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+// datetime-local input用の値（ローカル時刻）
+function toLocalInputValue(v) {
+  const ms = annMillis(v) || Date.now()
+  const d = new Date(ms)
+  const p = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+async function loadAnnouncements() {
+  const el = document.getElementById('announcementsList')
+  if (!el) return
+  el.innerHTML = '<div class="loading-spinner"><div class="spinner"></div>読み込み中...</div>'
+  let items = []
+  try {
+    const snap = await getDocs(query(collection(db, 'announcements'), orderBy('publishedAt', 'desc')))
+    items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+  } catch {
+    const snap = await getDocs(collection(db, 'announcements'))
+    items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    items.sort((a, b) => annMillis(b.publishedAt || b.createdAt) - annMillis(a.publishedAt || a.createdAt))
+  }
+
+  const published = items.filter(a => (a.status || 'published') === 'published').length
+  const badge = document.getElementById('annBadge')
+  if (badge) { badge.textContent = `${published}件公開中`; badge.style.display = published ? '' : 'none' }
+
+  if (!items.length) {
+    el.innerHTML = `<div class="empty-state">
+      <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <p>まだお知らせがありません。「お知らせを作成」から配信できます。</p>
+    </div>`
+    return
+  }
+
+  el.innerHTML = items.map(a => {
+    const meta = ANN_CATEGORIES[a.category] || ANN_CATEGORIES.info
+    const isPub = (a.status || 'published') === 'published'
+    return `
+    <div class="item-card" style="margin-bottom:10px">
+      <div class="item-card-header">
+        <span class="item-num" style="color:${meta.color};background:${meta.bg}">${meta.label}</span>
+        <span class="item-title">${escHtml(a.title || '(無題)')}</span>
+        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;color:${isPub ? '#155724' : '#856404'};background:${isPub ? '#d4edda' : '#fff3cd'}">${isPub ? '公開中' : '下書き'}</span>
+        ${a.pinned ? '<span style="font-size:10px;font-weight:700;color:var(--enjii)">📌固定</span>' : ''}
+        <div class="item-actions">
+          <button class="btn-icon" data-edit="announcements|${a.id}">
+            <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="btn-icon del" data-delete="announcements|${a.id}">
+            <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="item-card-body">
+        <div style="font-size:11px;color:var(--text-3);margin-bottom:6px">公開日時: ${annDateStr(a.publishedAt || a.createdAt)}${a.linkPage ? ` ／ リンク: ${escHtml(a.linkPage)}` : ''}</div>
+        <div class="item-body-text" style="white-space:pre-wrap">${escHtml(a.body || '')}</div>
+      </div>
+    </div>`
+  }).join('')
+}
+
+MODAL_CONFIGS['announcements'] = {
+  title: 'お知らせ',
+  fields: () => `
+    <div class="form-row">
+      <label>タイトル（例: ○○を更新しました！）</label>
+      <input type="text" id="f_ann_title" placeholder="例: 年間行事予定を更新しました！" maxlength="80">
+    </div>
+    <div class="form-row-2 form-row">
+      <div>
+        <label>カテゴリ</label>
+        <select id="f_ann_category">
+          <option value="info">お知らせ</option>
+          <option value="update">更新</option>
+          <option value="feature">新機能</option>
+          <option value="important">重要</option>
+          <option value="welcome">ウェルカム（新規ユーザー向け）</option>
+        </select>
+      </div>
+      <div>
+        <label>状態</label>
+        <select id="f_ann_status">
+          <option value="published">公開（配信する）</option>
+          <option value="draft">下書き（配信しない）</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>本文</label>
+      <textarea id="f_ann_body" rows="6" placeholder="ユーザーに伝えたい内容を入力..."></textarea>
+    </div>
+    <div class="form-row-2 form-row">
+      <div>
+        <label>公開日時</label>
+        <input type="datetime-local" id="f_ann_publishedAt">
+      </div>
+      <div>
+        <label>関連ページ（任意）</label>
+        <select id="f_ann_linkPage">
+          ${ANN_PAGES.map(p => `<option value="${p.v}">${p.label}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="f_ann_pinned" style="width:auto"> 一覧の上部に固定表示する
+      </label>
+    </div>
+  `,
+  getData: () => {
+    const pubRaw = document.getElementById('f_ann_publishedAt').value
+    const pubDate = pubRaw ? new Date(pubRaw) : new Date()
+    return {
+      title: document.getElementById('f_ann_title').value.trim(),
+      category: document.getElementById('f_ann_category').value,
+      status: document.getElementById('f_ann_status').value,
+      body: document.getElementById('f_ann_body').value.trim(),
+      linkPage: document.getElementById('f_ann_linkPage').value,
+      pinned: document.getElementById('f_ann_pinned').checked,
+      publishedAt: Timestamp.fromDate(pubDate),
+      updatedAt: serverTimestamp(),
+      createdBy: auth.currentUser?.email || auth.currentUser?.uid || '',
+    }
+  },
+  fill: (data) => {
+    document.getElementById('f_ann_title').value = data.title || ''
+    document.getElementById('f_ann_category').value = data.category || 'info'
+    document.getElementById('f_ann_status').value = data.status || 'published'
+    document.getElementById('f_ann_body').value = data.body || ''
+    document.getElementById('f_ann_linkPage').value = data.linkPage || ''
+    document.getElementById('f_ann_pinned').checked = !!data.pinned
+    document.getElementById('f_ann_publishedAt').value = toLocalInputValue(data.publishedAt || data.createdAt)
+  },
+}
+
+// 新規作成時は公開日時の初期値をセット（openModal の呼び出し側で解決される）
+// ※ saveModal ボタンのリスナーは登録時の参照を保持するため、
+//    saveModal 自体の本体に分岐を入れて対応（ラッパー再代入は使わない）。
+const _origOpenModal = openModal
+openModal = async function(type, id = null, opts = {}) {
+  await _origOpenModal(type, id, opts)
+  if (type === 'announcements' && !id) {
+    const el = document.getElementById('f_ann_publishedAt')
+    if (el && !el.value) el.value = toLocalInputValue(new Date())
+  }
 }
 
 // =============================================

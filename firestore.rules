@@ -237,5 +237,22 @@ service cloud.firestore {
       allow update: if isCommitteeAdmin();
       allow delete: if isCommitteeAdmin();
     }
+
+    // =============================================
+    // Announcements (Issue #37: アプリ内お知らせ)
+    //  - read: 全員可（未ログインでも一覧は閲覧可。
+    //    登録日以前の除外・未読判定はクライアント側で行う）
+    //  - write: 委員会スタッフ（モデレーター以上）のみ
+    //    （Push通知連携はしない。既読管理は users.lastSeenAnnouncementsAt
+    //     + クライアントの localStorage で行うためサーバー側は不要）
+    // フィールド:
+    //  title, body, category(info/update/feature/important/welcome),
+    //  linkPage(任意), status(published/draft), pinned(bool),
+    //  publishedAt, createdAt, updatedAt, createdBy
+    // =============================================
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
   }
 }

@@ -1066,6 +1066,61 @@ tr:last-child td{border-bottom:none}
 .pwa-mode .ai-float{bottom:calc(var(--bn-h) + var(--safe-b) + 10px)!important}
 
 /* ===========================
+   NOTICES (Issue #37 アプリ内お知らせ)
+=========================== */
+.hdr-bell{position:relative}
+.hdr-bell-badge{
+  position:absolute;top:2px;right:2px;
+  min-width:17px;height:17px;padding:0 4px;
+  background:#c0392b;color:#fff;border-radius:9px;
+  font-size:10px;font-weight:700;line-height:17px;text-align:center;
+  border:2px solid var(--bg);
+  animation:bellPop .25s ease;
+}
+@keyframes bellPop{from{transform:scale(.5)}to{transform:scale(1)}}
+.notice-list{display:flex;flex-direction:column;gap:10px}
+.notice-card{
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--r);padding:16px 18px;cursor:pointer;
+  transition:border-color .15s,box-shadow .15s;
+  position:relative;
+}
+.notice-card:hover{border-color:var(--navy);box-shadow:var(--shadow-sm)}
+.notice-card.unread{border-color:rgba(192,57,43,.35)}
+.notice-row1{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+.notice-cat{
+  font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;
+  letter-spacing:.03em;flex-shrink:0;
+}
+.notice-date{font-size:11px;color:var(--text-3);margin-left:auto;flex-shrink:0}
+.notice-unread-dot{
+  width:8px;height:8px;border-radius:50%;background:#c0392b;flex-shrink:0;
+  animation:aiP 2s ease-in-out infinite;
+}
+.notice-title{font-size:14.5px;font-weight:600;color:var(--text);line-height:1.6}
+.notice-card.unread .notice-title{font-weight:700}
+.notice-snip{
+  font-size:12.5px;color:var(--text-2);line-height:1.8;margin-top:4px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.notice-detail-body{
+  font-size:14px;color:var(--text-2);line-height:2.0;white-space:pre-wrap;
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--r);padding:22px 24px;
+}
+.notice-pin{font-size:10px;font-weight:700;color:var(--enjii)}
+.notice-empty{
+  text-align:center;padding:48px 20px;color:var(--text-3);
+}
+.notice-empty-ttl{font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px}
+.notice-link-btn{
+  margin-top:12px;display:inline-flex;align-items:center;gap:6px;
+  padding:8px 16px;background:var(--navy);color:#fff;border:none;
+  border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;
+}
+.notice-link-btn:hover{background:var(--navy-light)}
+
+/* ===========================
    CONTACT FORM
 =========================== */
 .contact-form{display:flex;flex-direction:column;gap:18px}
@@ -1249,6 +1304,10 @@ select.cf-input{cursor:pointer}
   </div>
 
   <div class="header-actions">
+    <button class="hdr-btn hdr-bell" onclick="nav('notices')" title="お知らせ" aria-label="お知らせ">
+      <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <span class="hdr-bell-badge" id="noticeBellBadge" style="display:none">0</span>
+    </button>
     <button class="hdr-btn" onclick="nav('search')" title="検索">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
     </button>
@@ -1267,6 +1326,11 @@ select.cf-input{cursor:pointer}
     <button class="sb-item on" data-p="home" onclick="nav('home')">
       <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
       ホーム
+    </button>
+    <button class="sb-item" data-p="notices" onclick="nav('notices')">
+      <span class="sb-icon"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
+      お知らせ
+      <span class="sb-badge" id="sbBadgeNotices" style="display:none;background:#c0392b;color:#fff"></span>
     </button>
     <button class="sb-item" data-p="search" onclick="nav('search')">
       <span class="sb-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg></span>
@@ -1589,6 +1653,30 @@ select.cf-input{cursor:pointer}
         </div>
       </div>
       <div class="search-page-results" id="spResults"></div>
+    </div>
+  </section>
+
+  <!-- お知らせ (Issue #37) -->
+  <section class="pg" id="pg-notices">
+    <div class="pg-header">
+      <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>お知らせ</span></div>
+      <h1 class="pg-title">お知らせ</h1>
+      <div class="pg-meta"><span id="noticesMeta">アプリからのお知らせ・更新情報</span></div>
+    </div>
+    <div class="search-page-wrap" style="max-width:720px">
+      <div id="noticeDetailWrap" style="display:none;margin-bottom:16px">
+        <button onclick="closeNoticeDetail()" style="font-size:12px;padding:6px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;cursor:pointer;color:var(--text-2);margin-bottom:12px">← 一覧に戻る</button>
+        <div id="noticeDetail"></div>
+      </div>
+      <div id="noticeListWrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-size:12px;color:var(--text-3)" id="noticeUnreadLine"></div>
+          <button id="noticeReadAllBtn" onclick="readAllNotices()" style="font-size:12px;padding:6px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;cursor:pointer;color:var(--text-2)">すべて既読にする</button>
+        </div>
+        <div class="notice-list" id="noticeList">
+          <div style="padding:40px;text-align:center;color:var(--text-3);font-size:13px">読み込み中...</div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -2070,7 +2158,7 @@ window.addEventListener('load',()=>{
 /* =================================
    NAVIGATION
 ================================= */
-const PAGES=['home','search','about','principals','goals','songs',
+const PAGES=['home','notices','search','about','principals','goals','songs',
   'rules','special','curriculum','events',
   'council-activities','council-charter','council-rules',
   'contact','apply','mypage','coming'];
@@ -2078,7 +2166,7 @@ const PAGES=['home','search','about','principals','goals','songs',
    属さないページは 'more' 扱いとし、メニュータブを点灯させる。
    これによりどのページを見ていても現在地が分かる。 */
 const BN_MAP={
-  home:'home',search:'search',
+  home:'home',notices:'more',search:'search',
   rules:'rules',special:'rules',
   apply:'apply',mypage:'mypage',
   about:'more',principals:'more',goals:'more',songs:'more',
@@ -2088,7 +2176,7 @@ const BN_MAP={
 };
 /* ページ → 日本語タイトル（メニュー内の現在地表示に使用） */
 const PAGE_LABELS={
-  home:'ホーム',search:'検索',rules:'諸規定',special:'特別教育活動',
+  home:'ホーム',notices:'お知らせ',search:'検索',rules:'諸規定',special:'特別教育活動',
   apply:'公欠申請',mypage:'マイページ',about:'本校の沿革',
   principals:'歴代校長',goals:'就学の目標',songs:'校歌・応援歌',
   curriculum:'教育課程',events:'年間行事','council-activities':'生徒会活動',
@@ -2706,6 +2794,11 @@ import { createCase, getMyCases, deleteCaseByStudent } from '/src/cases.js'
 import { canUseTeacherSuggest, profileBadges, approvalNotice } from '/src/roles.js'
 import { startLineLink, unlinkLine, isLinked } from '/src/line.js'
 import {
+  fetchAnnouncements, visibleAnnouncements, categoryMeta, toMillis,
+  getReadIds, getLastSeenMs, isUnread, countUnread,
+  markOneRead, markAllRead, syncLastSeenFromProfile, uidKey,
+} from '/src/announcements.js'
+import {
   pushAvailability, getPushState,
   subscribePush, unsubscribePush, sendTestPush,
 } from '/src/push.js'
@@ -2813,6 +2906,16 @@ function updateAuthUI() {
     const mypageSec = document.getElementById('pg-mypage')
     if (mypageSec && mypageSec.classList.contains('on')) {
       window.loadMyCases()
+    }
+  }
+
+  // お知らせバッジを更新（登録日フィルタのためログイン状態で再計算）
+  // ※ refreshNoticeBadge は後方で定義されるため存在チェックして呼ぶ
+  if (typeof refreshNoticeBadge === 'function') {
+    refreshNoticeBadge()
+    const nsec = document.getElementById('pg-notices')
+    if (nsec && nsec.classList.contains('on') && typeof window.loadNotices === 'function') {
+      window.loadNotices()
     }
   }
 }
@@ -3222,11 +3325,12 @@ function updateMypageDot(cases) {
 }
 window.updateMypageDot = updateMypageDot
 
-// マイページ表示時に自動読み込み
+// マイページ表示時に自動読み込み＋お知らせ表示時に一覧読み込み
 const origNav = window.nav
 window.nav = function(page, skipHash) {
   origNav(page, skipHash)
   if (page === 'mypage') window.loadMyCases()
+  if (page === 'notices') window.loadNotices()
 }
 
 /** ログイン直後に一度だけ申請状況を取得してドットを更新する */
@@ -3345,6 +3449,131 @@ window.deleteMyCaseBtn = async function(caseId) {
       alert('削除に失敗しました: ' + msg)
     }
   }
+}
+
+// =============================================
+// アプリ内お知らせ (Issue #37)
+// Push通知連携なし。ベルバッジ＋一覧＋詳細＋既読管理。
+// =============================================
+let _noticesCache = []
+
+function fmtNoticeDate(a) {
+  const ms = toMillis(a.publishedAt || a.createdAt)
+  if (!ms) return ''
+  return new Date(ms).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+function escH(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+async function refreshNoticeBadge() {
+  try {
+    const all = await fetchAnnouncements()
+    const uid = uidKey(_currentProfile, _currentUser)
+    // 新規登録直後で Firestore の createdAt が未確定の場合、
+    // Auth の creationTime をフォールバックにして登録日以前の除外を正しく行う
+    let effProfile = _currentProfile
+    if (_currentUser && effProfile && !toMillis(effProfile.createdAt)) {
+      const ct = _currentUser?.metadata?.creationTime
+      if (ct) effProfile = { ...effProfile, createdAt: new Date(ct) }
+    }
+    if (_currentProfile) syncLastSeenFromProfile(_currentProfile)
+    const visible = visibleAnnouncements(all, effProfile)
+    _noticesCache = visible
+    const lastSeen = getLastSeenMs(uid, _currentProfile)
+    const readIds = getReadIds(uid)
+    const unread = countUnread(visible, uid, lastSeen, readIds)
+    const bell = document.getElementById('noticeBellBadge')
+    if (bell) {
+      bell.style.display = unread > 0 ? '' : 'none'
+      bell.textContent = unread > 99 ? '99+' : String(unread)
+    }
+    const sb = document.getElementById('sbBadgeNotices')
+    if (sb) {
+      sb.style.display = unread > 0 ? '' : 'none'
+      sb.textContent = unread > 99 ? '99+' : `${unread}件の未読`
+    }
+    const line = document.getElementById('noticeUnreadLine')
+    if (line) line.textContent = unread > 0 ? `未読 ${unread} 件` : 'すべて既読です'
+    return { visible, unread, lastSeen, readIds, uid }
+  } catch (e) {
+    console.warn('[notices] badge refresh failed', e)
+    return { visible: [], unread: 0 }
+  }
+}
+
+// 初回（未ログインでもバッジ表示のため）
+refreshNoticeBadge()
+// 5分ごとにポーリング（Pushなしの代替。タブ開きっぱなしでも新着に気づける）
+setInterval(refreshNoticeBadge, 5 * 60 * 1000)
+
+window.loadNotices = async function() {
+  const el = document.getElementById('noticeList')
+  if (!el) return
+  document.getElementById('noticeDetailWrap').style.display = 'none'
+  document.getElementById('noticeListWrap').style.display = ''
+  el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-3);font-size:13px">読み込み中...</div>'
+  const { visible, lastSeen, readIds, uid } = await refreshNoticeBadge()
+  if (!visible.length) {
+    el.innerHTML = `<div class="notice-empty">
+      <div class="notice-empty-ttl">お知らせはまだありません</div>
+      <div style="font-size:12.5px">新しいお知らせがあると、ここに表示されます。</div>
+    </div>`
+    return
+  }
+  el.innerHTML = visible.map(a => {
+    const meta = categoryMeta(a.category)
+    const unread = isUnread(a, uid, lastSeen, readIds)
+    const snip = String(a.body || '').slice(0, 80)
+    return `
+    <div class="notice-card ${unread ? 'unread' : ''}" onclick="openNotice('${a.id}')">
+      <div class="notice-row1">
+        ${unread ? '<span class="notice-unread-dot" title="未読"></span>' : ''}
+        <span class="notice-cat" style="color:${meta.color};background:${meta.bg}">${escH(meta.label)}</span>
+        ${a.pinned ? '<span class="notice-pin">📌 固定</span>' : ''}
+        <span class="notice-date">${escH(fmtNoticeDate(a))}</span>
+      </div>
+      <div class="notice-title">${escH(a.title || '(無題)')}</div>
+      <div class="notice-snip">${escH(snip)}</div>
+    </div>`
+  }).join('')
+}
+
+window.openNotice = function(id) {
+  const a = _noticesCache.find(x => x.id === id)
+  if (!a) return
+  const meta = categoryMeta(a.category)
+  const uid = uidKey(_currentProfile, _currentUser)
+  markOneRead(uid, id)
+  // 個別開封でもバッジを即時更新（視覚的にわかりやすく）
+  refreshNoticeBadge()
+  document.getElementById('noticeListWrap').style.display = 'none'
+  const wrap = document.getElementById('noticeDetailWrap')
+  wrap.style.display = ''
+  document.getElementById('noticeDetail').innerHTML = `
+    <div class="notice-row1" style="margin-bottom:10px">
+      <span class="notice-cat" style="color:${meta.color};background:${meta.bg}">${escH(meta.label)}</span>
+      <span class="notice-date">${escH(fmtNoticeDate(a))}</span>
+    </div>
+    <h2 style="font-family:'Noto Serif JP',serif;font-size:19px;font-weight:600;margin-bottom:14px">${escH(a.title || '')}</h2>
+    <div class="notice-detail-body">${escH(a.body || '')}</div>
+    ${a.linkPage ? `<button class="notice-link-btn" onclick="nav('${escH(a.linkPage)}')">関連ページを開く →</button>` : ''}
+  `
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+window.closeNoticeDetail = function() {
+  document.getElementById('noticeDetailWrap').style.display = 'none'
+  document.getElementById('noticeListWrap').style.display = ''
+  window.loadNotices()
+}
+
+// 一覧を開いた＝確認した、としてバッジを外す
+window.readAllNotices = async function() {
+  await markAllRead({ user: _currentUser, profile: _currentProfile })
+  await refreshNoticeBadge()
+  window.loadNotices()
 }
 </script>
 </body>
