@@ -7,82 +7,213 @@ import {
 import {
   collection, doc, getDocs, getDoc,
   addDoc, setDoc, updateDoc, deleteDoc,
-  orderBy, query, where,
+  orderBy, query, writeBatch,
 } from 'firebase/firestore'
 import { getCurrentProfile } from '../auth.js'
 import {
-  ROLES, ROLE_LABELS as R_LABELS, ROLE_COLORS as R_COLORS, ROLE_BGS as R_BGS,
+  ROLE_LABELS as R_LABELS, ROLE_COLORS as R_COLORS, ROLE_BGS as R_BGS,
   canAccessAdminPanel, canViewCasesAdmin, canManageRoles, canToggleApproval,
   canEditUserInfo, canViewUsers, canReplyInquiries, canManageTargetRole,
-  canAssignRole, assignableRoles, roleLevel,
+  canAssignRole, assignableRoles,
 } from '../roles.js'
 
 // =============================================
 // STATE
 // =============================================
 let currentSection = 'dashboard'
-let editingId = null
+let editingId   = null
 let editingType = null
-let myProfile = null // ログイン中の管理者/モデレーターのプロフィール（roles.js の権限判定に使用）
+let myProfile   = null // ログイン中の管理者/モデレーターのプロフィール（roles.js の権限判定に使用）
+
+/**
+ * 直近に読み込んだコレクションの内容をキャッシュする。
+ *  - ↑↓ での並び替え（order の再採番）
+ *  - 「章」「教科」などの入力候補（datalist）生成
+ *  - 追加時の order 自動採番（最大値 + 10）
+ * に使用する。DBのスキーマは一切変更しない。
+ */
+const listCache = {}
+
+// =============================================
+// 入力の引き継ぎ（sticky）— 同じ項目を何度も打たなくて済むように
+// =============================================
+const STICKY_KEY = 'mito1_admin_sticky_v1'
+let stickyStore = {}
+try { stickyStore = JSON.parse(localStorage.getItem(STICKY_KEY) || '{}') } catch { stickyStore = {} }
+
+function getSticky(type) {
+  return stickyStore[type] || {}
+}
+function setSticky(type, values) {
+  stickyStore[type] = { ...(stickyStore[type] || {}), ...values }
+  try { localStorage.setItem(STICKY_KEY, JSON.stringify(stickyStore)) } catch { /* ignore */ }
+}
+function clearSticky(type) {
+  delete stickyStore[type]
+  try { localStorage.setItem(STICKY_KEY, JSON.stringify(stickyStore)) } catch { /* ignore */ }
+}
+
+// =============================================
+// UTILS
+// =============================================
+function escHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+function escAttr(s) {
+  return String(s ?? '').replace(/'/g, "\\'").replace(/\n/g, ' ').slice(0, 100)
+}
+function $(id) { return document.getElementById(id) }
+function val(id, fallback = '') {
+  const el = $(id)
+  return el ? el.value : fallback
+}
+function trimVal(id) { return String(val(id)).trim() }
+
+function showToast(msg) {
+  const t = $('toast')
+  if (!t) return
+  t.textContent = msg
+  t.classList.add('show')
+  clearTimeout(showToast._t)
+  showToast._t = setTimeout(() => t.classList.remove('show'), 2600)
+}
+
+function spinner(label = '読み込み中...') {
+  return `<div class="loading-spinner"><div class="spinner"></div>${label}</div>`
+}
+
+function emptyState(msg = 'まだデータがありません', hint = '') {
+  return `<div class="empty-state">
+    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    <p>${escHtml(msg)}</p>
+    ${hint ? `<p class="empty-hint">${escHtml(hint)}</p>` : ''}
+  </div>`
+}
+
+function errorState(e) {
+  return `<div class="notice warn">読み込みに失敗しました: ${escHtml(e?.message || String(e))}</div>`
+}
+
+function initials(nameOrMail) {
+  const s = String(nameOrMail || '').trim()
+  if (!s) return '—'
+  // 日本語氏名は先頭1文字、英字メールは先頭2文字
+  return /^[\x20-\x7E]+$/.test(s) ? s.slice(0, 2).toUpperCase() : s.slice(0, 1)
+}
+
+const ICON = {
+  edit:  '<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+  trash: '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>',
+  copy:  '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  up:    '<svg viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>',
+  down:  '<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>',
+}
+
+/**
+ * 行・カード共通の操作ボタン群（編集 / 複製 / ↑ / ↓ / 削除）。
+ * 並び順を手入力しなくても ↑↓ で入れ替えられるようにする。
+ */
+function itemOps(col, id, idx, total, { reorder = true, duplicate = true } = {}) {
+  return `<div class="item-actions">
+    ${reorder ? `
+    <button class="btn-icon" data-move="${col}|${id}|-1" title="上へ移動" aria-label="上へ移動"${idx <= 0 ? ' disabled' : ''}>${ICON.up}</button>
+    <button class="btn-icon" data-move="${col}|${id}|1" title="下へ移動" aria-label="下へ移動"${idx >= total - 1 ? ' disabled' : ''}>${ICON.down}</button>` : ''}
+    ${duplicate ? `<button class="btn-icon" data-dup="${col}|${id}" title="複製して追加" aria-label="複製して追加">${ICON.copy}</button>` : ''}
+    <button class="btn-icon" data-edit="${col}|${id}" title="編集" aria-label="編集">${ICON.edit}</button>
+    <button class="btn-icon del" data-delete="${col}|${id}" title="削除" aria-label="削除">${ICON.trash}</button>
+  </div>`
+}
+
+/** datalist（入力候補）を生成する。同じ章名などを打ち直さなくて済む */
+function datalist(id, values) {
+  const uniq = [...new Set(values.filter(v => v !== undefined && v !== null && String(v).trim() !== ''))]
+  if (!uniq.length) return ''
+  return `<datalist id="${id}">${uniq.map(v => `<option value="${escHtml(v)}"></option>`).join('')}</datalist>`
+}
+
+/** キャッシュから、あるフィールドの既出値一覧を取り出す */
+function knownValues(col, field) {
+  return (listCache[col] || []).map(x => x[field]).filter(Boolean)
+}
+
+/** 追加時の order 自動採番（既存の最大 order + 10）。手入力は不要にする */
+function nextOrder(col) {
+  const items = listCache[col] || []
+  if (!items.length) return 10
+  const max = items.reduce((m, x) => Math.max(m, Number(x.order) || 0), 0)
+  return max + 10
+}
 
 // =============================================
 // DOM READY
 // =============================================
 document.addEventListener('DOMContentLoaded', () => {
-  // Login
-  document.getElementById('loginBtn')?.addEventListener('click', doLogin)
-  document.getElementById('loginPass')?.addEventListener('keydown', e => {
-    if (e.key === 'Enter') doLogin()
-  })
+  // --- Login ---
+  $('loginBtn')?.addEventListener('click', doLogin)
+  $('loginPass')?.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin() })
+  $('loginEmail')?.addEventListener('keydown', e => { if (e.key === 'Enter') $('loginPass')?.focus() })
 
-  // Logout
-  document.getElementById('logoutBtnEl')?.addEventListener('click', doLogout)
+  // --- Logout ---
+  $('logoutBtnEl')?.addEventListener('click', doLogout)
 
-  // Sidebar items
+  // --- Sidebar ---
   document.querySelectorAll('.adm-sb-item[data-sec]').forEach(btn => {
     btn.addEventListener('click', () => switchSec(btn.dataset.sec))
   })
+  $('menuBtn')?.addEventListener('click', toggleSidebar)
+  $('sbCloseBtn')?.addEventListener('click', closeSidebar)
+  $('sbOverlay')?.addEventListener('click', closeSidebar)
 
-  // Mobile drawer navigation
-  document.getElementById('menuBtn')?.addEventListener('click', toggleSidebar)
-  document.getElementById('sbCloseBtn')?.addEventListener('click', closeSidebar)
-  document.getElementById('sbOverlay')?.addEventListener('click', closeSidebar)
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeSidebar()
-  })
-
-  // Add buttons
+  // --- Add buttons ---
   document.querySelectorAll('[data-add]').forEach(btn => {
     btn.addEventListener('click', () => openModal(btn.dataset.add))
   })
 
-  // Modal
-  document.getElementById('modalSaveBtn')?.addEventListener('click', saveModal)
-  document.getElementById('modalCancelBtn')?.addEventListener('click', closeModal)
-  document.getElementById('modalCloseBtn')?.addEventListener('click', closeModal)
-  document.getElementById('modalOverlay')?.addEventListener('click', e => {
+  // --- Modal ---
+  $('modalSaveBtn')?.addEventListener('click', () => saveModal({ keepOpen: false }))
+  $('modalSaveMoreBtn')?.addEventListener('click', () => saveModal({ keepOpen: true }))
+  $('modalCancelBtn')?.addEventListener('click', closeModal)
+  $('modalCloseBtn')?.addEventListener('click', closeModal)
+  $('modalOverlay')?.addEventListener('click', e => {
     if (e.target === e.currentTarget) closeModal()
   })
 
-  // Event delegation for dynamically generated edit/delete/action buttons
+  // --- Keyboard shortcuts ---
+  document.addEventListener('keydown', e => {
+    const modalOpen = $('modalOverlay')?.classList.contains('open')
+    if (e.key === 'Escape') {
+      if (modalOpen) { closeModal(); return }
+      closeSidebar()
+    }
+    // Ctrl/Cmd + Enter で保存（条文の連続入力を速くする）
+    if (modalOpen && (e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault()
+      saveModal({ keepOpen: e.shiftKey })
+    }
+  })
+
+  // --- 動的生成された要素のイベント委譲 ---
   document.addEventListener('click', e => {
-    const btn = e.target.closest('[data-edit],[data-delete],[data-nav],[data-save-action]')
+    const btn = e.target.closest('[data-edit],[data-delete],[data-nav],[data-save-action],[data-move],[data-dup],[data-filter-preset]')
     if (!btn) return
-    if (btn.dataset.edit) {
-      const [col, id] = btn.dataset.edit.split('|')
-      openModal(col, id)
+
+    if (btn.dataset.edit)   { const [col, id] = btn.dataset.edit.split('|');   openModal(col, id) }
+    if (btn.dataset.delete) { const [col, id] = btn.dataset.delete.split('|'); deleteItem(col, id) }
+    if (btn.dataset.dup)    { const [col, id] = btn.dataset.dup.split('|');    duplicateItem(col, id) }
+    if (btn.dataset.move)   {
+      const [col, id, dir] = btn.dataset.move.split('|')
+      moveItem(col, id, Number(dir))
     }
-    if (btn.dataset.delete) {
-      const [col, id] = btn.dataset.delete.split('|')
-      deleteItem(col, id)
-    }
-    if (btn.dataset.nav) {
-      switchSec(btn.dataset.nav)
-    }
-    if (btn.dataset.saveAction === 'goals') saveGoals()
-    if (btn.dataset.saveAction === 'council-activities') saveCouncilActivities()
-    if (btn.dataset.saveAction === 'special-desc') saveSpecialDesc()
-    if (btn.dataset.saveAction === 'charter-preamble') saveCharterPreamble()
+    if (btn.dataset.nav) switchSec(btn.dataset.nav)
+    if (btn.dataset.filterPreset) applyUserPreset(btn.dataset.filterPreset)
+
+    const act = btn.dataset.saveAction
+    if (act === 'goals')              saveGoals()
+    if (act === 'council-activities') saveCouncilActivities()
+    if (act === 'special-desc')       saveSpecialDesc()
+    if (act === 'charter-preamble')   saveCharterPreamble()
   })
 })
 
@@ -90,35 +221,42 @@ document.addEventListener('DOMContentLoaded', () => {
 // AUTH — 管理者権限チェック
 // =============================================
 onAuthStateChanged(auth, async user => {
-  if (user) {
-    // Firestoreでユーザーのロールを確認
-    const profile = await getCurrentProfile(user)
-    if (!profile || !canAccessAdminPanel(profile.role)) {
-      // 管理者権限がない場合はログイン画面に戻す
-      document.getElementById('loginErr').textContent = 'この機能は委員会メンバー（モデレーター以上）のみアクセスできます'
-      document.getElementById('loginScreen').classList.remove('hide')
-      document.getElementById('appShell').classList.remove('show')
-      await signOut(auth)
-      return
-    }
-    myProfile = profile
-    document.getElementById('loginScreen').classList.add('hide')
-    document.getElementById('appShell').classList.add('show')
-    document.getElementById('headerUser').textContent = `${user.email}（${R_LABELS[profile.role] || profile.role}）`
-    applyRoleUI()
-    loadSection('dashboard')
-    // Load badge counts immediately on login
-    loadBadgeCounts()
-  } else {
+  if (!user) {
     myProfile = null
-    document.getElementById('loginScreen').classList.remove('hide')
-    document.getElementById('appShell').classList.remove('show')
+    $('loginScreen')?.classList.remove('hide')
+    $('appShell')?.classList.remove('show')
+    return
   }
+
+  const profile = await getCurrentProfile(user)
+  if (!profile || !canAccessAdminPanel(profile.role)) {
+    const err = $('loginErr')
+    if (err) err.textContent = 'この機能は委員会メンバー（モデレーター以上）のみアクセスできます'
+    $('loginScreen')?.classList.remove('hide')
+    $('appShell')?.classList.remove('show')
+    await signOut(auth)
+    return
+  }
+
+  myProfile = profile
+  $('loginScreen')?.classList.add('hide')
+  $('appShell')?.classList.add('show')
+
+  // ヘッダーのユーザーチップ
+  const avatar = $('headerAvatar')
+  if (avatar) avatar.textContent = initials(profile.name || user.email)
+  const mail = $('headerUser')
+  if (mail) { mail.textContent = user.email; mail.title = user.email }
+  const roleEl = $('headerRole')
+  if (roleEl) roleEl.textContent = R_LABELS[profile.role] || profile.role
+
+  applyRoleUI()
+  switchSec('dashboard', { skipNavState: true })
+  loadBadgeCounts()
+  loadSidebarCounts()
 })
 
-// =============================================
 // ロールに応じたサイドバー／機能の表示切替
-// =============================================
 function applyRoleUI() {
   if (!myProfile) return
   const role = myProfile.role
@@ -127,30 +265,30 @@ function applyRoleUI() {
   const casesNav = document.querySelector('.adm-sb-item[data-sec="cases"]')
   if (casesNav) casesNav.style.display = canViewCasesAdmin(role) ? '' : 'none'
 
-  // ユーザー管理自体はスタッフ全員閲覧可（編集・ロール変更は個別に制御）
+  // ユーザー管理はスタッフ全員閲覧可（編集・ロール変更は個別制御）
   const usersNav = document.querySelector('.adm-sb-item[data-sec="users"]')
   if (usersNav) usersNav.style.display = canViewUsers(role) ? '' : 'none'
 }
 
 async function doLogin() {
-  const email = document.getElementById('loginEmail').value.trim()
-  const pass  = document.getElementById('loginPass').value
-  const btn   = document.getElementById('loginBtn')
-  const err   = document.getElementById('loginErr')
-  err.textContent = ''
-  btn.disabled = true
+  const email = trimVal('loginEmail')
+  const pass  = val('loginPass')
+  const btn   = $('loginBtn')
+  const err   = $('loginErr')
+  if (err) err.textContent = ''
+  if (btn) btn.disabled = true
   try {
-    const cred = await signInWithEmailAndPassword(auth, email, pass)
-    // ログイン成功後、ロールチェックはonAuthStateChangedで行われる
+    await signInWithEmailAndPassword(auth, email, pass)
   } catch (e) {
     const msgs = {
       'auth/invalid-credential': 'メールアドレスまたはパスワードが違います',
       'auth/user-not-found':     'ユーザーが見つかりません',
       'auth/wrong-password':     'パスワードが違います',
       'auth/invalid-email':      'メールアドレスの形式が正しくありません',
+      'auth/too-many-requests':  '試行回数が多すぎます。しばらく待ってからお試しください',
     }
-    err.textContent = msgs[e.code] || 'ログインに失敗しました（' + e.code + '）'
-    btn.disabled = false
+    if (err) err.textContent = msgs[e.code] || 'ログインに失敗しました（' + e.code + '）'
+    if (btn) btn.disabled = false
   }
 }
 
@@ -159,824 +297,1069 @@ async function doLogout() {
 }
 
 // =============================================
-// NAVIGATION
+// NAVIGATION（<=980px ではサイドバーがドロワー）
 // =============================================
-// Mobile drawer (<=900px ではサイドバーがドロワー表示になる)
 function toggleSidebar() {
-  const sb = document.getElementById('admSidebar')
+  const sb = $('admSidebar')
   const isOpen = sb?.classList.toggle('open')
-  document.getElementById('sbOverlay')?.classList.toggle('show', !!isOpen)
-  const menuBtn = document.getElementById('menuBtn')
-  if (menuBtn) menuBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false')
-  // ドロワー表示中は背面スクロールを抑止
+  $('sbOverlay')?.classList.toggle('show', !!isOpen)
+  $('menuBtn')?.setAttribute('aria-expanded', isOpen ? 'true' : 'false')
   document.body.style.overflow = isOpen ? 'hidden' : ''
 }
 
 function closeSidebar() {
-  document.getElementById('admSidebar')?.classList.remove('open')
-  document.getElementById('sbOverlay')?.classList.remove('show')
-  document.getElementById('menuBtn')?.setAttribute('aria-expanded', 'false')
+  $('admSidebar')?.classList.remove('open')
+  $('sbOverlay')?.classList.remove('show')
+  $('menuBtn')?.setAttribute('aria-expanded', 'false')
   document.body.style.overflow = ''
 }
 
-function switchSec(sec) {
+function switchSec(sec, { skipNavState = false } = {}) {
   currentSection = sec
-  closeSidebar() // モバイルではメニュー選択後にドロワーを閉じる
+  closeSidebar()
   document.querySelectorAll('.adm-section').forEach(s => s.classList.remove('on'))
   document.querySelectorAll('.adm-sb-item').forEach(s => s.classList.remove('on'))
-  document.getElementById('sec-' + sec)?.classList.add('on')
+  $('sec-' + sec)?.classList.add('on')
   document.querySelector(`.adm-sb-item[data-sec="${sec}"]`)?.classList.add('on')
+  if (!skipNavState) window.scrollTo({ top: 0, behavior: 'smooth' })
   loadSection(sec)
 }
 
 async function loadSection(sec) {
   switch (sec) {
-    case 'dashboard':        return loadDashboard()
-    case 'history':          return loadList('history', renderHistoryList)
-    case 'principals':       return loadList('principals', renderPrincipalsList)
-    case 'goals':            return loadGoalsForm()
-    case 'songs':            return loadList('songs', renderSongsList)
-    case 'rules':            return loadList('rules', renderArticleList('rulesList'))
-    case 'special':          return Promise.all([loadList('special', renderArticleList('specialList')), loadSpecialDescForm()])
-    case 'curriculum':       return loadList('curriculum', renderCurriculumList)
-    case 'events':           return loadList('events', renderEventsList)
+    case 'dashboard':          return loadDashboard()
+    case 'history':            return loadList('history', renderHistoryList)
+    case 'principals':         return loadList('principals', renderPrincipalsList)
+    case 'goals':              return loadGoalsForm()
+    case 'songs':              return loadList('songs', renderSongsList)
+    case 'rules':              return loadList('rules', renderArticleList('rulesList'))
+    case 'special':            return Promise.all([loadList('special', renderArticleList('specialList')), loadSpecialDescForm()])
+    case 'curriculum':         return loadList('curriculum', renderCurriculumList)
+    case 'events':             return loadList('events', renderEventsList)
     case 'council-activities': return loadCouncilActivitiesForm()
-    case 'council-charter':  return Promise.all([loadList('council-charter', renderArticleList('councilCharterList')), loadCharterPreambleForm()])
-    case 'council-rules':    return loadList('council-rules', renderArticleList('councilRulesList'))
-    case 'inquiries':        return loadInquiries()
-    case 'cases':            return canViewCasesAdmin(myProfile?.role) ? loadAdminCases() : renderCasesForbidden()
-    case 'users':            return loadUsers()
+    case 'council-charter':    return Promise.all([loadList('council-charter', renderArticleList('councilCharterList')), loadCharterPreambleForm()])
+    case 'council-rules':      return loadList('council-rules', renderArticleList('councilRulesList'))
+    case 'inquiries':          return loadInquiries()
+    case 'cases':              return canViewCasesAdmin(myProfile?.role) ? loadAdminCases() : renderCasesForbidden()
+    case 'users':              return loadUsers()
   }
 }
 
 // =============================================
-// HELPERS
+// LIST LOADER
 // =============================================
-async function loadList(col, renderFn) {
-  const q = query(collection(db, col), orderBy('order', 'asc'))
+async function fetchCollection(col) {
+  let docs
   try {
-    const snap = await getDocs(q)
-    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    renderFn(items)
-  } catch (e) {
-    // orderフィールドがない場合はorderなしで取得
+    const snap = await getDocs(query(collection(db, col), orderBy('order', 'asc')))
+    docs = snap.docs
+  } catch {
+    // order フィールドが無いドキュメントが混在する場合のフォールバック
     const snap = await getDocs(collection(db, col))
-    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    renderFn(items)
+    docs = snap.docs
+  }
+  const items = docs.map(d => ({ id: d.id, ...d.data() }))
+  items.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))
+  listCache[col] = items
+  return items
+}
+
+/** コレクション名 → 一覧を描画するコンテナ ID */
+const COL_CONTAINER = {
+  rules: 'rulesList',
+  special: 'specialList',
+  'council-charter': 'councilCharterList',
+  'council-rules': 'councilRulesList',
+  events: 'eventsList',
+  curriculum: 'curriculumList',
+  history: 'historyList',
+  principals: 'principalsList',
+  songs: 'songsList',
+}
+
+async function loadList(col, renderFn) {
+  const el = $(COL_CONTAINER[col])
+  if (el) el.innerHTML = spinner()
+  try {
+    renderFn(await fetchCollection(col))
+    updateSidebarCount(col, (listCache[col] || []).length)
+  } catch (e) {
+    console.error('[admin] loadList failed', col, e)
+    if (el) el.innerHTML = errorState(e)
   }
 }
 
-function showToast(msg) {
-  const t = document.getElementById('toast')
-  t.textContent = msg
-  t.classList.add('show')
-  setTimeout(() => t.classList.remove('show'), 2500)
+// =============================================
+// サイドバーの件数バッジ
+// =============================================
+const COUNT_COLLECTIONS = [
+  'rules', 'special', 'council-charter', 'council-rules',
+  'events', 'curriculum', 'history', 'principals', 'songs', 'users',
+]
+
+function updateSidebarCount(key, n) {
+  document.querySelectorAll(`.sb-count[data-count="${key}"]`).forEach(el => {
+    el.textContent = n
+  })
 }
 
-function emptyState(msg = 'まだデータがありません') {
-  return `<div class="empty-state">
-    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-    <p>${msg}</p>
-  </div>`
+async function loadSidebarCounts() {
+  await Promise.all(COUNT_COLLECTIONS.map(async col => {
+    try {
+      const snap = await getDocs(collection(db, col))
+      updateSidebarCount(col, snap.size)
+    } catch { updateSidebarCount(col, '—') }
+  }))
+}
+
+// =============================================
+// 並び替え（↑↓）— order を手入力しなくても済むように
+// =============================================
+async function moveItem(col, id, dir) {
+  const items = listCache[col] || []
+  const idx = items.findIndex(x => x.id === id)
+  if (idx < 0) return
+  const swapIdx = idx + dir
+  if (swapIdx < 0 || swapIdx >= items.length) return
+
+  // 配列上で入れ替え、order を 10 刻みで通し番号として振り直す
+  const reordered = [...items]
+  ;[reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]]
+
+  try {
+    const batch = writeBatch(db)
+    reordered.forEach((item, i) => {
+      const newOrder = (i + 1) * 10
+      if (Number(item.order) !== newOrder) {
+        batch.update(doc(db, col, item.id), { order: newOrder })
+      }
+      item.order = newOrder
+    })
+    await batch.commit()
+    listCache[col] = reordered
+    showToast('並び順を変更しました')
+    loadSection(currentSection)
+  } catch (e) {
+    showToast('並び替えに失敗しました: ' + (e?.message || e))
+  }
+}
+
+/** 既存項目をひな形として新規追加（同じ章・年度の連続入力を楽にする） */
+async function duplicateItem(col, id) {
+  const item = (listCache[col] || []).find(x => x.id === id)
+  if (!item) return
+  openModal(col, null, { seed: item })
 }
 
 // =============================================
 // DASHBOARD
 // =============================================
+const DASH_ICONS = {
+  rules:             { bg: 'linear-gradient(135deg,#1a2744,#2c4477)', svg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>' },
+  special:           { bg: 'linear-gradient(135deg,#5b2c6f,#7d3c98)', svg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>' },
+  events:            { bg: 'linear-gradient(135deg,#1c5b96,#2980b9)', svg: '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>' },
+  history:           { bg: 'linear-gradient(135deg,#1e8449,#27ae60)', svg: '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>' },
+  principals:        { bg: 'linear-gradient(135deg,#a9781a,#d4ac0d)', svg: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>' },
+  songs:             { bg: 'linear-gradient(135deg,#a93226,#cb4335)', svg: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>' },
+  curriculum:        { bg: 'linear-gradient(135deg,#0e6655,#117a65)', svg: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>' },
+  'council-charter': { bg: 'linear-gradient(135deg,#8b1a2c,#b03a4c)', svg: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>' },
+  'council-rules':   { bg: 'linear-gradient(135deg,#7d6608,#9a7d0a)', svg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>' },
+}
+
+const DASH_SECTIONS = [
+  { col: 'rules',           label: '諸規定（本則）',   unit: '条' },
+  { col: 'special',         label: '特別教育活動',     unit: '条' },
+  { col: 'council-charter', label: '知道生徒会憲章',   unit: '条' },
+  { col: 'council-rules',   label: '生徒会関係諸規定', unit: '条' },
+  { col: 'events',          label: '年間主要行事',     unit: '件' },
+  { col: 'curriculum',      label: '教育課程',         unit: '科目' },
+  { col: 'history',         label: '本校の沿革',       unit: '件' },
+  { col: 'principals',      label: '歴代校長',         unit: '名' },
+  { col: 'songs',           label: '校歌・応援歌',     unit: '曲' },
+]
+
+function kpiCard({ num, label, bg, icon, nav = null, alert = false }) {
+  return `<${nav ? 'button' : 'div'} class="kpi-card${nav ? ' clickable' : ''}"${nav ? ` data-nav="${nav}" type="button"` : ''}>
+    <div class="kpi-icon" style="background:${bg}"><svg viewBox="0 0 24 24">${icon}</svg></div>
+    <div class="kpi-body">
+      <div class="kpi-num"${alert && num > 0 ? ' style="color:var(--danger)"' : ''}>${num}</div>
+      <div class="kpi-label">${escHtml(label)}</div>
+    </div>
+    ${nav ? '<span class="kpi-arrow"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></span>' : ''}
+  </${nav ? 'button' : 'div'}>`
+}
+
 async function loadDashboard() {
-  const grid = document.getElementById('dashGrid')
+  const grid = $('dashGrid')
+  if (!grid) return
+  grid.innerHTML = spinner()
 
-  const DASH_ICONS = {
-    rules:            { bg: '#1a2744', svg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>' },
-    special:          { bg: '#6c3483', svg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>' },
-    events:           { bg: '#2471a3', svg: '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>' },
-    history:          { bg: '#1e8449', svg: '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>' },
-    principals:       { bg: '#d4ac0d', svg: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>' },
-    songs:            { bg: '#cb4335', svg: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>' },
-    curriculum:       { bg: '#117a65', svg: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>' },
-    'council-charter':{ bg: '#8b1a2c', svg: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>' },
-    'council-rules':  { bg: '#7d6608', svg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>' },
-  }
-
-  const sections = [
-    { col: 'rules',           label: '諸規定（本則）',     sec: 'rules',           unit: '条' },
-    { col: 'special',         label: '特別教育活動',       sec: 'special',          unit: '条' },
-    { col: 'events',          label: '年間主要行事',       sec: 'events',           unit: '件' },
-    { col: 'history',         label: '本校の沿革',         sec: 'history',          unit: '件' },
-    { col: 'principals',      label: '歴代校長',           sec: 'principals',       unit: '名' },
-    { col: 'songs',           label: '歌詞',               sec: 'songs',            unit: '曲' },
-    { col: 'curriculum',      label: '教育課程',           sec: 'curriculum',       unit: '科目' },
-    { col: 'council-charter', label: '知道生徒会憲章',     sec: 'council-charter',  unit: '条' },
-    { col: 'council-rules',   label: '生徒会関係諸規定',   sec: 'council-rules',    unit: '条' },
-  ]
   const counts = await Promise.all(
-    sections.map(s => getDocs(collection(db, s.col)).then(sn => sn.size).catch(() => 0))
+    DASH_SECTIONS.map(s => getDocs(collection(db, s.col)).then(sn => sn.size).catch(() => 0))
   )
+  DASH_SECTIONS.forEach((s, i) => updateSidebarCount(s.col, counts[i]))
 
-  // Also fetch inquiries/cases counts for the summary
   const canSeeCases = canViewCasesAdmin(myProfile?.role)
-  let inquiryNewCount = 0, casePendingCount = 0, totalUsers = 0
+  let inquiryNew = 0, casePending = 0, totalUsers = 0, unapproved = 0
+
   try {
-    const promises = [
-      getDocs(collection(db, 'inquiries')),
-      getDocs(collection(db, 'users')),
-    ]
-    if (canSeeCases) promises.splice(1, 0, getDocs(collection(db, 'cases')))
-    const results = await Promise.all(promises)
-    const iqSnap = results[0]
-    const csSnap = canSeeCases ? results[1] : null
-    const usSnap = canSeeCases ? results[2] : results[1]
-    inquiryNewCount = iqSnap.docs.filter(d => d.data().status === 'new').length
-    if (csSnap) casePendingCount = csSnap.docs.filter(d => ['pending_supervisor','pending_homeroom'].includes(d.data().status)).length
-    totalUsers = usSnap.size
-  } catch(e) { /* ignore */ }
+    const [iqSnap, usSnap] = await Promise.all([
+      getDocs(collection(db, 'inquiries')).catch(() => null),
+      getDocs(collection(db, 'users')).catch(() => null),
+    ])
+    if (iqSnap) inquiryNew = iqSnap.docs.filter(d => d.data().status === 'new').length
+    if (usSnap) {
+      totalUsers = usSnap.size
+      unapproved = usSnap.docs.filter(d => {
+        const u = d.data()
+        return u.role === 'student' && !u.approved
+      }).length
+      updateSidebarCount('users', totalUsers)
+    }
+    if (canSeeCases) {
+      const csSnap = await getDocs(collection(db, 'cases')).catch(() => null)
+      if (csSnap) casePending = csSnap.docs.filter(d => ['pending_supervisor', 'pending_homeroom'].includes(d.data().status)).length
+    }
+  } catch { /* ignore */ }
 
   const totalContent = counts.reduce((a, b) => a + b, 0)
+  const myName = myProfile?.name || ''
+  const hour = new Date().getHours()
+  const greet = hour < 5 ? 'お疲れさまです' : hour < 11 ? 'おはようございます' : hour < 18 ? 'こんにちは' : 'お疲れさまです'
+
+  const kpis = [
+    kpiCard({
+      num: totalContent, label: '公開中コンテンツ',
+      bg: 'linear-gradient(135deg,#1a2744,#2c4477)',
+      icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+    }),
+    kpiCard({
+      num: inquiryNew, label: '未対応のお問い合わせ', nav: 'inquiries', alert: true,
+      bg: 'linear-gradient(135deg,#a93226,#e74c3c)',
+      icon: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+    }),
+  ]
+  if (canSeeCases) {
+    kpis.push(kpiCard({
+      num: casePending, label: '承認待ちの公欠申請', nav: 'cases',
+      bg: 'linear-gradient(135deg,#8a6100,#d4ac0d)',
+      icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>',
+    }))
+  }
+  if (canViewUsers(myProfile?.role)) {
+    kpis.push(kpiCard({
+      num: totalUsers, label: '登録ユーザー', nav: 'users',
+      bg: 'linear-gradient(135deg,#1e8449,#27ae60)',
+      icon: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    }))
+    kpis.push(kpiCard({
+      num: unapproved, label: '未承認の生徒', nav: 'users', alert: true,
+      bg: 'linear-gradient(135deg,#1c5b96,#3498db)',
+      icon: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>',
+    }))
+  }
 
   grid.innerHTML = `
-    <div class="dash-welcome">
-      <div class="dash-welcome-title">管理者ダッシュボード</div>
-      <div class="dash-welcome-sub">水戸第一高等学校 デジタル生徒手帳の全コンテンツを管理できます</div>
-    </div>
-
-    <div class="dash-summary">
-      <div class="dash-summary-card">
-        <div class="dash-summary-icon" style="background:linear-gradient(135deg,#1a2744,#253a78)">
-          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        </div>
-        <div class="dash-summary-info">
-          <div class="dash-summary-num">${totalContent}</div>
-          <div class="dash-summary-label">全コンテンツ数</div>
-        </div>
-      </div>
-      <div class="dash-summary-card" style="cursor:pointer" data-nav="inquiries">
-        <div class="dash-summary-icon" style="background:linear-gradient(135deg,#c0392b,#e74c3c)">
-          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        </div>
-        <div class="dash-summary-info">
-          <div class="dash-summary-num">${inquiryNewCount}</div>
-          <div class="dash-summary-label">未対応のお問い合わせ</div>
-        </div>
-      </div>
-      ${canSeeCases ? `
-      <div class="dash-summary-card" style="cursor:pointer" data-nav="cases">
-        <div class="dash-summary-icon" style="background:linear-gradient(135deg,#856404,#d4ac0d)">
-          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-        </div>
-        <div class="dash-summary-info">
-          <div class="dash-summary-num">${casePendingCount}</div>
-          <div class="dash-summary-label">承認待ち公欠申請</div>
-        </div>
-      </div>` : ''}
-      <div class="dash-summary-card" style="cursor:pointer" data-nav="users">
-        <div class="dash-summary-icon" style="background:linear-gradient(135deg,#1e8449,#27ae60)">
-          <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        </div>
-        <div class="dash-summary-info">
-          <div class="dash-summary-num">${totalUsers}</div>
-          <div class="dash-summary-label">登録ユーザー</div>
+    <div class="dash-hero">
+      <div class="dash-hero-inner">
+        <div class="dash-hero-eyebrow">ADMIN PORTAL</div>
+        <div class="dash-hero-title">${escHtml(greet)}${myName ? '、' + escHtml(myName) + ' さん' : ''}</div>
+        <div class="dash-hero-sub">
+          水戸第一高等学校 デジタル生徒手帳のコンテンツとユーザーを管理できます。<br>
+          保存した内容は生徒手帳側にすぐ反映されます。
         </div>
       </div>
     </div>
 
-    <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;padding-left:2px">コンテンツ管理</div>
-    <div class="dash-grid" style="margin-bottom:0">
-      ${sections.map((s, i) => {
+    <div class="dash-kpis">${kpis.join('')}</div>
+
+    <div class="dash-block-title">コンテンツ管理</div>
+    <div class="dash-grid">
+      ${DASH_SECTIONS.map((s, i) => {
         const ic = DASH_ICONS[s.col] || DASH_ICONS.rules
         return `
-          <div class="dash-card">
+          <button class="dash-card" type="button" data-nav="${s.col}">
             <div class="dash-card-top">
-              <div class="dash-card-icon" style="background:${ic.bg}">
-                <svg viewBox="0 0 24 24">${ic.svg}</svg>
-              </div>
+              <div class="dash-card-icon" style="background:${ic.bg}"><svg viewBox="0 0 24 24">${ic.svg}</svg></div>
               <div class="dash-card-info">
                 <div class="dash-card-num">${counts[i]}</div>
-                <div class="dash-card-label">${s.label}</div>
+                <div class="dash-card-label">${escHtml(s.label)}</div>
               </div>
             </div>
             <div class="dash-card-bottom">
-              <span class="dash-card-link" data-nav="${s.sec}">管理する <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></span>
+              <span class="dash-card-link">管理する <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></span>
               <span class="dash-card-tag">${counts[i]}${s.unit}</span>
             </div>
-          </div>`
+          </button>`
       }).join('')}
     </div>
   `
 }
 
 // =============================================
-// BADGE COUNTS (load on site access)
+// BADGE COUNTS
 // =============================================
 async function loadBadgeCounts() {
   try {
-    // Inquiries badge
-    const iqSnap = await getDocs(query(collection(db, 'inquiries'), orderBy('createdAt', 'desc')))
+    const iqSnap = await getDocs(collection(db, 'inquiries'))
     const newCount = iqSnap.docs.filter(d => d.data().status === 'new').length
-    const iqBadge = document.getElementById('inquiryBadge')
-    if (iqBadge) { iqBadge.textContent = newCount; iqBadge.style.display = newCount ? '' : 'none' }
-  } catch(e) { /* ignore */ }
+    const badge = $('inquiryBadge')
+    if (badge) { badge.textContent = newCount; badge.style.display = newCount ? '' : 'none' }
+  } catch { /* ignore */ }
 
   if (canViewCasesAdmin(myProfile?.role)) {
     try {
-      // Cases badge（公欠申請ケース閲覧権限がある場合のみ）
-      const csSnap = await getDocs(query(collection(db, 'cases'), orderBy('createdAt', 'desc')))
-      const pending = csSnap.docs.filter(d => ['pending_supervisor','pending_homeroom'].includes(d.data().status)).length
-      const csBadge = document.getElementById('casesBadge')
-      if (csBadge) { csBadge.textContent = pending; csBadge.style.display = pending ? '' : 'none' }
-    } catch(e) { /* ignore */ }
+      const csSnap = await getDocs(collection(db, 'cases'))
+      const pending = csSnap.docs.filter(d => ['pending_supervisor', 'pending_homeroom'].includes(d.data().status)).length
+      const badge = $('casesBadge')
+      if (badge) { badge.textContent = pending; badge.style.display = pending ? '' : 'none' }
+    } catch { /* ignore */ }
   }
 }
 
 // =============================================
-// HISTORY
+// HISTORY（沿革）
 // =============================================
 function renderHistoryList(items) {
-  const el = document.getElementById('historyList')
-  if (!items.length) { el.innerHTML = emptyState(); return }
-  el.innerHTML = items.map(item => `
-    <div class="history-row">
-      <div class="history-year-cell">${item.year || ''}</div>
-      <div class="history-event-cell">${item.event || ''}</div>
-      <div class="item-actions">
-        <button class="btn-icon" data-edit="history|${item.id}">
-          <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        </button>
-        <button class="btn-icon del" data-delete="history|${item.id}">
-          <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-        </button>
-      </div>
-    </div>
-  `).join('')
+  const el = $('historyList')
+  if (!el) return
+  if (!items.length) { el.innerHTML = emptyState('沿革がまだ登録されていません', '「追加」から年号と出来事を登録してください'); return }
+  el.innerHTML = `<div class="list-rows">${items.map((item, i) => `
+    <div class="list-row">
+      <div class="row-meta">${escHtml(item.year)}</div>
+      <div class="row-main">${escHtml(item.event)}</div>
+      ${itemOps('history', item.id, i, items.length)}
+    </div>`).join('')}</div>`
 }
 
 // =============================================
-// PRINCIPALS
+// PRINCIPALS（歴代校長）
 // =============================================
 function renderPrincipalsList(items) {
-  const el = document.getElementById('principalsList')
-  if (!items.length) { el.innerHTML = emptyState(); return }
-  el.innerHTML = items.map(item => `
-    <div class="history-row principals-row">
-      <div><span class="item-num">${item.gen || ''}</span></div>
-      <div class="history-event-cell">${item.name || ''}</div>
-      <div class="history-year-cell">${item.term || ''}</div>
-      <div class="item-actions">
-        <button class="btn-icon" data-edit="principals|${item.id}">
-          <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        </button>
-        <button class="btn-icon del" data-delete="principals|${item.id}">
-          <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-        </button>
-      </div>
-    </div>
-  `).join('')
+  const el = $('principalsList')
+  if (!el) return
+  if (!items.length) { el.innerHTML = emptyState('歴代校長がまだ登録されていません'); return }
+  el.innerHTML = `<div class="list-rows">${items.map((item, i) => `
+    <div class="list-row principals-row">
+      <div><span class="item-num">${escHtml(item.gen)}</span></div>
+      <div class="row-main">${escHtml(item.name)}</div>
+      <div class="row-meta">${escHtml(item.term)}</div>
+      ${itemOps('principals', item.id, i, items.length)}
+    </div>`).join('')}</div>`
 }
 
 // =============================================
-// GOALS (single doc)
+// SONGS（校歌・応援歌）
+// =============================================
+function renderSongsList(items) {
+  const el = $('songsList')
+  if (!el) return
+  if (!items.length) { el.innerHTML = emptyState('歌詞がまだ登録されていません'); return }
+  el.innerHTML = items.map((item, i) => `
+    <div class="item-card">
+      <div class="item-card-header">
+        <span class="item-num">${escHtml(item.type || '校歌')}</span>
+        <span class="item-title">${escHtml(item.title)}</span>
+        ${item.lyricist ? `<span class="item-chip">作詞 ${escHtml(item.lyricist)}</span>` : ''}
+        ${item.composer ? `<span class="item-chip">作曲 ${escHtml(item.composer)}</span>` : ''}
+        ${itemOps('songs', item.id, i, items.length)}
+      </div>
+      <div class="item-card-body">
+        <div class="item-body-text">${(item.verses || []).map((v, n) => `${n + 1}番\n${escHtml(v)}`).join('\n\n')}</div>
+      </div>
+    </div>`).join('')
+}
+
+// =============================================
+// ARTICLES（rules / special / council-charter / council-rules）
+// 章ごとにグルーピングして表示（Issue #49: 条文が増えても迷わない）
+// =============================================
+const CONTAINER_TO_COL = {
+  rulesList: 'rules',
+  specialList: 'special',
+  councilCharterList: 'council-charter',
+  councilRulesList: 'council-rules',
+}
+
+function renderArticleList(containerId) {
+  const colName = CONTAINER_TO_COL[containerId] || containerId.replace('List', '')
+  return function (items) {
+    const el = $(containerId)
+    if (!el) return
+    if (!items.length) { el.innerHTML = emptyState('条文がまだ登録されていません', '「条文を追加」から登録してください'); return }
+
+    // 章（chapter）でグループ化。章が無いものは「章なし」にまとめる
+    const groups = []
+    const indexOfGroup = new Map()
+    items.forEach(item => {
+      const key = (item.chapter || '').trim() || '__none__'
+      if (!indexOfGroup.has(key)) {
+        indexOfGroup.set(key, groups.length)
+        groups.push({ key, label: key === '__none__' ? '' : key, rows: [] })
+      }
+      groups[indexOfGroup.get(key)].rows.push(item)
+    })
+
+    const card = (item, i, total) => `
+      <div class="item-card">
+        <div class="item-card-header">
+          <span class="item-num">${escHtml(item.number || '—')}</span>
+          <span class="item-title">${escHtml(item.title)}</span>
+          ${item.section ? `<span class="item-chip">${escHtml(item.section)}</span>` : ''}
+          ${itemOps(colName, item.id, i, total)}
+        </div>
+        ${(item.body || (item.items || []).length) ? `
+        <div class="item-card-body">
+          ${item.body ? `<div class="item-body-text">${escHtml(item.body)}</div>` : ''}
+          ${(item.items || []).length ? `<div class="item-body-text"${item.body ? ' style="margin-top:8px"' : ''}>${item.items.map(x => escHtml(x)).join('\n')}</div>` : ''}
+        </div>` : ''}
+      </div>`
+
+    // 章が1つ（=章なしだけ）ならヘッダーを出さずフラット表示
+    if (groups.length === 1 && groups[0].key === '__none__') {
+      el.innerHTML = items.map((item, i) => card(item, i, items.length)).join('')
+      return
+    }
+
+    // 全体通しの index を使うことで ↑↓ が章をまたいでも正しく動く
+    let cursor = 0
+    el.innerHTML = groups.map(g => {
+      const html = `
+        ${g.label ? `<div class="dash-block-title" style="margin-top:18px">${escHtml(g.label)}<span class="dash-card-tag">${g.rows.length}条</span></div>` : ''}
+        ${g.rows.map(item => card(item, cursor++, items.length)).join('')}`
+      return html
+    }).join('')
+  }
+}
+
+// =============================================
+// CURRICULUM（教育課程）— 入学年度ごとのテーブル
+// =============================================
+function renderCurriculumList(items) {
+  const el = $('curriculumList')
+  if (!el) return
+  if (!items.length) { el.innerHTML = emptyState('教育課程がまだ登録されていません'); return }
+
+  const byYear = {}
+  items.forEach(item => {
+    const y = String(item.year || '—')
+    ;(byYear[y] ||= []).push(item)
+  })
+
+  const indexOf = new Map(items.map((x, i) => [x.id, i]))
+
+  el.innerHTML = Object.keys(byYear).sort((a, b) => String(b).localeCompare(String(a))).map(year => `
+    <div class="panel" style="margin-bottom:14px">
+      <div class="panel-head">
+        <span class="item-num">${escHtml(year)}年度入学</span>
+        <span class="panel-title">${byYear[year].length}科目</span>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr>
+            <th>教科</th><th>科目</th>
+            <th class="num">1年</th><th class="num">2年</th><th class="num">3年</th>
+            <th class="num">必選</th><th></th>
+          </tr></thead>
+          <tbody>
+            ${byYear[year].map(r => `
+              <tr>
+                <td>${escHtml(r.subject)}</td>
+                <td>${escHtml(r.course)}</td>
+                <td class="num">${escHtml(r.y1 || '—')}</td>
+                <td class="num">${escHtml(r.y2 || '—')}</td>
+                <td class="num">${escHtml(r.y3 || '—')}</td>
+                <td class="num">${escHtml(r.required || '—')}</td>
+                <td>${itemOps('curriculum', r.id, indexOf.get(r.id), items.length)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`).join('')
+}
+
+// =============================================
+// EVENTS（年間主要行事）— 月ごと
+// =============================================
+function renderEventsList(items) {
+  const el = $('eventsList')
+  if (!el) return
+  if (!items.length) { el.innerHTML = emptyState('行事がまだ登録されていません'); return }
+
+  const byMonth = {}
+  items.forEach(item => { (byMonth[String(item.month || 1)] ||= []).push(item) })
+  const indexOf = new Map(items.map((x, i) => [x.id, i]))
+
+  // 学校の年度に合わせて 4月 始まりで並べる
+  const order = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3]
+
+  el.innerHTML = order.filter(m => byMonth[String(m)]).map(m => `
+    <div class="panel" style="margin-bottom:12px">
+      <div class="panel-head">
+        <span class="item-num">${m}月</span>
+        <span class="panel-title">${byMonth[String(m)].length}件</span>
+      </div>
+      <div class="list-rows">
+        ${byMonth[String(m)].map(item => `
+          <div class="list-row" style="grid-template-columns:1fr auto">
+            <div class="row-main">${escHtml(item.name)}</div>
+            ${itemOps('events', item.id, indexOf.get(item.id), items.length)}
+          </div>`).join('')}
+      </div>
+    </div>`).join('')
+}
+
+// =============================================
+// 単一ドキュメント系フォーム
 // =============================================
 async function loadGoalsForm() {
-  const el = document.getElementById('goalsForm')
+  const el = $('goalsForm')
+  if (!el) return
+  el.innerHTML = spinner()
   const snap = await getDoc(doc(db, 'content', 'goals')).catch(() => null)
   const data = snap?.data() || {}
   el.innerHTML = `
     <div class="form-row">
       <label>校是の画像URL</label>
-      <input type="text" id="goalsImgUrl" value="${data.imageUrl || ''}" placeholder="https://...">
+      <input type="text" id="goalsImgUrl" value="${escHtml(data.imageUrl)}" placeholder="https://...">
+      <div class="form-hint">空欄の場合、生徒手帳側では画像が非表示になります。</div>
     </div>
     <div class="form-row">
       <label>就学の目標（本文）</label>
-      <textarea id="goalsText" rows="8" placeholder="目標の内容を入力...">${data.text || ''}</textarea>
+      <textarea id="goalsText" rows="9" placeholder="目標の内容を入力...">${escHtml(data.text)}</textarea>
     </div>
-    <button class="btn-save" style="margin-top:8px" data-save-action="goals">保存</button>
-  `
+    <button class="btn-save" data-save-action="goals">保存</button>`
 }
 
 async function saveGoals() {
-  const imageUrl = document.getElementById('goalsImgUrl').value.trim()
-  const text     = document.getElementById('goalsText').value.trim()
-  await setDoc(doc(db, 'content', 'goals'), { imageUrl, text })
+  await setDoc(doc(db, 'content', 'goals'), {
+    imageUrl: trimVal('goalsImgUrl'),
+    text:     trimVal('goalsText'),
+  })
   showToast('就学の目標を保存しました')
 }
 
-// =============================================
-// SONGS
-// =============================================
-function renderSongsList(items) {
-  const el = document.getElementById('songsList')
-  if (!items.length) { el.innerHTML = emptyState(); return }
-  el.innerHTML = items.map(item => `
-    <div class="item-card">
-      <div class="item-card-header">
-        <span class="item-num">${item.type || '校歌'}</span>
-        <span class="item-title">${item.title || ''}</span>
-        <div class="item-actions">
-          <button class="btn-icon" data-edit="songs|${item.id}">
-            <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="btn-icon del" data-delete="songs|${item.id}">
-            <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-          </button>
-        </div>
-      </div>
-      <div class="item-card-body">
-        <div class="item-body-text" style="white-space:pre-wrap">${(item.verses || []).map((v,i)=>`${i+1}番\n${v}`).join('\n\n')}</div>
-      </div>
-    </div>
-  `).join('')
-}
-
-// =============================================
-// ARTICLES (rules / special / charter / council-rules)
-// =============================================
-function renderArticleList(containerId) {
-  // Map container ID to Firestore collection name
-  const colMap = {
-    rulesList: 'rules',
-    specialList: 'special',
-    councilCharterList: 'council-charter',
-    councilRulesList: 'council-rules',
-  }
-  const colName = colMap[containerId] || containerId.replace('List', '')
-  return function(items) {
-    const el = document.getElementById(containerId)
-    if (!items.length) { el.innerHTML = emptyState(); return }
-    el.innerHTML = items.map(item => `
-      <div class="item-card">
-        <div class="item-card-header">
-          <span class="item-num">${item.number || ''}</span>
-          <span class="item-title">${item.title || ''}</span>
-          ${item.section ? `<span style="font-size:10px;color:var(--navy);background:rgba(26,39,68,.07);padding:2px 7px;border-radius:4px;margin-left:4px">${item.section}</span>` : ''}
-          <div class="item-actions">
-            <button class="btn-icon" data-edit="${colName}|${item.id}">
-              <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            </button>
-            <button class="btn-icon del" data-delete="${colName}|${item.id}">
-              <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-            </button>
-          </div>
-        </div>
-        <div class="item-card-body">
-          <div class="item-body-text">${item.body || ''}</div>
-          ${(item.items||[]).length ? `<div style="margin-top:8px;font-size:12px;color:var(--text-3)">${item.items.filter(it => !/^[\s\t　]+/.test(it) && !/^[ア-ン][\s　.]/.test(it.trim())).length}項あり${item.items.some(it => /^[\s\t　]+/.test(it) || /^[ア-ン][\s　.]/.test(it.trim())) ? '（サブ項目含む）' : ''}</div>` : ''}
-        </div>
-      </div>
-    `).join('')
-  }
-}
-
-// =============================================
-// CURRICULUM
-// =============================================
-function renderCurriculumList(items) {
-  const el = document.getElementById('curriculumList')
-  if (!items.length) { el.innerHTML = emptyState(); return }
-  // Group by year
-  const byYear = {}
-  items.forEach(item => {
-    const y = item.year || '2024'
-    if (!byYear[y]) byYear[y] = []
-    byYear[y].push(item)
-  })
-  el.innerHTML = Object.entries(byYear).map(([year, rows]) => `
-    <div class="item-card" style="margin-bottom:14px">
-      <div class="item-card-header" style="background:var(--surface2)">
-        <span class="item-num">${year}年度入学</span>
-        <span class="item-title">${rows.length}科目</span>
-      </div>
-      <div class="table-scroll" style="overflow-x:auto">
-        <table class="curriculum-table" style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead><tr style="background:var(--surface2)">
-            <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">教科</th>
-            <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">科目</th>
-            <th style="padding:8px 12px;text-align:center;border-bottom:1px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">1年</th>
-            <th style="padding:8px 12px;text-align:center;border-bottom:1px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">2年</th>
-            <th style="padding:8px 12px;text-align:center;border-bottom:1px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">3年</th>
-            <th style="padding:8px 12px;text-align:center;border-bottom:1px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">必選</th>
-            <th style="padding:8px 12px;border-bottom:1px solid var(--border)"></th>
-          </tr></thead>
-          <tbody>
-            ${rows.map(r => `
-              <tr>
-                <td style="padding:8px 12px;border-bottom:1px solid var(--border-2);color:var(--text-2)">${r.subject||''}</td>
-                <td style="padding:8px 12px;border-bottom:1px solid var(--border-2);color:var(--text-2)">${r.course||''}</td>
-                <td style="padding:8px 12px;text-align:center;border-bottom:1px solid var(--border-2);color:var(--text-2)">${r.y1||'—'}</td>
-                <td style="padding:8px 12px;text-align:center;border-bottom:1px solid var(--border-2);color:var(--text-2)">${r.y2||'—'}</td>
-                <td style="padding:8px 12px;text-align:center;border-bottom:1px solid var(--border-2);color:var(--text-2)">${r.y3||'—'}</td>
-                <td style="padding:8px 12px;text-align:center;border-bottom:1px solid var(--border-2);color:var(--text-2)">${r.required||''}</td>
-                <td style="padding:8px 12px;border-bottom:1px solid var(--border-2)">
-                  <div style="display:flex;gap:4px">
-                    <button class="btn-icon" data-edit="curriculum|${r.id}">
-                      <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/></svg>
-                    </button>
-                    <button class="btn-icon del" data-delete="curriculum|${r.id}">
-                      <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `).join('')
-}
-
-// =============================================
-// EVENTS
-// =============================================
-function renderEventsList(items) {
-  const el = document.getElementById('eventsList')
-  if (!items.length) { el.innerHTML = emptyState(); return }
-  const months = ['1','2','3','4','5','6','7','8','9','10','11','12']
-  const byMonth = {}
-  items.forEach(item => {
-    const m = String(item.month || '1')
-    if (!byMonth[m]) byMonth[m] = []
-    byMonth[m].push(item)
-  })
-  el.innerHTML = months.filter(m => byMonth[m]).map(m => `
-    <div class="item-card" style="margin-bottom:10px;overflow:hidden">
-      <div class="item-card-header" style="background:var(--navy);color:white">
-        <span style="font-family:'Noto Serif JP',serif;font-size:14px;font-weight:600">${m}月</span>
-        <span style="font-size:12px;opacity:.6;margin-left:auto">${byMonth[m].length}件</span>
-      </div>
-      ${byMonth[m].map(item => `
-        <div class="history-row" style="grid-template-columns:1fr auto">
-          <div class="history-event-cell">${item.name || ''}</div>
-          <div class="item-actions">
-            <button class="btn-icon" data-edit="events|${item.id}">
-              <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/></svg>
-            </button>
-            <button class="btn-icon del" data-delete="events|${item.id}">
-              <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-            </button>
-          </div>
-        </div>
-      `).join('')}
-    </div>
-  `).join('')
-}
-
-// =============================================
-// COUNCIL ACTIVITIES (single doc)
-// =============================================
 async function loadCouncilActivitiesForm() {
-  const el = document.getElementById('councilActivitiesForm')
+  const el = $('councilActivitiesForm')
+  if (!el) return
+  el.innerHTML = spinner()
   const snap = await getDoc(doc(db, 'content', 'council-activities')).catch(() => null)
   const data = snap?.data() || {}
-  // overview と committees を1つのフィールドに統合して表示
+  // overview と committees を1枠に統合して表示（既存データとの後方互換）
   const merged = [data.overview, data.committees].filter(Boolean).join('\n\n')
   el.innerHTML = `
     <div class="form-row">
       <label>生徒会活動の内容（本文）</label>
-      <div style="font-size:11px;color:var(--text-3);margin-bottom:6px">
-        1枠でまとめて入力してください。段落は空行で区切られます。
-      </div>
-      <textarea id="caContent" rows="12" style="width:100%;font-size:13px">${merged}</textarea>
+      <div class="form-hint" style="margin-bottom:6px">1枠でまとめて入力してください。段落は空行で区切られます。</div>
+      <textarea id="caContent" rows="14">${escHtml(merged)}</textarea>
     </div>
-    <button class="btn-save" style="margin-top:8px" data-save-action="council-activities">保存</button>
-  `
+    <button class="btn-save" data-save-action="council-activities">保存</button>`
 }
 
 async function saveCouncilActivities() {
-  const content = document.getElementById('caContent').value.trim()
   // 後方互換のため overview に保存、committees は空にする
-  await setDoc(doc(db, 'content', 'council-activities'), { overview: content, committees: '' })
+  await setDoc(doc(db, 'content', 'council-activities'), { overview: trimVal('caContent'), committees: '' })
   showToast('生徒会活動を保存しました')
 }
 
-// =============================================
-// 特別教育活動 説明文（content/special ドキュメント）
-// =============================================
 async function loadSpecialDescForm() {
-  const el = document.getElementById('specialDescForm')
+  const el = $('specialDescForm')
   if (!el) return
+  el.innerHTML = spinner()
   const snap = await getDoc(doc(db, 'content', 'special')).catch(() => null)
   const data = snap?.data() || {}
   el.innerHTML = `
-    <textarea id="specialDescription" rows="6" style="width:100%;font-size:13px;border:1.5px solid var(--border);border-radius:var(--r);padding:9px 12px;line-height:1.7;resize:vertical" placeholder="特別教育活動の目的や概要を入力...">${data.description || ''}</textarea>
-    <button class="btn-save" style="margin-top:8px" data-save-action="special-desc">保存</button>
-  `
+    <div class="form-row">
+      <textarea id="specialDescription" rows="6" placeholder="特別教育活動の目的や概要を入力...">${escHtml(data.description)}</textarea>
+    </div>
+    <button class="btn-save" data-save-action="special-desc">保存</button>`
 }
 
 async function saveSpecialDesc() {
-  const description = document.getElementById('specialDescription').value.trim()
-  // merge with existing data
   const snap = await getDoc(doc(db, 'content', 'special')).catch(() => null)
-  const existing = snap?.data() || {}
-  await setDoc(doc(db, 'content', 'special'), { ...existing, description })
+  await setDoc(doc(db, 'content', 'special'), { ...(snap?.data() || {}), description: trimVal('specialDescription') })
   showToast('特別教育活動の説明文を保存しました')
 }
 
-// =============================================
-// 知道生徒会憲章 前文（content/council-charter ドキュメント）
-// =============================================
 async function loadCharterPreambleForm() {
-  const el = document.getElementById('charterPreambleForm')
+  const el = $('charterPreambleForm')
   if (!el) return
+  el.innerHTML = spinner()
   const snap = await getDoc(doc(db, 'content', 'council-charter')).catch(() => null)
   const data = snap?.data() || {}
   el.innerHTML = `
-    <textarea id="charterPreamble" rows="6" style="width:100%;font-size:13px;border:1.5px solid var(--border);border-radius:var(--r);padding:9px 12px;line-height:1.7;resize:vertical" placeholder="憲章の前文を入力...">${data.preamble || ''}</textarea>
-    <button class="btn-save" style="margin-top:8px" data-save-action="charter-preamble">保存</button>
-  `
+    <div class="form-row">
+      <textarea id="charterPreamble" rows="6" placeholder="憲章の前文を入力...">${escHtml(data.preamble)}</textarea>
+    </div>
+    <button class="btn-save" data-save-action="charter-preamble">保存</button>`
 }
 
 async function saveCharterPreamble() {
-  const preamble = document.getElementById('charterPreamble').value.trim()
   const snap = await getDoc(doc(db, 'content', 'council-charter')).catch(() => null)
-  const existing = snap?.data() || {}
-  await setDoc(doc(db, 'content', 'council-charter'), { ...existing, preamble })
+  await setDoc(doc(db, 'content', 'council-charter'), { ...(snap?.data() || {}), preamble: trimVal('charterPreamble') })
   showToast('憲章の前文を保存しました')
 }
 
 // =============================================
-// MODAL
+// 条番号の自動採番ヘルパー
+// 「第一条」「第12条」などの直前の値から次の番号を推定する。
+// 入力欄を空にしておけば自動で次の条番号が入るようにするため。
 // =============================================
-const MODAL_CONFIGS = {
-  history: {
-    title: '沿革',
-    fields: () => `
-      <div class="form-row">
-        <label>年号（例: 1878（明11）8・12）</label>
-        <input type="text" id="f_year" placeholder="1878（明11）8・12">
-      </div>
-      <div class="form-row">
-        <label>出来事</label>
-        <textarea id="f_event" rows="3" placeholder="茨城県立第一中学校創立"></textarea>
-      </div>
-      <div class="form-row">
-        <label>並び順（数字）</label>
-        <input type="number" id="f_order" value="0">
-      </div>
-    `,
-    getData: () => ({
-      year:  document.getElementById('f_year').value.trim(),
-      event: document.getElementById('f_event').value.trim(),
-      order: Number(document.getElementById('f_order').value),
-    }),
-    fill: (data) => {
-      document.getElementById('f_year').value  = data.year  || ''
-      document.getElementById('f_event').value = data.event || ''
-      document.getElementById('f_order').value = data.order ?? 0
+const KANJI_DIGITS = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九']
+
+function kanjiToNumber(s) {
+  const str = String(s || '')
+  if (!/[一二三四五六七八九十百]/.test(str)) return null
+  let total = 0, section = 0, current = 0
+  for (const ch of str) {
+    const d = KANJI_DIGITS.indexOf(ch)
+    if (d > 0) { current = d; continue }
+    if (ch === '十') { section += (current || 1) * 10; current = 0; continue }
+    if (ch === '百') { section += (current || 1) * 100; current = 0; continue }
+  }
+  total += section + current
+  return total || null
+}
+
+function numberToKanji(n) {
+  if (n <= 0) return ''
+  if (n < 10) return KANJI_DIGITS[n]
+  if (n < 100) {
+    const t = Math.floor(n / 10), o = n % 10
+    return (t > 1 ? KANJI_DIGITS[t] : '') + '十' + (o ? KANJI_DIGITS[o] : '')
+  }
+  const h = Math.floor(n / 100), rest = n % 100
+  return (h > 1 ? KANJI_DIGITS[h] : '') + '百' + (rest ? numberToKanji(rest) : '')
+}
+
+/**
+ * 同じコレクション内の既存条文から「次の条番号」を推定する。
+ * 漢数字で入力されていれば漢数字、算用数字なら算用数字を維持する。
+ */
+function suggestArticleNumber(col, chapter = '') {
+  const items = listCache[col] || []
+  if (!items.length) return ''
+  // 章が指定されていればその章の中の最後、なければ全体の最後を見る
+  const scoped = chapter
+    ? items.filter(x => (x.chapter || '').trim() === chapter.trim())
+    : items
+  const pool = scoped.length ? scoped : items
+
+  let best = null // { n, kanji }
+  pool.forEach(x => {
+    const num = String(x.number || '')
+    const arabic = num.match(/(\d+)/)
+    if (arabic) {
+      const n = Number(arabic[1])
+      if (!best || n > best.n) best = { n, kanji: false }
+      return
     }
-  },
-  principals: {
-    title: '歴代校長',
-    fields: () => `
-      <div class="form-row-2 form-row">
-        <div>
-          <label>代数（例: 初代、2代）</label>
-          <input type="text" id="f_gen" placeholder="初代">
-        </div>
-        <div>
-          <label>氏名</label>
-          <input type="text" id="f_name" placeholder="〇〇 〇〇">
-        </div>
-      </div>
-      <div class="form-row">
-        <label>在任期間（例: 明治13・7 ― 明治14・5）</label>
-        <input type="text" id="f_term" placeholder="明治13・7 ― 明治14・5">
-      </div>
-      <div class="form-row">
-        <label>並び順（数字）</label>
-        <input type="number" id="f_order" value="0">
-      </div>
-    `,
-    getData: () => ({
-      gen:   document.getElementById('f_gen').value.trim(),
-      name:  document.getElementById('f_name').value.trim(),
-      term:  document.getElementById('f_term').value.trim(),
-      order: Number(document.getElementById('f_order').value),
-    }),
-    fill: (data) => {
-      document.getElementById('f_gen').value   = data.gen   || ''
-      document.getElementById('f_name').value  = data.name  || ''
-      document.getElementById('f_term').value  = data.term  || ''
-      document.getElementById('f_order').value = data.order ?? 0
+    const k = kanjiToNumber(num.replace(/^第/, '').replace(/条$/, ''))
+    if (k && (!best || k > best.n)) best = { n: k, kanji: true }
+  })
+  if (!best) return ''
+  const next = best.n + 1
+  return best.kanji ? `第${numberToKanji(next)}条` : `第${next}条`
+}
+
+// =============================================
+// 項エディタ用のツールバー
+// =============================================
+function itemsToolbar(targetId) {
+  return `<div class="input-toolbar">
+    <button type="button" class="tool-btn" data-items-tool="number|${targetId}">
+      <svg viewBox="0 0 24 24"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/></svg>
+      番号付きの項を追加
+    </button>
+    <button type="button" class="tool-btn" data-items-tool="sub|${targetId}">
+      <svg viewBox="0 0 24 24"><polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/></svg>
+      サブ項目（ア イ ウ）を追加
+    </button>
+    <button type="button" class="tool-btn" data-items-tool="renumber|${targetId}">
+      <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      番号を振り直す
+    </button>
+  </div>`
+}
+
+const KATA_SUB = ['ア', 'イ', 'ウ', 'エ', 'オ', 'カ', 'キ', 'ク', 'ケ', 'コ', 'サ', 'シ', 'ス', 'セ', 'ソ']
+
+function handleItemsTool(tool, targetId) {
+  const ta = $(targetId)
+  if (!ta) return
+  const lines = ta.value.split('\n')
+
+  if (tool === 'number') {
+    // 最上位（字下げされていない）項の数 + 1 を採番
+    const topCount = lines.filter(l => l.trim() && !/^[\s\u3000]/.test(l)).length
+    if (ta.value && !ta.value.endsWith('\n')) ta.value += '\n'
+    ta.value += `${topCount + 1} `
+  } else if (tool === 'sub') {
+    // 直前の最上位項に属するサブ項目の数から ア イ ウ... を採番
+    let subCount = 0
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const l = lines[i]
+      if (!l.trim()) continue
+      if (/^[\s\u3000]/.test(l)) { subCount++; continue }
+      break
     }
-  },
-  songs: {
-    title: '歌詞',
-    fields: () => `
-      <div class="form-row-2 form-row">
-        <div>
-          <label>種別</label>
-          <select id="f_type">
-            <option value="校歌">校歌</option>
-            <option value="応援歌">応援歌</option>
-            <option value="その他">その他</option>
-          </select>
-        </div>
-        <div>
-          <label>タイトル</label>
-          <input type="text" id="f_title" placeholder="水戸第一高等学校校歌">
-        </div>
-      </div>
-      <div class="form-row">
-        <label>作詞者</label>
-        <input type="text" id="f_lyricist" placeholder="〇〇 〇〇">
-      </div>
-      <div class="form-row">
-        <label>作曲者</label>
-        <input type="text" id="f_composer" placeholder="〇〇 〇〇">
-      </div>
-      <div class="form-row">
-        <label>一番</label>
-        <textarea id="f_v1" rows="4" placeholder="歌詞を入力..."></textarea>
-      </div>
-      <div class="form-row">
-        <label>二番（なければ空欄）</label>
-        <textarea id="f_v2" rows="4"></textarea>
-      </div>
-      <div class="form-row">
-        <label>三番（なければ空欄）</label>
-        <textarea id="f_v3" rows="4"></textarea>
-      </div>
-      <div class="form-row">
-        <label>並び順</label>
-        <input type="number" id="f_order" value="0">
-      </div>
-    `,
-    getData: () => {
-      const verses = [
-        document.getElementById('f_v1').value.trim(),
-        document.getElementById('f_v2').value.trim(),
-        document.getElementById('f_v3').value.trim(),
-      ].filter(Boolean)
-      return {
-        type:     document.getElementById('f_type').value,
-        title:    document.getElementById('f_title').value.trim(),
-        lyricist: document.getElementById('f_lyricist').value.trim(),
-        composer: document.getElementById('f_composer').value.trim(),
-        verses,
-        order: Number(document.getElementById('f_order').value),
+    if (ta.value && !ta.value.endsWith('\n')) ta.value += '\n'
+    ta.value += `  ${KATA_SUB[subCount] || 'ア'} `
+  } else if (tool === 'renumber') {
+    let top = 0, sub = 0
+    ta.value = lines.map(l => {
+      if (!l.trim()) return l
+      if (/^[\s\u3000]/.test(l)) {
+        const body = l.trim().replace(/^[ア-ン][\s\u3000.．]*/, '')
+        const label = KATA_SUB[sub] || 'ア'
+        sub++
+        return `  ${label} ${body}`
       }
-    },
-    fill: (data) => {
-      document.getElementById('f_type').value     = data.type     || '校歌'
-      document.getElementById('f_title').value    = data.title    || ''
-      document.getElementById('f_lyricist').value = data.lyricist || ''
-      document.getElementById('f_composer').value = data.composer || ''
-      const v = data.verses || []
-      document.getElementById('f_v1').value = v[0] || ''
-      document.getElementById('f_v2').value = v[1] || ''
-      document.getElementById('f_v3').value = v[2] || ''
-      document.getElementById('f_order').value = data.order ?? 0
-    }
-  },
-  events: {
-    title: '年間行事',
-    fields: () => `
-      <div class="form-row">
-        <label>月</label>
-        <select id="f_month">
-          ${[...Array(12)].map((_,i)=>`<option value="${i+1}">${i+1}月</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-row">
-        <label>行事名</label>
-        <input type="text" id="f_name" placeholder="始業式">
-      </div>
-      <div class="form-row">
-        <label>並び順</label>
-        <input type="number" id="f_order" value="0">
-      </div>
-    `,
-    getData: () => ({
-      month: Number(document.getElementById('f_month').value),
-      name:  document.getElementById('f_name').value.trim(),
-      order: Number(document.getElementById('f_order').value),
-    }),
-    fill: (data) => {
-      document.getElementById('f_month').value = data.month || 1
-      document.getElementById('f_name').value  = data.name  || ''
-      document.getElementById('f_order').value = data.order ?? 0
-    }
-  },
-  curriculum: {
-    title: '教育課程',
-    fields: () => `
-      <div class="form-row">
-        <label>入学年度</label>
-        <input type="text" id="f_year" placeholder="2024">
-      </div>
-      <div class="form-row-2 form-row">
-        <div>
-          <label>教科</label>
-          <input type="text" id="f_subject" placeholder="国語">
-        </div>
-        <div>
-          <label>科目</label>
-          <input type="text" id="f_course" placeholder="現代の国語">
+      const body = l.trim().replace(/^\d+[\s\u3000.．]*/, '')
+      top++; sub = 0
+      return `${top} ${body}`
+    }).join('\n')
+    showToast('項の番号を振り直しました')
+  }
+  ta.focus()
+  ta.setSelectionRange(ta.value.length, ta.value.length)
+}
+
+/** 並び順の入力欄（自動採番済み・通常は折りたたみの中） */
+function orderField(col, currentOrder) {
+  const auto = currentOrder === undefined || currentOrder === null
+  const value = auto ? nextOrder(col) : currentOrder
+  return `<details class="collapse">
+    <summary>詳細設定（並び順）</summary>
+    <div class="collapse-body">
+      <div class="form-row" style="margin-bottom:0">
+        <label>並び順 <span class="form-tag auto">自動</span></label>
+        <input type="number" id="f_order" value="${value}">
+        <div class="form-hint">
+          通常は入力不要です。自動で末尾に追加されます。<br>
+          一覧の <strong>↑ ↓</strong> ボタンでも並び替えできます。
         </div>
       </div>
-      <div class="form-row-2 form-row">
-        <div><label>1年（単位）</label><input type="text" id="f_y1" placeholder="2"></div>
-        <div><label>2年（単位）</label><input type="text" id="f_y2" placeholder="—"></div>
-      </div>
-      <div class="form-row-2 form-row">
-        <div><label>3年（単位）</label><input type="text" id="f_y3" placeholder="—"></div>
-        <div>
-          <label>必修/選択</label>
-          <select id="f_required">
-            <option value="必修">必修</option>
-            <option value="選択">選択</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-row">
-        <label>並び順</label>
-        <input type="number" id="f_order" value="0">
-      </div>
-    `,
-    getData: () => ({
-      year:     document.getElementById('f_year').value.trim(),
-      subject:  document.getElementById('f_subject').value.trim(),
-      course:   document.getElementById('f_course').value.trim(),
-      y1:       document.getElementById('f_y1').value.trim(),
-      y2:       document.getElementById('f_y2').value.trim(),
-      y3:       document.getElementById('f_y3').value.trim(),
-      required: document.getElementById('f_required').value,
-      order:    Number(document.getElementById('f_order').value),
-    }),
-    fill: (data) => {
-      document.getElementById('f_year').value     = data.year     || ''
-      document.getElementById('f_subject').value  = data.subject  || ''
-      document.getElementById('f_course').value   = data.course   || ''
-      document.getElementById('f_y1').value       = data.y1       || ''
-      document.getElementById('f_y2').value       = data.y2       || ''
-      document.getElementById('f_y3').value       = data.y3       || ''
-      document.getElementById('f_required').value = data.required || '必修'
-      document.getElementById('f_order').value    = data.order    ?? 0
-    }
+    </div>
+  </details>`
+}
+
+function orderValue(col) {
+  const el = $('f_order')
+  if (!el || el.value === '') return nextOrder(col)
+  return Number(el.value)
+}
+
+// =============================================
+// MODAL CONFIGS
+//
+// 各設定は以下を持つ:
+//   title    : モーダルのタイトル
+//   fields(ctx) : 入力欄の HTML。ctx = { col, editing, seed }
+//   getData(col) : 保存するデータ
+//   fill(data)   : 編集時に値を流し込む
+//   sticky       : 「保存して続けて追加」で引き継ぐフィールド名（DOM id）
+// =============================================
+const MODAL_CONFIGS = {}
+
+MODAL_CONFIGS.history = {
+  title: '沿革',
+  sticky: [],
+  fields: ({ col, seed }) => `
+    <div class="form-row">
+      <label>年号 <span class="form-tag req">必須</span></label>
+      <input type="text" id="f_year" list="dl_hist_year" value="${escHtml(seed?.year)}" placeholder="1878（明11）8・12">
+      ${datalist('dl_hist_year', knownValues(col, 'year'))}
+      <div class="form-hint">例: 1878（明11）8・12</div>
+    </div>
+    <div class="form-row">
+      <label>出来事 <span class="form-tag req">必須</span></label>
+      <textarea id="f_event" rows="3" placeholder="茨城県立第一中学校創立">${escHtml(seed?.event)}</textarea>
+    </div>
+    ${orderField(col, seed ? undefined : undefined)}`,
+  getData: (col) => ({
+    year:  trimVal('f_year'),
+    event: trimVal('f_event'),
+    order: orderValue(col),
+  }),
+  fill: (data) => {
+    $('f_year').value  = data.year  || ''
+    $('f_event').value = data.event || ''
+    if ($('f_order')) $('f_order').value = data.order ?? 0
   },
 }
 
-// Article types share the same form
-const articleForm = (type) => ({
-  title: '条文',
-  fields: () => `
+MODAL_CONFIGS.principals = {
+  title: '歴代校長',
+  sticky: [],
+  fields: ({ col, seed }) => `
     <div class="form-row-2 form-row">
       <div>
-        <label>条番号（例: 第一条、前文）</label>
-        <input type="text" id="f_number" placeholder="第一条">
+        <label>代数 <span class="form-tag req">必須</span></label>
+        <input type="text" id="f_gen" value="${escHtml(seed?.gen)}" placeholder="初代">
       </div>
       <div>
-        <label>条名（例: 目的）</label>
-        <input type="text" id="f_title_art" placeholder="目的">
+        <label>氏名 <span class="form-tag req">必須</span></label>
+        <input type="text" id="f_name" value="${escHtml(seed?.name)}" placeholder="〇〇 〇〇">
       </div>
+    </div>
+    <div class="form-row">
+      <label>在任期間</label>
+      <input type="text" id="f_term" value="${escHtml(seed?.term)}" placeholder="明治13・7 ― 明治14・5">
+    </div>
+    ${orderField(col)}`,
+  getData: (col) => ({
+    gen:   trimVal('f_gen'),
+    name:  trimVal('f_name'),
+    term:  trimVal('f_term'),
+    order: orderValue(col),
+  }),
+  fill: (data) => {
+    $('f_gen').value  = data.gen  || ''
+    $('f_name').value = data.name || ''
+    $('f_term').value = data.term || ''
+    if ($('f_order')) $('f_order').value = data.order ?? 0
+  },
+}
+
+MODAL_CONFIGS.songs = {
+  title: '歌詞',
+  sticky: ['f_type', 'f_lyricist', 'f_composer'],
+  fields: ({ col, seed }) => {
+    const s = { ...getSticky('songs'), ...(seed || {}) }
+    return `
+    <div class="form-row-2 form-row">
+      <div>
+        <label>種別</label>
+        <select id="f_type">
+          ${['校歌', '応援歌', 'その他'].map(t => `<option value="${t}"${(s.type || s.f_type) === t ? ' selected' : ''}>${t}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label>タイトル <span class="form-tag req">必須</span></label>
+        <input type="text" id="f_title" value="${escHtml(seed?.title)}" placeholder="水戸第一高等学校校歌">
+      </div>
+    </div>
+    <div class="form-row-2 form-row">
+      <div>
+        <label>作詞者 <span class="form-tag">引き継ぎ</span></label>
+        <input type="text" id="f_lyricist" list="dl_lyricist" value="${escHtml(s.lyricist ?? s.f_lyricist)}" placeholder="〇〇 〇〇">
+        ${datalist('dl_lyricist', knownValues(col, 'lyricist'))}
+      </div>
+      <div>
+        <label>作曲者 <span class="form-tag">引き継ぎ</span></label>
+        <input type="text" id="f_composer" list="dl_composer" value="${escHtml(s.composer ?? s.f_composer)}" placeholder="〇〇 〇〇">
+        ${datalist('dl_composer', knownValues(col, 'composer'))}
+      </div>
+    </div>
+    <div class="form-row">
+      <label>一番</label>
+      <textarea id="f_v1" rows="4" placeholder="歌詞を入力...">${escHtml((seed?.verses || [])[0])}</textarea>
+    </div>
+    <div class="form-row">
+      <label>二番（なければ空欄）</label>
+      <textarea id="f_v2" rows="4">${escHtml((seed?.verses || [])[1])}</textarea>
+    </div>
+    <div class="form-row">
+      <label>三番（なければ空欄）</label>
+      <textarea id="f_v3" rows="4">${escHtml((seed?.verses || [])[2])}</textarea>
+    </div>
+    ${orderField(col)}`
+  },
+  getData: (col) => ({
+    type:     val('f_type'),
+    title:    trimVal('f_title'),
+    lyricist: trimVal('f_lyricist'),
+    composer: trimVal('f_composer'),
+    verses:   ['f_v1', 'f_v2', 'f_v3'].map(trimVal).filter(Boolean),
+    order:    orderValue(col),
+  }),
+  fill: (data) => {
+    $('f_type').value     = data.type     || '校歌'
+    $('f_title').value    = data.title    || ''
+    $('f_lyricist').value = data.lyricist || ''
+    $('f_composer').value = data.composer || ''
+    const v = data.verses || []
+    $('f_v1').value = v[0] || ''
+    $('f_v2').value = v[1] || ''
+    $('f_v3').value = v[2] || ''
+    if ($('f_order')) $('f_order').value = data.order ?? 0
+  },
+}
+
+MODAL_CONFIGS.events = {
+  title: '年間行事',
+  sticky: ['f_month'],
+  fields: ({ col, seed }) => {
+    const s = { ...getSticky('events'), ...(seed || {}) }
+    const selMonth = Number(s.month ?? s.f_month ?? (new Date().getMonth() + 1))
+    return `
+    <div class="form-row-2 form-row">
+      <div>
+        <label>月 <span class="form-tag">引き継ぎ</span></label>
+        <select id="f_month">
+          ${[4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3].map(m => `<option value="${m}"${m === selMonth ? ' selected' : ''}>${m}月</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label>行事名 <span class="form-tag req">必須</span></label>
+        <input type="text" id="f_name" list="dl_event_name" value="${escHtml(seed?.name)}" placeholder="始業式">
+        ${datalist('dl_event_name', knownValues(col, 'name'))}
+      </div>
+    </div>
+    <div class="notice" style="margin-bottom:15px">
+      「保存して続けて追加」を使うと <strong>月を選び直さずに</strong> 続けて行事を登録できます。
+    </div>
+    ${orderField(col)}`
+  },
+  getData: (col) => ({
+    month: Number(val('f_month')),
+    name:  trimVal('f_name'),
+    order: orderValue(col),
+  }),
+  fill: (data) => {
+    $('f_month').value = data.month || 4
+    $('f_name').value  = data.name  || ''
+    if ($('f_order')) $('f_order').value = data.order ?? 0
+  },
+}
+
+MODAL_CONFIGS.curriculum = {
+  title: '教育課程',
+  sticky: ['f_year', 'f_subject', 'f_required'],
+  fields: ({ col, seed }) => {
+    const s = { ...getSticky('curriculum'), ...(seed || {}) }
+    const req = s.required ?? s.f_required ?? '必修'
+    return `
+    <div class="form-row-2 form-row">
+      <div>
+        <label>入学年度 <span class="form-tag">引き継ぎ</span></label>
+        <input type="text" id="f_year" list="dl_cur_year" value="${escHtml(s.year ?? s.f_year)}" placeholder="2024">
+        ${datalist('dl_cur_year', knownValues(col, 'year'))}
+      </div>
+      <div>
+        <label>教科 <span class="form-tag">引き継ぎ</span></label>
+        <input type="text" id="f_subject" list="dl_cur_subject" value="${escHtml(s.subject ?? s.f_subject)}" placeholder="国語">
+        ${datalist('dl_cur_subject', knownValues(col, 'subject'))}
+      </div>
+    </div>
+    <div class="form-row">
+      <label>科目 <span class="form-tag req">必須</span></label>
+      <input type="text" id="f_course" value="${escHtml(seed?.course)}" placeholder="現代の国語">
+    </div>
+    <div class="form-row-3 form-row">
+      <div><label>1年（単位）</label><input type="text" id="f_y1" value="${escHtml(seed?.y1)}" placeholder="2"></div>
+      <div><label>2年（単位）</label><input type="text" id="f_y2" value="${escHtml(seed?.y2)}" placeholder="—"></div>
+      <div><label>3年（単位）</label><input type="text" id="f_y3" value="${escHtml(seed?.y3)}" placeholder="—"></div>
+    </div>
+    <div class="form-row">
+      <label>必修 / 選択 <span class="form-tag">引き継ぎ</span></label>
+      <select id="f_required">
+        ${['必修', '選択'].map(r => `<option value="${r}"${req === r ? ' selected' : ''}>${r}</option>`).join('')}
+      </select>
+    </div>
+    <div class="notice" style="margin-bottom:15px">
+      「保存して続けて追加」で <strong>入学年度・教科・必修選択を引き継いだまま</strong> 次の科目を入力できます。
+    </div>
+    ${orderField(col)}`
+  },
+  getData: (col) => ({
+    year:     trimVal('f_year'),
+    subject:  trimVal('f_subject'),
+    course:   trimVal('f_course'),
+    y1:       trimVal('f_y1'),
+    y2:       trimVal('f_y2'),
+    y3:       trimVal('f_y3'),
+    required: val('f_required'),
+    order:    orderValue(col),
+  }),
+  fill: (data) => {
+    $('f_year').value     = data.year     || ''
+    $('f_subject').value  = data.subject  || ''
+    $('f_course').value   = data.course   || ''
+    $('f_y1').value       = data.y1       || ''
+    $('f_y2').value       = data.y2       || ''
+    $('f_y3').value       = data.y3       || ''
+    $('f_required').value = data.required || '必修'
+    if ($('f_order')) $('f_order').value = data.order ?? 0
+  },
+}
+
+// --- 条文系（rules / special / council-charter / council-rules）は共通フォーム ---
+const articleForm = (type) => ({
+  title: '条文',
+  sticky: ['f_chapter', 'f_section'],
+  fields: ({ col, seed }) => {
+    const s = { ...getSticky(type), ...(seed || {}) }
+    const chapter = s.chapter ?? s.f_chapter ?? ''
+    const section = s.section ?? s.f_section ?? ''
+    // 条番号は空欄なら自動採番（章が同じものの続き番号）
+    const suggested = seed?.number || suggestArticleNumber(col, chapter)
+    return `
+    <div class="form-row">
+      <label>章見出し <span class="form-tag">引き継ぎ</span></label>
+      <input type="text" id="f_chapter" list="dl_chapter" value="${escHtml(chapter)}" placeholder="第一章 総則">
+      ${datalist('dl_chapter', knownValues(col, 'chapter'))}
+      <div class="form-hint">既に登録済みの章は入力欄をクリックすると候補から選べます。「保存して続けて追加」では章がそのまま引き継がれます。</div>
     </div>
     ${type === 'council-charter' ? `
     <div class="form-row">
-      <label>セクション（任意 — 例: 総則、細則）</label>
-      <input type="text" id="f_section" placeholder="総則">
-      <div style="font-size:10.5px;color:var(--text-3);margin-top:3px">条文が「総則」「細則」などのセクションに分かれる場合に指定</div>
-    </div>
-    ` : ''}
-    <div class="form-row">
-      <label>章見出し（任意 — 例: 第一章 総則）</label>
-      <input type="text" id="f_chapter" placeholder="第一章 総則">
+      <label>セクション <span class="form-tag">引き継ぎ</span></label>
+      <input type="text" id="f_section" list="dl_section" value="${escHtml(section)}" placeholder="総則">
+      ${datalist('dl_section', knownValues(col, 'section'))}
+      <div class="form-hint">「総則」「細則」などに分かれる場合に指定します。</div>
+    </div>` : ''}
+    <div class="form-row-2 form-row">
+      <div>
+        <label>条番号 <span class="form-tag auto">自動</span></label>
+        <input type="text" id="f_number" value="${escHtml(suggested)}" placeholder="第一条">
+        <div class="form-hint">前の条文から自動で採番されます。違う場合は直接書き換えてください。</div>
+      </div>
+      <div>
+        <label>条名</label>
+        <input type="text" id="f_title_art" value="${escHtml(seed?.title)}" placeholder="目的">
+      </div>
     </div>
     <div class="form-row">
       <label>本文</label>
-      <textarea id="f_body" rows="4" placeholder="条文の本文を入力..."></textarea>
+      <textarea id="f_body" rows="4" placeholder="条文の本文を入力...">${escHtml(seed?.body)}</textarea>
     </div>
     <div class="form-row">
-      <label>項（1行1項。サブ項目はスペースで字下げ、ア イ ウ...で始める）</label>
-      <textarea id="f_items" rows="8" placeholder="1 授業に関すること&#10;  ア 遅刻について&#10;  イ 欠席について&#10;2 施設の利用に関すること"></textarea>
-      <div style="font-size:10.5px;color:var(--text-3);margin-top:3px">サブ項目はスペースで字下げするか「ア」「イ」等で始めてください</div>
+      <label>項（1行1項）</label>
+      ${itemsToolbar('f_items')}
+      <textarea id="f_items" rows="8" placeholder="1 授業に関すること&#10;  ア 遅刻について&#10;  イ 欠席について&#10;2 施設の利用に関すること">${escHtml((seed?.items || []).join('\n'))}</textarea>
+      <div class="form-hint">
+        上のボタンで番号・サブ項目を自動で挿入できます。<br>
+        サブ項目は行頭をスペースで字下げするか「ア」「イ」等で始めてください。
+      </div>
     </div>
-    <div class="form-row">
-      <label>並び順</label>
-      <input type="number" id="f_order" value="0">
+    <div class="notice" style="margin-bottom:15px">
+      <strong>連続入力のコツ:</strong> 「保存して続けて追加」（${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'} + Shift + Enter）を押すと、
+      章とセクションを引き継いだまま条番号だけ1つ進んだ空のフォームが開きます。
     </div>
-  `,
-  getData: () => {
+    ${orderField(col)}`
+  },
+  getData: (col) => {
     const data = {
-      number:  document.getElementById('f_number').value.trim(),
-      title:   document.getElementById('f_title_art').value.trim(),
-      chapter: document.getElementById('f_chapter').value.trim(),
-      body:    document.getElementById('f_body').value.trim(),
-      items:   document.getElementById('f_items').value.trim().split('\n').filter(Boolean),
-      order:   Number(document.getElementById('f_order').value),
+      number:  trimVal('f_number'),
+      title:   trimVal('f_title_art'),
+      chapter: trimVal('f_chapter'),
+      body:    trimVal('f_body'),
+      items:   trimVal('f_items').split('\n').filter(l => l.trim()),
+      order:   orderValue(col),
     }
-    const sectionEl = document.getElementById('f_section')
-    if (sectionEl) data.section = sectionEl.value.trim()
+    if ($('f_section')) data.section = trimVal('f_section')
     return data
   },
   fill: (data) => {
-    document.getElementById('f_number').value    = data.number  || ''
-    document.getElementById('f_title_art').value = data.title   || ''
-    document.getElementById('f_chapter').value   = data.chapter || ''
-    document.getElementById('f_body').value      = data.body    || ''
-    document.getElementById('f_items').value     = (data.items || []).join('\n')
-    document.getElementById('f_order').value     = data.order   ?? 0
-    const sectionEl = document.getElementById('f_section')
-    if (sectionEl) sectionEl.value = data.section || ''
-  }
+    $('f_number').value    = data.number  || ''
+    $('f_title_art').value = data.title   || ''
+    $('f_chapter').value   = data.chapter || ''
+    $('f_body').value      = data.body    || ''
+    $('f_items').value     = (data.items || []).join('\n')
+    if ($('f_order')) $('f_order').value = data.order ?? 0
+    if ($('f_section')) $('f_section').value = data.section || ''
+  },
 })
 
 MODAL_CONFIGS['rules']           = articleForm('rules')
@@ -984,68 +1367,153 @@ MODAL_CONFIGS['special']         = articleForm('special')
 MODAL_CONFIGS['council-charter'] = articleForm('council-charter')
 MODAL_CONFIGS['council-rules']   = articleForm('council-rules')
 
-// Map containerId back to collection name
-const CONTAINER_TO_COL = {
-  rulesList: 'rules', specialList: 'special',
-  councilCharterList: 'council-charter', councilRulesList: 'council-rules',
+/** 必須項目の簡易バリデーション */
+const REQUIRED_FIELDS = {
+  history:    [['f_year', '年号'], ['f_event', '出来事']],
+  principals: [['f_gen', '代数'], ['f_name', '氏名']],
+  songs:      [['f_title', 'タイトル']],
+  events:     [['f_name', '行事名']],
+  curriculum: [['f_course', '科目']],
+  rules:              [['f_number', '条番号']],
+  special:            [['f_number', '条番号']],
+  'council-charter':  [['f_number', '条番号']],
+  'council-rules':    [['f_number', '条番号']],
 }
 
-async function openModal(type, id = null) {
-  editingType = type
-  editingId   = id
+function validateModal(type) {
+  for (const [id, label] of (REQUIRED_FIELDS[type] || [])) {
+    if (!trimVal(id)) {
+      showToast(`${label}を入力してください`)
+      $(id)?.focus()
+      return false
+    }
+  }
+  return true
+}
+
+// =============================================
+// MODAL 開閉・保存
+// =============================================
+/** ユーザー編集モーダルが saveBtn を奪っている場合に元へ戻す */
+function resetModalSaveHandlers() {
+  const saveBtn = $('modalSaveBtn')
+  if (saveBtn) saveBtn.onclick = null
+}
+
+async function openModal(type, id = null, { seed = null } = {}) {
   const cfg = MODAL_CONFIGS[type]
   if (!cfg) return
 
-  document.getElementById('modalTitle').textContent = (id ? '編集 — ' : '追加 — ') + cfg.title
-  document.getElementById('modalBody').innerHTML = cfg.fields()
+  editingType = type
+  editingId   = id
+  resetModalSaveHandlers()
 
-  // bind inline save buttons (goals / council-activities)
-  document.getElementById('modalBody').querySelectorAll('[data-action]').forEach(btn => {
-    if (btn.dataset.action === 'saveGoals') btn.addEventListener('click', saveGoals)
-    if (btn.dataset.action === 'saveCouncilActivities') btn.addEventListener('click', saveCouncilActivities)
+  // 一覧キャッシュが無い状態（ダッシュボードから直接追加など）では先に取得して
+  // order の自動採番・入力候補が正しく効くようにする
+  if (!listCache[type]) {
+    try { await fetchCollection(type) } catch { listCache[type] = [] }
+  }
+
+  $('modalTitle').textContent = (id ? '編集 — ' : '追加 — ') + cfg.title
+  $('modalBody').innerHTML = cfg.fields({ col: type, editing: !!id, seed })
+
+  // 「保存して続けて追加」は新規追加時のみ表示
+  const moreBtn = $('modalSaveMoreBtn')
+  if (moreBtn) moreBtn.style.display = id ? 'none' : ''
+
+  // 項エディタのツールバー
+  $('modalBody').querySelectorAll('[data-items-tool]').forEach(btn => {
+    const [tool, target] = btn.dataset.itemsTool.split('|')
+    btn.addEventListener('click', () => handleItemsTool(tool, target))
   })
+
+  // 条文フォーム: 章を変えたら条番号の候補も追従させる
+  const chapterEl = $('f_chapter')
+  const numberEl  = $('f_number')
+  if (!id && chapterEl && numberEl) {
+    chapterEl.addEventListener('change', () => {
+      const next = suggestArticleNumber(type, chapterEl.value)
+      if (next) numberEl.value = next
+    })
+  }
 
   if (id) {
     const snap = await getDoc(doc(db, type, id))
     if (snap.exists()) cfg.fill(snap.data())
   }
 
-  document.getElementById('modalOverlay').classList.add('open')
+  $('modalOverlay').classList.add('open')
+
+  // 最初の入力欄にフォーカス（連続入力を速くする）
+  setTimeout(() => {
+    const first = $('modalBody').querySelector('input:not([disabled]),textarea,select')
+    // 条文追加時は「章」ではなく「条名」から打ちたいので条番号の次にフォーカス
+    const preferred = (!id && $('f_title_art')) ? $('f_title_art') : first
+    preferred?.focus()
+  }, 60)
 }
 
 function closeModal() {
-  document.getElementById('modalOverlay').classList.remove('open')
-  editingId = null; editingType = null
+  $('modalOverlay')?.classList.remove('open')
+  resetModalSaveHandlers()
+  editingId = null
+  editingType = null
 }
 
-async function saveModal() {
-  const cfg = MODAL_CONFIGS[editingType]
+async function saveModal({ keepOpen = false } = {}) {
+  const type = editingType
+  const cfg = MODAL_CONFIGS[type]
   if (!cfg) return
-  const btn = document.getElementById('modalSaveBtn')
-  btn.disabled = true
+  if (!validateModal(type)) return
+
+  const btns = [$('modalSaveBtn'), $('modalSaveMoreBtn')].filter(Boolean)
+  btns.forEach(b => { b.disabled = true })
+
   try {
-    const data = cfg.getData()
+    const data = cfg.getData(type)
+
     if (editingId) {
-      await updateDoc(doc(db, editingType, editingId), data)
+      await updateDoc(doc(db, type, editingId), data)
       showToast('更新しました')
     } else {
-      await addDoc(collection(db, editingType), data)
-      showToast('追加しました')
+      await addDoc(collection(db, type), data)
+      showToast(keepOpen ? '保存しました。続けて入力できます' : '追加しました')
     }
-    closeModal()
+
+    // 引き継ぎ対象の値を保存（次回モーダルを開いたときの初期値になる）
+    if (cfg.sticky?.length) {
+      const picked = {}
+      cfg.sticky.forEach(fid => { if ($(fid)) picked[fid] = val(fid) })
+      setSticky(type, picked)
+    }
+
+    // キャッシュを更新（order 自動採番・条番号自動採番のため）
+    await fetchCollection(type).catch(() => {})
+
+    if (keepOpen && !editingId) {
+      // 引き継ぎ項目だけ残した空フォームを開き直す
+      await openModal(type, null)
+    } else {
+      closeModal()
+    }
     loadSection(currentSection)
+    loadSidebarCounts()
   } catch (e) {
-    showToast('エラーが発生しました: ' + e.message)
+    showToast('エラーが発生しました: ' + (e?.message || e))
   }
-  btn.disabled = false
+
+  btns.forEach(b => { b.disabled = false })
 }
 
 async function deleteItem(col, id) {
-  if (!confirm('削除しますか？')) return
+  const item = (listCache[col] || []).find(x => x.id === id)
+  const label = item ? (item.number || item.name || item.title || item.year || item.course || item.gen || '') : ''
+  if (!confirm(`${label ? `「${label}」を` : 'この項目を'}削除しますか？\nこの操作は取り消せません。`)) return
   try {
     await deleteDoc(doc(db, col, id))
     showToast('削除しました')
     loadSection(currentSection)
+    loadSidebarCounts()
   } catch (e) {
     const msg = e?.message || String(e)
     if (msg.includes('Missing or insufficient permissions')) {
@@ -1056,91 +1524,78 @@ async function deleteItem(col, id) {
   }
 }
 
+// 「引き継ぎ」値をリセットできるようにグローバルへ公開
+window.resetAdminSticky = function (type) {
+  if (type) clearSticky(type)
+  else { stickyStore = {}; try { localStorage.removeItem(STICKY_KEY) } catch { /* ignore */ } }
+  showToast('入力の引き継ぎをリセットしました')
+}
+
 // =============================================
 // お問い合わせ管理
 // =============================================
 const AI_URL = 'https://mito1-hundbook.asanuma-ryuto.workers.dev'
-const CATEGORY_LABELS = { bug:'バグ・不具合', feature:'機能要望', content:'内容修正依頼', other:'その他' }
-const STATUS_LABELS   = { new:'未対応', replied:'返信済', closed:'完了' }
-const STATUS_COLORS   = { new:'#c0392b', replied:'#2980b9', closed:'#27ae60' }
+const CATEGORY_LABELS = { bug: 'バグ・不具合', feature: '機能要望', content: '内容修正依頼', other: 'その他' }
+const STATUS_LABELS   = { new: '未対応', replied: '返信済', closed: '完了' }
+const STATUS_CLASS    = { new: 'badge-warn', replied: 'badge-muted', closed: 'badge-ok' }
 
-window.loadInquiries = async function() {
-  const el = document.getElementById('inquiriesList')
+window.loadInquiries = async function () {
+  const el = $('inquiriesList')
   if (!el) return
-  el.innerHTML = '<div class="loading-spinner"><div class="spinner"></div>読み込み中...</div>'
-  const filter = document.getElementById('inquiryFilter')?.value || 'all'
+  el.innerHTML = spinner()
+  const filter = $('inquiryFilter')?.value || 'all'
 
   try {
     const snap = await getDocs(query(collection(db, 'inquiries'), orderBy('createdAt', 'desc')))
     let items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
     if (filter !== 'all') items = items.filter(i => i.status === filter)
 
-    // バッジ更新
     const newCount = snap.docs.filter(d => d.data().status === 'new').length
-    const badge = document.getElementById('inquiryBadge')
+    const badge = $('inquiryBadge')
     if (badge) { badge.textContent = newCount; badge.style.display = newCount ? '' : 'none' }
 
-    if (!items.length) { el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3)">該当するお問い合わせはありません</div>'; return }
+    if (!items.length) { el.innerHTML = emptyState('該当するお問い合わせはありません'); return }
 
     // モデレーターは閲覧・AI下書きのみ可能。返信保存/送信/状態変更/削除は管理者以上のみ。
     const iCanReply = canReplyInquiries(myProfile?.role)
 
     el.innerHTML = items.map(item => `
-      <div class="item-card" id="inq-${item.id}" style="margin-bottom:12px">
-        <div style="display:flex;align-items:flex-start;gap:12px;padding:18px 20px">
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-              <span style="font-size:10px;font-weight:700;color:${STATUS_COLORS[item.status]||'#888'};background:${STATUS_COLORS[item.status]||'#888'}18;border-radius:4px;padding:2px 8px">${STATUS_LABELS[item.status]||item.status}</span>
-              <span style="font-size:10px;color:var(--text-3);background:var(--surface2);border-radius:4px;padding:2px 8px">${CATEGORY_LABELS[item.category]||item.category||'その他'}</span>
-              <span style="font-size:11px;color:var(--text-3);margin-left:auto">${item.createdAt?.toDate ? item.createdAt.toDate().toLocaleString('ja') : ''}</span>
-            </div>
-            <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px">${escHtml(item.subject||'（件名なし）')}</div>
-            <div style="font-size:12px;color:var(--text-3);margin-bottom:6px">差出人: ${escHtml(item.name||'不明')} &lt;${escHtml(item.email||'')}&gt;</div>
-            <div style="font-size:13px;color:var(--text-2);white-space:pre-wrap;border-left:3px solid var(--border);padding-left:10px;margin-bottom:12px">${escHtml(item.body||'')}</div>
-            ${item.reply ? `<div style="font-size:12px;color:var(--text-3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface2)"><strong>返信済み内容:</strong><br><span style="white-space:pre-wrap">${escHtml(item.reply)}</span></div>` : ''}
+      <div class="iq-card" id="inq-${item.id}">
+        <div class="iq-head">
+          <div class="iq-meta-row">
+            <span class="badge ${STATUS_CLASS[item.status] || 'badge-muted'}">${STATUS_LABELS[item.status] || escHtml(item.status)}</span>
+            <span class="badge badge-muted">${escHtml(CATEGORY_LABELS[item.category] || item.category || 'その他')}</span>
+            <span style="font-size:11px;color:var(--text-3);margin-left:auto">${item.createdAt?.toDate ? item.createdAt.toDate().toLocaleString('ja') : ''}</span>
           </div>
+          <div class="iq-subject">${escHtml(item.subject || '（件名なし）')}</div>
+          <div class="iq-from">差出人: ${escHtml(item.name || '不明')} &lt;${escHtml(item.email || '')}&gt;</div>
+          <div class="iq-body">${escHtml(item.body || '')}</div>
+          ${item.reply ? `<div class="iq-prev-reply"><strong>返信済み内容</strong><br><span style="white-space:pre-wrap">${escHtml(item.reply)}</span></div>` : ''}
         </div>
-        <div style="padding:0 20px 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-          <textarea id="reply-${item.id}" rows="3" placeholder="返信内容を入力（メールで送信する文章）" ${iCanReply ? '' : 'readonly'}
-            style="flex:1;min-width:200px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;resize:vertical;background:var(--surface);color:var(--text)">${escHtml(item.reply||'')}</textarea>
-          <div style="display:flex;flex-direction:column;gap:6px">
-            <button onclick="draftReply('${item.id}','${escAttr(item.subject)}','${escAttr(item.body)}')"
-              style="font-size:11px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);cursor:pointer;color:var(--text-2)">
-              ✦ AIで下書き
-            </button>
+        <div class="iq-reply-zone">
+          <textarea id="reply-${item.id}" rows="3" placeholder="返信内容を入力（メールで送信する文章）"${iCanReply ? '' : ' readonly'}>${escHtml(item.reply || '')}</textarea>
+          <div class="iq-reply-ops">
+            <button class="btn-xs" onclick="draftReply('${item.id}','${escAttr(item.subject)}','${escAttr(item.body)}')">✦ AIで下書き</button>
             ${iCanReply ? `
-            <button onclick="saveReply('${item.id}')"
-              style="font-size:11px;padding:6px 12px;border:none;border-radius:6px;background:var(--navy);cursor:pointer;color:#fff">
-              返信内容を保存
-            </button>
-            <button onclick="sendReplyEmail('${item.id}', event)"
-              style="font-size:11px;padding:6px 12px;border:none;border-radius:6px;background:#27ae60;cursor:pointer;color:#fff">
-              📧 メールで送信
-            </button>
-            <select onchange="changeStatus('${item.id}',this.value)"
-              style="font-size:11px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text)">
-              ${Object.entries(STATUS_LABELS).map(([k,v])=>`<option value="${k}"${item.status===k?' selected':''}>${v}</option>`).join('')}
+            <button class="btn-xs primary" onclick="saveReply('${item.id}')">返信内容を保存</button>
+            <button class="btn-xs send" onclick="sendReplyEmail('${item.id}', event)">メールで送信</button>
+            <select class="select-ctl" style="height:34px" onchange="changeStatus('${item.id}',this.value)" aria-label="ステータス変更">
+              ${Object.entries(STATUS_LABELS).map(([k, v]) => `<option value="${k}"${item.status === k ? ' selected' : ''}>${v}</option>`).join('')}
             </select>
-            <button onclick="deleteInquiry('${item.id}')"
-              style="font-size:11px;padding:6px 12px;border:1px solid #e74c3c;border-radius:6px;background:transparent;cursor:pointer;color:#e74c3c;margin-top:4px">
-              削除
-            </button>` : `
-            <div style="font-size:10.5px;color:var(--text-3);max-width:160px">返信・状態変更は管理者以上のみ行えます</div>`}
+            <button class="btn-xs danger" onclick="deleteInquiry('${item.id}')">削除</button>` : `
+            <span style="font-size:11px;color:var(--text-3)">返信・状態変更は管理者以上のみ行えます</span>`}
           </div>
         </div>
-      </div>
-    `).join('')
-  } catch(e) {
-    el.innerHTML = `<div style="padding:20px;color:#c0392b">読み込みエラー: ${e.message}</div>`
+      </div>`).join('')
+  } catch (e) {
+    el.innerHTML = errorState(e)
   }
 }
 
-function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
-function escAttr(s){ return String(s).replace(/'/g,"\\'").replace(/\n/g,' ').slice(0,100) }
-
-window.draftReply = async function(id, subject, body) {
-  const ta = document.getElementById('reply-'+id)
+window.draftReply = async function (id, subject, body) {
+  const ta = $('reply-' + id)
   if (!ta) return
+  const original = ta.value
   ta.value = 'AI生成中...'
   try {
     const prompt = `以下のお問い合わせに対する丁寧な返信メール文を日本語で作成してください。
@@ -1151,8 +1606,8 @@ window.draftReply = async function(id, subject, body) {
 ・200字程度・生徒への敬意ある丁寧な文体・回答がない場合は確認中と書く`
     const res = await fetch(AI_URL, {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
     })
     const text = await res.text()
     let d
@@ -1161,77 +1616,68 @@ window.draftReply = async function(id, subject, body) {
       const msg = typeof d.error === 'string' ? d.error : (d.error?.message || `HTTP ${res.status}`)
       throw new Error(msg)
     }
-    const answer = d.candidates?.[0]?.content?.parts?.[0]?.text || d.text || d.result || '生成できませんでした'
-    ta.value = answer
-  } catch(e) {
-    ta.value = `エラー: ${e.message}`
+    ta.value = d.candidates?.[0]?.content?.parts?.[0]?.text || d.text || d.result || '生成できませんでした'
+  } catch (e) {
+    ta.value = original
+    showToast('AI下書きの生成に失敗しました: ' + e.message)
   }
 }
 
-window.saveReply = async function(id) {
+window.saveReply = async function (id) {
   if (!canReplyInquiries(myProfile?.role)) { showToast('返信を保存する権限がありません'); return }
-  const ta = document.getElementById('reply-'+id)
+  const ta = $('reply-' + id)
   if (!ta) return
   await updateDoc(doc(db, 'inquiries', id), { reply: ta.value, status: 'replied' })
   showToast('返信内容を保存しました')
   loadInquiries()
 }
 
-// メールで返信を送信
-window.sendReplyEmail = async function(id, evt) {
+window.sendReplyEmail = async function (id, evt) {
   if (!canReplyInquiries(myProfile?.role)) { showToast('返信を送信する権限がありません'); return }
-  const ta = document.getElementById('reply-'+id)
+  const ta = $('reply-' + id)
   if (!ta || !ta.value.trim()) { showToast('返信内容を入力してください'); return }
 
-  // お問い合わせデータを取得
   const snap = await getDoc(doc(db, 'inquiries', id))
   if (!snap.exists()) { showToast('お問い合わせが見つかりません'); return }
   const data = snap.data()
   if (!data.email) { showToast('送信先メールアドレスがありません'); return }
 
-  const btn = evt ? evt.currentTarget : document.querySelector(`#inq-${id} button[onclick*="sendReplyEmail"]`)
-  if (btn) {
-    btn.disabled = true
-    btn.textContent = '送信中...'
-  }
+  const btn = evt?.currentTarget
+  if (btn) { btn.disabled = true; btn.textContent = '送信中...' }
 
   try {
     const res = await fetch(AI_URL + '/send-reply', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         recipientEmail: data.email,
-        recipientName: data.name || '',
-        subject: data.subject || 'お問い合わせ',
-        replyBody: ta.value.trim(),
-        appBaseUrl: window.location.origin,
-      })
+        recipientName:  data.name || '',
+        subject:        data.subject || 'お問い合わせ',
+        replyBody:      ta.value.trim(),
+        appBaseUrl:     window.location.origin,
+      }),
     })
     if (!res.ok) {
       const detail = await res.text().catch(() => '')
       throw new Error(`送信失敗 (${res.status}): ${detail}`)
     }
-    // 返信内容も保存
     await updateDoc(doc(db, 'inquiries', id), { reply: ta.value, status: 'replied' })
     showToast('メールを送信しました')
     loadInquiries()
-  } catch(e) {
+  } catch (e) {
     showToast('メール送信エラー: ' + e.message)
-    if (btn) {
-      btn.disabled = false
-      btn.textContent = '📧 メールで送信'
-    }
+    if (btn) { btn.disabled = false; btn.textContent = 'メールで送信' }
   }
 }
 
-window.changeStatus = async function(id, status) {
+window.changeStatus = async function (id, status) {
   if (!canReplyInquiries(myProfile?.role)) { showToast('ステータスを変更する権限がありません'); return }
   await updateDoc(doc(db, 'inquiries', id), { status })
   showToast('ステータスを変更しました')
   loadInquiries()
 }
 
-window.deleteInquiry = async function(id) {
+window.deleteInquiry = async function (id) {
   if (!canReplyInquiries(myProfile?.role)) { showToast('削除する権限がありません'); return }
   if (!confirm('このお問い合わせを削除しますか？\nこの操作は取り消せません。')) return
   await deleteDoc(doc(db, 'inquiries', id))
@@ -1242,89 +1688,88 @@ window.deleteInquiry = async function(id) {
 // =============================================
 // 公欠申請ケース管理
 // =============================================
-const CASE_STATUS_LABEL = { pending_supervisor:'顧問承認待ち', pending_homeroom:'担任承認待ち', approved:'承認済み', rejected:'差し戻し' }
-const CASE_STATUS_COLOR = { pending_supervisor:'#856404', pending_homeroom:'#004085', approved:'#155724', rejected:'#721c24' }
-const CASE_STATUS_BG    = { pending_supervisor:'#fff3cd', pending_homeroom:'#cce5ff', approved:'#d4edda', rejected:'#f8d7da' }
+const CASE_STATUS_LABEL = { pending_supervisor: '顧問承認待ち', pending_homeroom: '担任承認待ち', approved: '承認済み', rejected: '差し戻し' }
+const CASE_STATUS_CLASS = { pending_supervisor: 'badge-warn', pending_homeroom: 'badge-muted', approved: 'badge-ok', rejected: 'badge-warn' }
 
 function renderCasesForbidden() {
-  const el = document.getElementById('adminCasesList')
-  if (el) el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3)">公欠申請ケースの閲覧権限がありません。<br>（管理者（先生）またはオーナーのみ閲覧可能です）</div>'
-}
-
-window.loadAdminCases = async function() {
-  const el = document.getElementById('adminCasesList')
-  if (!el) return
-  if (!canViewCasesAdmin(myProfile?.role)) { renderCasesForbidden(); return }
-  el.innerHTML = '<div class="loading-spinner"><div class="spinner"></div>読み込み中...</div>'
-  const filter = document.getElementById('casesFilter')?.value || 'all'
-
-  try {
-    const { getDocs: gds, query: qr, collection: col, orderBy: ob } = await import('firebase/firestore')
-    let snap = await gds(qr(col(db, 'cases'), ob('createdAt', 'desc')))
-    let items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    if (filter !== 'all') items = items.filter(c => c.status === filter)
-
-    // バッジ（承認待ち件数）
-    const pending = snap.docs.filter(d => ['pending_supervisor','pending_homeroom'].includes(d.data().status)).length
-    const badge = document.getElementById('casesBadge')
-    if (badge) { badge.textContent = pending; badge.style.display = pending ? '' : 'none' }
-
-    if (!items.length) { el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3)">該当するケースはありません</div>'; return }
-
-    el.innerHTML = items.map(c => {
-      const datesStr = (c.dates||[]).join('、')
-      const st = c.status
-      const steps = [
-        { label:'申請',   done:true },
-        { label:'顧問承認', done:['pending_homeroom','approved'].includes(st), active:st==='pending_supervisor' },
-        { label:'担任承認', done:st==='approved', active:st==='pending_homeroom' },
-        { label:'完了',   done:st==='approved' },
-      ]
-      const progressBar = st === 'rejected'
-        ? `<span style="font-size:11px;color:#721c24">❌ 差し戻し${c.rejectedReason?'：'+c.rejectedReason:''}</span>`
-        : `<div style="display:flex;gap:0;margin-top:8px">${steps.map(s=>`
-            <div style="flex:1;text-align:center">
-              <div style="height:3px;border-radius:2px;margin-bottom:4px;background:${s.done?'#1a2744':s.active?'#ffc107':'#e0e0e0'}"></div>
-              <span style="font-size:9.5px;color:${s.done?'#1a2744':s.active?'#856404':'#aaa'};font-weight:${s.done||s.active?700:400}">${s.label}</span>
-            </div>`).join('')}</div>`
-
-      return `
-        <div class="item-card" style="margin-bottom:12px;padding:18px 20px">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-            <span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:4px;color:${CASE_STATUS_COLOR[st]||'#888'};background:${CASE_STATUS_BG[st]||'#eee'}">${CASE_STATUS_LABEL[st]||st}</span>
-            <span style="font-size:11px;color:var(--text-3);margin-left:auto">${c.createdAt?.toDate ? c.createdAt.toDate().toLocaleString('ja') : ''}</span>
-          </div>
-          <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px">${escHtml(c.title||'')}</div>
-          <div style="font-size:12px;color:var(--text-3);margin-bottom:2px">申請者: <strong>${escHtml(c.studentName||'')}</strong> &lt;${escHtml(c.studentEmail||'')}&gt;</div>
-          <div style="font-size:12px;color:var(--text-3);margin-bottom:2px">公欠日: ${escHtml(datesStr)} ／ 事由: ${escHtml(c.reasonDetail ? c.reason + '（' + c.reasonDetail + '）' : (c.reason||''))}</div>
-          <div style="font-size:11.5px;color:var(--text-3)">顧問: ${escHtml(c.supervisorEmail||'')} ／ 担任: ${escHtml(c.homeRoomEmail||'')}</div>
-          ${progressBar}
-          <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
-            <button onclick="deleteAdminCase('${c.id}')"
-              style="font-size:11px;padding:5px 12px;border:1px solid #e74c3c;border-radius:6px;background:transparent;cursor:pointer;color:#e74c3c;font-family:inherit;transition:background .15s"
-              onmouseover="this.style.background='#fdf0f0'" onmouseout="this.style.background='transparent'">
-              削除
-            </button>
-          </div>
-        </div>`
-    }).join('')
-  } catch(e) {
-    el.innerHTML = `<div style="padding:20px;color:#c0392b">読み込みエラー: ${e.message}</div>`
+  const el = $('adminCasesList')
+  if (el) {
+    el.innerHTML = `<div class="notice warn">
+      公欠申請ケースの閲覧権限がありません。<br>（管理者（先生）またはオーナーのみ閲覧可能です）
+    </div>`
   }
 }
 
-// 管理者：ケース削除
-window.deleteAdminCase = async function(caseId) {
+window.loadAdminCases = async function () {
+  const el = $('adminCasesList')
+  if (!el) return
+  if (!canViewCasesAdmin(myProfile?.role)) { renderCasesForbidden(); return }
+  el.innerHTML = spinner()
+  const filter = $('casesFilter')?.value || 'all'
+
+  try {
+    const snap = await getDocs(query(collection(db, 'cases'), orderBy('createdAt', 'desc')))
+    let items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    if (filter !== 'all') items = items.filter(c => c.status === filter)
+
+    const pending = snap.docs.filter(d => ['pending_supervisor', 'pending_homeroom'].includes(d.data().status)).length
+    const badge = $('casesBadge')
+    if (badge) { badge.textContent = pending; badge.style.display = pending ? '' : 'none' }
+
+    if (!items.length) { el.innerHTML = emptyState('該当するケースはありません'); return }
+
+    el.innerHTML = items.map(c => {
+      const st = c.status
+      const steps = [
+        { label: '申請',     done: true },
+        { label: '顧問承認', done: ['pending_homeroom', 'approved'].includes(st), active: st === 'pending_supervisor' },
+        { label: '担任承認', done: st === 'approved', active: st === 'pending_homeroom' },
+        { label: '完了',     done: st === 'approved' },
+      ]
+      const progress = st === 'rejected'
+        ? `<div class="notice warn" style="margin-top:12px">差し戻し${c.rejectedReason ? '：' + escHtml(c.rejectedReason) : ''}</div>`
+        : `<div class="case-steps">${steps.map(s => `
+            <div class="case-step${s.done ? ' done' : ''}${s.active ? ' active' : ''}">
+              <div class="case-step-bar"></div>
+              <span class="case-step-lbl">${s.label}</span>
+            </div>`).join('')}</div>`
+
+      return `
+        <div class="case-card">
+          <div class="iq-meta-row">
+            <span class="badge ${CASE_STATUS_CLASS[st] || 'badge-muted'}">${CASE_STATUS_LABEL[st] || escHtml(st)}</span>
+            <span style="font-size:11px;color:var(--text-3);margin-left:auto">${c.createdAt?.toDate ? c.createdAt.toDate().toLocaleString('ja') : ''}</span>
+          </div>
+          <div class="iq-subject">${escHtml(c.title || '')}</div>
+          <dl class="case-rows">
+            <dt>申請者</dt><dd>${escHtml(c.studentName || '')} &lt;${escHtml(c.studentEmail || '')}&gt;</dd>
+            <dt>公欠日</dt><dd>${escHtml((c.dates || []).join('、'))}</dd>
+            <dt>事由</dt><dd>${escHtml(c.reasonDetail ? `${c.reason}（${c.reasonDetail}）` : (c.reason || ''))}</dd>
+            <dt>顧問</dt><dd>${escHtml(c.supervisorEmail || '')}</dd>
+            <dt>担任</dt><dd>${escHtml(c.homeRoomEmail || '')}</dd>
+          </dl>
+          ${progress}
+          <div class="case-foot">
+            <button class="btn-xs danger" onclick="deleteAdminCase('${c.id}')">削除</button>
+          </div>
+        </div>`
+    }).join('')
+  } catch (e) {
+    el.innerHTML = errorState(e)
+  }
+}
+
+window.deleteAdminCase = async function (caseId) {
   if (!canViewCasesAdmin(myProfile?.role)) { showToast('この操作を行う権限がありません'); return }
   if (!confirm('このケースを削除しますか？\nこの操作は取り消せません。')) return
   try {
     await deleteDoc(doc(db, 'cases', caseId))
     showToast('ケースを削除しました')
     loadAdminCases()
-  } catch(e) {
+  } catch (e) {
     const msg = e?.message || String(e)
     if (msg.includes('Missing or insufficient permissions')) {
-      alert('削除に失敗しました: Firestoreのセキュリティルールで操作が拒否されました。\nFirebase Console > Firestore Database > Rules でルールを更新してください。\n\n詳細: リポジトリの firestore.rules ファイルの内容をコピーして反映してください。')
+      alert('削除に失敗しました: Firestoreのセキュリティルールで操作が拒否されました。\nFirebase Console > Firestore Database > Rules でルールを更新してください。')
     } else {
       alert('削除に失敗しました: ' + msg)
     }
@@ -1332,176 +1777,276 @@ window.deleteAdminCase = async function(caseId) {
 }
 
 // =============================================
-// ユーザー管理
-// =============================================
+// ユーザー管理（Issue #49: 属性が増えたのでテーブル+カード併用）
 // ロールのラベル・配色は roles.js（R_LABELS/R_COLORS/R_BGS）を共通利用
-
+// =============================================
 let allUsers = []
-let userFilters = { role: 'all', grade: 'all', class: 'all', search: '' }
+let userFilters = { role: 'all', grade: 'all', class: 'all', status: 'all', search: '' }
+let userSort = 'role'
+
+const ROLE_ORDER = { owner: 0, admin_teacher: 1, admin_student: 2, moderator: 3, teacher: 4, student: 5 }
 
 async function loadUsers() {
-  const el = document.getElementById('usersList')
+  const el = $('usersList')
   if (!el) return
-  el.innerHTML = '<div class="loading-spinner"><div class="spinner"></div>読み込み中...</div>'
-
+  el.innerHTML = spinner()
   try {
     const snap = await getDocs(collection(db, 'users'))
     allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    updateSidebarCount('users', allUsers.length)
     renderUsers()
-  } catch(e) {
-    el.innerHTML = `<div style="padding:20px;color:#c0392b">読み込みエラー: ${e.message}</div>`
+  } catch (e) {
+    el.innerHTML = errorState(e)
   }
 }
 
-function renderUsers() {
-  const el = document.getElementById('usersList')
-  if (!el) return
+window.reloadUsers = loadUsers
 
-  let filtered = [...allUsers]
+function filteredUsers() {
+  let list = [...allUsers]
 
-  // ロールフィルタ
-  if (userFilters.role !== 'all') {
-    filtered = filtered.filter(u => u.role === userFilters.role)
+  if (userFilters.role  !== 'all') list = list.filter(u => u.role === userFilters.role)
+  if (userFilters.grade !== 'all') list = list.filter(u => String(u.grade) === userFilters.grade)
+  if (userFilters.class !== 'all') list = list.filter(u => String(u.class) === userFilters.class)
+
+  switch (userFilters.status) {
+    case 'unapproved': list = list.filter(u => u.role === 'student' && !u.approved); break
+    case 'approved':   list = list.filter(u => u.role === 'student' && !!u.approved); break
+    case 'line':       list = list.filter(u => !!u.lineUserId); break
+    case 'noline':     list = list.filter(u => !u.lineUserId); break
   }
-  // 学年フィルタ
-  if (userFilters.grade !== 'all') {
-    filtered = filtered.filter(u => String(u.grade) === userFilters.grade)
-  }
-  // クラスフィルタ
-  if (userFilters.class !== 'all') {
-    filtered = filtered.filter(u => String(u.class) === userFilters.class)
-  }
-  // 検索フィルタ
+
   if (userFilters.search) {
     const kw = userFilters.search.toLowerCase()
-    filtered = filtered.filter(u =>
-      (u.name||'').toLowerCase().includes(kw) ||
-      (u.email||'').toLowerCase().includes(kw)
+    list = list.filter(u =>
+      (u.name || '').toLowerCase().includes(kw) ||
+      (u.email || '').toLowerCase().includes(kw)
     )
   }
 
-  // ソート: オーナー→管理者(先生)→管理者(生徒)→モデレーター→先生→生徒（学年→クラス→番号）
-  filtered.sort((a,b) => {
-    const ro = { owner:0, admin_teacher:1, admin_student:2, moderator:3, teacher:4, student:5 }
-    const rr = (ro[a.role]??9) - (ro[b.role]??9)
-    if (rr !== 0) return rr
-    if (a.grade !== b.grade) return (a.grade||0) - (b.grade||0)
-    if (a.class !== b.class) return (a.class||0) - (b.class||0)
-    return (a.number||0) - (b.number||0)
+  const byClass = (a, b) => (a.grade || 0) - (b.grade || 0) || (a.class || 0) - (b.class || 0) || (a.number || 0) - (b.number || 0)
+
+  list.sort((a, b) => {
+    switch (userSort) {
+      case 'class':  return byClass(a, b) || String(a.name || '').localeCompare(String(b.name || ''), 'ja')
+      case 'name':   return String(a.name || '').localeCompare(String(b.name || ''), 'ja')
+      case 'status': {
+        const pa = (a.role === 'student' && !a.approved) ? 0 : 1
+        const pb = (b.role === 'student' && !b.approved) ? 0 : 1
+        return pa - pb || byClass(a, b)
+      }
+      default:
+        return (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9) || byClass(a, b)
+    }
   })
 
-  if (!filtered.length) {
-    el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3)">該当するユーザーはいません</div>'
+  return list
+}
+
+/** 上部の統計チップ（クリックで絞り込み） */
+function renderUserStats() {
+  const el = $('usersStats')
+  if (!el) return
+  const total      = allUsers.length
+  const students   = allUsers.filter(u => u.role === 'student')
+  const unapproved = students.filter(u => !u.approved).length
+  const staff      = allUsers.filter(u => ['moderator', 'admin_student', 'admin_teacher', 'owner'].includes(u.role)).length
+  const teachers   = allUsers.filter(u => u.role === 'teacher').length
+  const lineLinked = allUsers.filter(u => !!u.lineUserId).length
+
+  el.innerHTML = `
+    <button class="stat-chip clickable" type="button" data-filter-preset="all"><b>${total}</b> 全ユーザー</button>
+    <button class="stat-chip clickable" type="button" data-filter-preset="student"><b>${students.length}</b> 生徒</button>
+    ${unapproved ? `<button class="stat-chip alert clickable" type="button" data-filter-preset="unapproved"><b>${unapproved}</b> 未承認</button>` : ''}
+    <button class="stat-chip clickable" type="button" data-filter-preset="teacher"><b>${teachers}</b> 先生</button>
+    <button class="stat-chip clickable" type="button" data-filter-preset="staff"><b>${staff}</b> 委員会メンバー</button>
+    <button class="stat-chip clickable" type="button" data-filter-preset="line"><b>${lineLinked}</b> LINE連携済み</button>`
+}
+
+/** 統計チップからのワンクリック絞り込み */
+function applyUserPreset(preset) {
+  userFilters = { role: 'all', grade: 'all', class: 'all', status: 'all', search: userFilters.search }
+  userSort = 'role'
+
+  if (preset === 'student')         { userFilters.role = 'student' }
+  else if (preset === 'teacher')    { userFilters.role = 'teacher' }
+  else if (preset === 'unapproved') { userFilters.status = 'unapproved'; userSort = 'status' }
+  else if (preset === 'line')       { userFilters.status = 'line' }
+  else if (preset === 'staff')      { userFilters.status = 'all' } // 下で個別処理
+
+  // セレクトボックスの表示を同期
+  const set = (id, v) => { const el = $(id); if (el) el.value = v }
+  set('userRoleFilter',   userFilters.role)
+  set('userGradeFilter',  userFilters.grade)
+  set('userClassFilter',  userFilters.class)
+  set('userStatusFilter', userFilters.status)
+  set('userSortSelect',   userSort)
+
+  // 「委員会メンバー」は単一 role で表せないので専用フラグで処理
+  userFilters._staffOnly = preset === 'staff'
+  renderUsers()
+}
+
+function roleAttrs(u) {
+  const attrs = []
+  if (u.role === 'student') {
+    if (u.grade)  attrs.push(`${u.grade}年`)
+    if (u.class)  attrs.push(`${u.class}組`)
+    if (u.number) attrs.push(`${u.number}番`)
+  }
+  return attrs
+}
+
+function approvalCell(u, iCanToggleAppr) {
+  if (u.role !== 'student') return '<span style="color:var(--text-3)">—</span>'
+  const cls = u.approved ? 'badge-ok' : 'badge-warn'
+  const label = u.approved ? '✓ 承認済み' : '未承認'
+  if (iCanToggleAppr) {
+    return `<button class="toggle-pill ${cls}" onclick="toggleApproval('${u.id}', ${!u.approved})"
+      title="クリックで${u.approved ? '未承認に戻す' : '承認する'}">${label}</button>`
+  }
+  return `<span class="badge ${cls}">${label}</span>`
+}
+
+function lineCell(u) {
+  return u.lineUserId
+    ? `<span class="badge badge-ok" title="${escHtml(u.lineDisplayName ? 'LINE: ' + u.lineDisplayName : 'LINE連携済み')}">✓ 連携済み</span>`
+    : '<span class="badge badge-muted">未連携</span>'
+}
+
+function renderUsers() {
+  const el = $('usersList')
+  if (!el) return
+
+  renderUserStats()
+
+  let list = filteredUsers()
+  if (userFilters._staffOnly) {
+    list = list.filter(u => ['moderator', 'admin_student', 'admin_teacher', 'owner'].includes(u.role))
+  }
+
+  if (!list.length) {
+    el.innerHTML = emptyState('該当するユーザーはいません', '検索キーワードや絞り込み条件を変更してください')
     return
   }
 
   const myRole = myProfile?.role
-  const iCanEditInfo   = canEditUserInfo(myRole)   // ユーザー情報変更（氏名・学年等）
+  const iCanEditInfo   = canEditUserInfo(myRole)   // 氏名・学年等の編集
   const iCanToggleAppr = canToggleApproval(myRole) // 承認状態の切替
-  const iCanManageRole = canManageRoles(myRole)    // ロール変更・削除は管理者以上のみ
+  const iCanManageRole = canManageRoles(myRole)    // ロール変更・削除
+
+  const ops = (u) => {
+    const canOpEdit   = iCanEditInfo   && canManageTargetRole(myRole, u.role)
+    const canOpDelete = iCanManageRole && canManageTargetRole(myRole, u.role)
+    if (!canOpEdit && !canOpDelete) return '<span style="font-size:11px;color:var(--text-3)">—</span>'
+    return `
+      ${canOpEdit ? `<button class="btn-xs" onclick="editUser('${u.id}')">編集</button>` : ''}
+      ${canOpDelete ? `<button class="btn-xs danger" onclick="deleteUser('${u.id}','${escAttr(u.name || u.email || '')}')">削除</button>` : ''}`
+  }
+
+  const ident = (u) => `
+    <div class="user-ident">
+      <div class="user-av" style="background:${R_COLORS[u.role] || '#7a8290'}">${escHtml(initials(u.name || u.email))}</div>
+      <div class="user-ident-text">
+        <div class="user-name">${escHtml(u.name || '（氏名未登録）')}</div>
+        <div class="user-mail">${escHtml(u.email || '')}</div>
+      </div>
+    </div>`
+
+  const rolePill = (u) => `<span class="role-pill" style="color:${R_COLORS[u.role] || '#666'};background:${R_BGS[u.role] || '#eee'}">${escHtml(R_LABELS[u.role] || u.role || '不明')}</span>`
 
   el.innerHTML = `
-    <div style="margin-bottom:8px;font-size:12px;color:var(--text-3)">
-      全${allUsers.length}件中 ${filtered.length}件表示
-    </div>
-    <div class="table-scroll" style="overflow-x:auto">
-      <table class="users-table" style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead>
-          <tr style="background:var(--surface2)">
-            <th style="padding:9px 12px;text-align:left;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">氏名</th>
-            <th style="padding:9px 12px;text-align:left;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">メール</th>
-            <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">ロール</th>
-            <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">学年</th>
-            <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">クラス</th>
-            <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">番号</th>
-            <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">承認</th>
-            <th style="padding:9px 12px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-3);font-size:11px">LINE連携</th>
-            <th style="padding:9px 12px;border-bottom:2px solid var(--border)"></th>
-          </tr>
-        </thead>
-        <tbody>
-          ${filtered.map(u => {
-            const isStudentRow = u.role === 'student'
-            const approvedCell = isStudentRow
-              ? (iCanToggleAppr
-                  ? `<button onclick="toggleApproval('${u.id}', ${!u.approved})"
-                       style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:10px;border:none;cursor:pointer;color:${u.approved?'#155724':'#856404'};background:${u.approved?'#d4edda':'#fff3cd'}">
-                       ${u.approved ? '✓ 承認済み' : '未承認'}
-                     </button>`
-                  : `<span style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:10px;color:${u.approved?'#155724':'#856404'};background:${u.approved?'#d4edda':'#fff3cd'}">${u.approved ? '✓ 承認済み' : '未承認'}</span>`)
-              : '<span style="color:var(--text-3)">—</span>'
+    <div class="result-count">全${allUsers.length}件中 ${list.length}件表示</div>
 
-            // 自分のロールレベル以下のユーザーに対してのみロール変更・削除ボタンを出す
-            const canOpEdit   = iCanEditInfo   && canManageTargetRole(myRole, u.role)
-            const canOpDelete = iCanManageRole && canManageTargetRole(myRole, u.role)
-
-            return `
+    <!-- PC/タブレット: テーブル -->
+    <div class="panel users-table-wrap">
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
             <tr>
-              <td data-label="氏名" style="padding:9px 12px;border-bottom:1px solid var(--border-2);color:var(--text);font-weight:500">${escHtml(u.name||'')}</td>
-              <td data-label="メール" style="padding:9px 12px;border-bottom:1px solid var(--border-2);color:var(--text-2);font-size:12px;overflow-wrap:anywhere">${escHtml(u.email||'')}</td>
-              <td data-label="ロール" style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center">
-                <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;color:${R_COLORS[u.role]||'#888'};background:${R_BGS[u.role]||'#eee'}">${R_LABELS[u.role]||u.role||'不明'}</span>
-              </td>
-              <td data-label="学年" style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center;color:var(--text-2)">${u.grade||'—'}</td>
-              <td data-label="クラス" style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center;color:var(--text-2)">${u.class||'—'}</td>
-              <td data-label="番号" style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center;color:var(--text-2)">${u.number||'—'}</td>
-              <td data-label="承認" style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center">
-                ${approvedCell}
-              </td>
-              <td data-label="LINE連携" style="padding:9px 12px;border-bottom:1px solid var(--border-2);text-align:center">
-                ${u.lineUserId
-                  ? `<span title="${escHtml(u.lineDisplayName ? `LINE: ${u.lineDisplayName}` : 'LINE連携済み')}" style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:10px;color:#155724;background:#d4edda">✓ 連携済み</span>`
-                  : `<span style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:10px;color:#856404;background:#f8f9fa">未連携</span>`}
-              </td>
-              <td data-label="操作" style="padding:9px 12px;border-bottom:1px solid var(--border-2)">
-                <div style="display:flex;gap:4px;justify-content:flex-end">
-                  ${canOpEdit ? `
-                  <button onclick="editUser('${u.id}')"
-                    style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer;color:var(--text-2);font-family:inherit">
-                    編集
-                  </button>` : ''}
-                  ${canOpDelete ? `
-                  <button onclick="deleteUser('${u.id}','${escHtml(u.name||u.email||'')}')"
-                    style="font-size:11px;padding:4px 10px;border:1px solid #e74c3c;border-radius:5px;background:transparent;cursor:pointer;color:#e74c3c;font-family:inherit">
-                    削除
-                  </button>` : ''}
-                  ${!canOpEdit && !canOpDelete ? '<span style="font-size:11px;color:var(--text-3)">—</span>' : ''}
-                </div>
-              </td>
+              <th>ユーザー</th>
+              <th>ロール</th>
+              <th class="num">学年・組・番号</th>
+              <th class="num">承認</th>
+              <th class="num">LINE</th>
+              <th></th>
             </tr>
-          `}).join('')}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            ${list.map(u => `
+              <tr>
+                <td>${ident(u)}</td>
+                <td>${rolePill(u)}</td>
+                <td class="num">
+                  ${roleAttrs(u).length
+                    ? `<div class="user-attrs" style="justify-content:center">${roleAttrs(u).map(a => `<span class="attr">${a}</span>`).join('')}</div>`
+                    : '<span style="color:var(--text-3)">—</span>'}
+                </td>
+                <td class="num">${approvalCell(u, iCanToggleAppr)}</td>
+                <td class="num">${lineCell(u)}</td>
+                <td><div class="row-ops">${ops(u)}</div></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- スマホ: カード -->
+    <div class="user-cards">
+      ${list.map(u => `
+        <div class="user-card">
+          <div class="user-card-top">
+            ${ident(u)}
+            ${rolePill(u)}
+          </div>
+          <div class="user-card-attrs">
+            ${roleAttrs(u).map(a => `<span class="attr">${a}</span>`).join('')}
+            ${approvalCell(u, iCanToggleAppr)}
+            ${lineCell(u)}
+          </div>
+          ${(iCanEditInfo || iCanManageRole) ? `<div class="user-card-ops">${ops(u)}</div>` : ''}
+        </div>`).join('')}
     </div>`
 }
 
 // =============================================
-// 生徒の承認状態を切り替え（モデレーター以上が利用可能）
+// ユーザー操作（承認切替 / 絞り込み / 編集 / 削除）
 // =============================================
-window.toggleApproval = async function(uid, newApproved) {
+window.toggleApproval = async function (uid, newApproved) {
+  if (!canToggleApproval(myProfile?.role)) { showToast('この操作を行う権限がありません'); return }
   const user = allUsers.find(u => u.id === uid)
   if (!user) return
-  if (!canToggleApproval(myProfile?.role)) { showToast('この操作を行う権限がありません'); return }
   try {
     await updateDoc(doc(db, 'users', uid), { approved: newApproved })
+    user.approved = newApproved
     showToast(newApproved ? '生徒を承認済みにしました' : '承認を取り消しました')
-    loadUsers()
-  } catch(e) {
+    renderUsers()
+  } catch (e) {
     showToast('エラー: ' + (e?.message || String(e)))
   }
 }
 
-window.filterUsers = function(type, value) {
+window.filterUsers = function (type, value) {
   userFilters[type] = value
+  userFilters._staffOnly = false
   renderUsers()
 }
 
-window.searchUsers = function(q) {
-  userFilters.search = q
+window.sortUsers = function (value) {
+  userSort = value
   renderUsers()
 }
 
-window.editUser = async function(uid) {
+let searchTimer = null
+window.searchUsers = function (q) {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    userFilters.search = q
+    renderUsers()
+  }, 140)
+}
+
+window.editUser = async function (uid) {
   const user = allUsers.find(u => u.id === uid)
   if (!user) return
 
@@ -1510,115 +2055,123 @@ window.editUser = async function(uid) {
     showToast('このユーザーを編集する権限がありません')
     return
   }
-  // ロール変更自体が許可されているか（モデレーターは情報編集も不可なのでここには来ないが念のため）
+
   const iCanChangeRole = canManageRoles(myRole)
-  // 自分が割り当てられるロール一覧（自分のレベル以下）。オーナーは全ロール。
   const roleOptions = assignableRoles(myRole)
-  // 現在のロールが選択肢に無い場合（自分より上位のロールを持つ対象など）は選択肢に追加して表示のみ
+  // 現在のロールが選択肢に無い場合（自分より上位のロールを持つ対象など）は表示のみ追加
   if (!roleOptions.includes(user.role)) roleOptions.push(user.role)
 
-  const overlay = document.getElementById('modalOverlay')
-  document.getElementById('modalTitle').textContent = '編集 — ユーザー'
-  document.getElementById('modalBody').innerHTML = `
+  editingType = null
+  editingId   = null
+
+  $('modalTitle').textContent = '編集 — ユーザー'
+  const moreBtn = $('modalSaveMoreBtn')
+  if (moreBtn) moreBtn.style.display = 'none'
+
+  $('modalBody').innerHTML = `
     <div class="form-row">
       <label>氏名</label>
-      <input type="text" id="f_user_name" value="${escHtml(user.name||'')}">
+      <input type="text" id="f_user_name" value="${escHtml(user.name || '')}">
     </div>
     <div class="form-row">
       <label>メールアドレス</label>
-      <input type="email" id="f_user_email" value="${escHtml(user.email||'')}" disabled style="opacity:0.6;cursor:not-allowed">
-      <div style="font-size:10px;color:var(--text-3);margin-top:3px">※メールアドレスはFirebase Authenticationで管理されるためここでは変更できません</div>
+      <input type="email" id="f_user_email" value="${escHtml(user.email || '')}" disabled style="opacity:.6;cursor:not-allowed">
+      <div class="form-hint">メールアドレスは Firebase Authentication で管理されるため、ここでは変更できません。</div>
     </div>
     <div class="form-row">
       <label>ロール</label>
-      <select id="f_user_role" ${iCanChangeRole ? '' : 'disabled style="opacity:0.6;cursor:not-allowed"'}>
-        ${roleOptions.map(r => `<option value="${r}" ${user.role===r?'selected':''}>${R_LABELS[r]||r}</option>`).join('')}
+      <select id="f_user_role"${iCanChangeRole ? '' : ' disabled style="opacity:.6;cursor:not-allowed"'}>
+        ${roleOptions.map(r => `<option value="${r}"${user.role === r ? ' selected' : ''}>${escHtml(R_LABELS[r] || r)}</option>`).join('')}
       </select>
-      ${!iCanChangeRole ? '<div style="font-size:10px;color:var(--text-3);margin-top:3px">※ロールの変更権限がありません</div>' : ''}
-      ${iCanChangeRole ? '<div style="font-size:10px;color:var(--text-3);margin-top:3px">※自分と同等以下のロールにのみ変更できます</div>' : ''}
+      <div class="form-hint">${iCanChangeRole ? '自分と同等以下のロールにのみ変更できます。' : 'ロールの変更権限がありません。'}</div>
     </div>
-    <div class="form-row-2 form-row" id="f_user_student_fields" style="${user.role==='student'?'':'display:none'}">
-      <div>
-        <label>学年</label>
-        <select id="f_user_grade">
-          <option value="">—</option>
-          <option value="1" ${user.grade==1?'selected':''}>1年</option>
-          <option value="2" ${user.grade==2?'selected':''}>2年</option>
-          <option value="3" ${user.grade==3?'selected':''}>3年</option>
-        </select>
+    <div id="f_user_student_fields" style="${user.role === 'student' ? '' : 'display:none'}">
+      <div class="form-row-3 form-row">
+        <div>
+          <label>学年</label>
+          <select id="f_user_grade">
+            <option value="">—</option>
+            ${[1, 2, 3].map(i => `<option value="${i}"${String(user.grade) === String(i) ? ' selected' : ''}>${i}年</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label>クラス</label>
+          <select id="f_user_class">
+            <option value="">—</option>
+            ${[1, 2, 3, 4, 5, 6].map(i => `<option value="${i}"${String(user.class) === String(i) ? ' selected' : ''}>${i}組</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label>出席番号</label>
+          <input type="number" id="f_user_number" value="${escHtml(user.number || '')}" min="1" max="50">
+        </div>
       </div>
-      <div>
-        <label>クラス</label>
-        <select id="f_user_class">
-          <option value="">—</option>
-          ${[1,2,3,4,5,6].map(i=>`<option value="${i}" ${user.class==i?'selected':''}>${i}組</option>`).join('')}
-        </select>
-      </div>
     </div>
-    <div class="form-row" id="f_user_number_field" style="${user.role==='student'?'':'display:none'}">
-      <label>出席番号</label>
-      <input type="number" id="f_user_number" value="${user.number||''}" min="1" max="50">
-    </div>
-    <script>
-      document.getElementById('f_user_role').addEventListener('change', function(){
-        const isStudent = this.value === 'student';
-        document.getElementById('f_user_student_fields').style.display = isStudent ? '' : 'none';
-        document.getElementById('f_user_number_field').style.display = isStudent ? '' : 'none';
-      });
-    <\/script>
-  `
+    <div class="collapse" style="margin-top:4px">
+      <details>
+        <summary style="padding:9px 13px;font-size:12px;font-weight:600;color:var(--text-2);cursor:pointer;list-style:none">連携・システム情報</summary>
+        <div class="collapse-body">
+          <dl class="case-rows" style="margin-top:0">
+            <dt>UID</dt><dd style="font-family:monospace;font-size:11px">${escHtml(user.id)}</dd>
+            <dt>LINE</dt><dd>${user.lineUserId ? `連携済み${user.lineDisplayName ? '（' + escHtml(user.lineDisplayName) + '）' : ''}` : '未連携'}</dd>
+            <dt>承認状態</dt><dd>${user.role === 'student' ? (user.approved ? '承認済み' : '未承認') : '—（生徒以外）'}</dd>
+          </dl>
+        </div>
+      </details>
+    </div>`
 
-  // Rebind modal save for user editing
-  const saveBtn = document.getElementById('modalSaveBtn')
-  const origHandler = saveBtn.onclick
-  saveBtn.onclick = async function() {
+  // 生徒以外を選んだら学年・クラス・番号の欄を隠す
+  const roleSel = $('f_user_role')
+  roleSel?.addEventListener('change', () => {
+    const isStudent = roleSel.value === 'student'
+    const box = $('f_user_student_fields')
+    if (box) box.style.display = isStudent ? '' : 'none'
+  })
+
+  // ユーザー編集専用の保存処理を一時的にバインド
+  const saveBtn = $('modalSaveBtn')
+  saveBtn.onclick = async function () {
     saveBtn.disabled = true
     try {
-      const data = {
-        name: document.getElementById('f_user_name').value.trim(),
-      }
+      const data = { name: trimVal('f_user_name') }
       if (iCanChangeRole) {
-        const newRole = document.getElementById('f_user_role').value
-        if (!canAssignRole(myRole, newRole)) {
-          throw new Error('そのロールへの変更権限がありません')
-        }
+        const newRole = val('f_user_role')
+        if (!canAssignRole(myRole, newRole)) throw new Error('そのロールへの変更権限がありません')
         data.role = newRole
       }
       if ((data.role || user.role) === 'student') {
-        const g = document.getElementById('f_user_grade').value
-        const c = document.getElementById('f_user_class').value
-        const n = document.getElementById('f_user_number').value
-        if (g) data.grade = Number(g)
-        if (c) data.class = c
+        const g = val('f_user_grade'), c = val('f_user_class'), n = val('f_user_number')
+        if (g) data.grade  = Number(g)
+        if (c) data.class  = c
         if (n) data.number = Number(n)
       }
       await updateDoc(doc(db, 'users', uid), data)
       showToast('ユーザーを更新しました')
       closeModal()
       loadUsers()
-    } catch(e) {
+    } catch (e) {
       showToast('エラー: ' + e.message)
     }
     saveBtn.disabled = false
-    saveBtn.onclick = origHandler
   }
 
-  overlay.classList.add('open')
+  $('modalOverlay').classList.add('open')
+  setTimeout(() => $('f_user_name')?.focus(), 60)
 }
 
-window.deleteUser = async function(uid, name) {
+window.deleteUser = async function (uid, name) {
   const target = allUsers.find(u => u.id === uid)
   const myRole = myProfile?.role
   if (!canManageRoles(myRole) || (target && !canManageTargetRole(myRole, target.role))) {
     showToast('このユーザーを削除する権限がありません')
     return
   }
-  if (!confirm(`ユーザー「${name}」の登録情報を削除しますか？\n※Firebase Authenticationのアカウント自体はFirebase Consoleから削除する必要があります。`)) return
+  if (!confirm(`ユーザー「${name}」の登録情報を削除しますか？\n※Firebase Authentication のアカウント自体は Firebase Console から削除する必要があります。`)) return
   try {
     await deleteDoc(doc(db, 'users', uid))
     showToast('ユーザー情報を削除しました')
     loadUsers()
-  } catch(e) {
+  } catch (e) {
     alert('削除に失敗しました: ' + (e?.message || String(e)))
   }
 }

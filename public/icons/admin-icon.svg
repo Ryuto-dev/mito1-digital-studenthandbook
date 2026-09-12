@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- 管理者ポータル専用アイコン
+       通常アプリ（白背景 + 紺の校章）と区別するため、
+       紺ベタ背景 + 白校章 + 臙脂の管理バッジ（歯車）にしている -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#253a78"/>
+      <stop offset="55%" stop-color="#1a2744"/>
+      <stop offset="100%" stop-color="#0c1628"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景 -->
+  <rect x="0" y="0" width="512" height="512" rx="104" fill="url(#bg)"/>
+
+  <!-- 校章（外輪） -->
+  <circle cx="238" cy="238" r="150" fill="none" stroke="#ffffff" stroke-width="22" opacity="0.95"/>
+  <!-- 校章（内円） -->
+  <circle cx="238" cy="238" r="108" fill="#ffffff" opacity="0.95"/>
+  <!-- 十字 -->
+  <g fill="#1a2744">
+    <rect x="222" y="166" width="32" height="144" rx="4"/>
+    <rect x="166" y="222" width="144" height="32" rx="4"/>
+  </g>
+
+  <!-- 管理バッジ（臙脂の円 + 歯車） -->
+  <circle cx="384" cy="384" r="96" fill="#8b1a2c" stroke="#0c1628" stroke-width="18"/>
+  <g transform="translate(384,384)">
+    <g fill="#ffffff">
+      <!-- 歯 -->
+      <g>
+        <rect x="-11" y="-58" width="22" height="24" rx="5"/>
+        <rect x="-11" y="34" width="22" height="24" rx="5"/>
+        <rect x="-58" y="-11" width="24" height="22" rx="5"/>
+        <rect x="34" y="-11" width="24" height="22" rx="5"/>
+      </g>
+      <g transform="rotate(45)">
+        <rect x="-11" y="-58" width="22" height="24" rx="5"/>
+        <rect x="-11" y="34" width="22" height="24" rx="5"/>
+        <rect x="-58" y="-11" width="24" height="22" rx="5"/>
+        <rect x="34" y="-11" width="24" height="22" rx="5"/>
+      </g>
+    </g>
+    <circle cx="0" cy="0" r="38" fill="none" stroke="#ffffff" stroke-width="20"/>
+  </g>
+</svg>

@@ -11,587 +11,897 @@
   gtag('config', 'G-C0CFLJ03F6');
 </script>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>管理者ポータル — 水戸第一高等学校デジタル生徒手帳</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#131d33">
+
+<!-- 管理画面専用 favicon（本体アプリと区別できる臙脂のギアバッジ入り） -->
+<link rel="icon" type="image/svg+xml" href="/icons/admin-icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/admin-icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/admin-icon-16.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/admin-icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/admin-icon-180.png">
+<link rel="mask-icon" href="/icons/admin-icon.svg" color="#8b1a2c">
+<meta name="apple-mobile-web-app-title" content="水一手帳 管理">
+<link rel="manifest" href="/admin-manifest.json">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600&family=Noto+Sans+JP:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
+/* =========================================================
+   管理者ポータル — デザイントークン
+   （Issue #49: PC/モバイル双方でレイアウトを整理し、
+     ユーザーの属性が増えても破綻しない構造に再設計）
+========================================================= */
 :root{
-  --navy:#1a2744;--navy-light:#253a78;
+  --navy:#1a2744;--navy-light:#253a78;--navy-deep:#131d33;
+  --navy-dim:rgba(26,39,68,.07);
   --enjii:#8b1a2c;--enjii-bg:rgba(139,26,44,.08);
-  --bg:#f6f6f4;--surface:#fff;--surface2:#f0f0ed;
-  --text:#111;--text-2:#444;--text-3:#888;
-  --border:#e2e2de;--border-2:#eeeee9;
-  --r:9px;--r-lg:13px;
-  --shadow-sm:0 1px 4px rgba(0,0,0,.06);
-  --shadow-md:0 4px 16px rgba(0,0,0,.09);
-  --sidebar-w:230px;
-  --header-h:54px;
+  --bg:#f4f5f7;--surface:#fff;--surface2:#f5f6f8;--surface3:#eceef2;
+  --text:#14161a;--text-2:#4a4f59;--text-3:#818894;
+  --border:#e3e6ea;--border-2:#eef0f3;
+  --ok:#1e8449;--ok-bg:#e6f4ec;
+  --warn:#8a6100;--warn-bg:#fdf3dd;
+  --info:#1c5b96;--info-bg:#e6f0fa;
+  --danger:#c0392b;--danger-bg:#fdecea;
+  --r-sm:7px;--r:10px;--r-lg:14px;--r-xl:18px;
+  --shadow-sm:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.05);
+  --shadow-md:0 4px 14px rgba(16,24,40,.08),0 1px 4px rgba(16,24,40,.04);
+  --shadow-lg:0 16px 44px rgba(16,24,40,.16);
+  --sidebar-w:244px;
+  --header-h:58px;
+  --content-max:1280px;
+  --safe-t:env(safe-area-inset-top,0px);
+  --safe-b:env(safe-area-inset-bottom,0px);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
-button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:'Noto Sans JP',system-ui,sans-serif;background:var(--bg);color:var(--text);
+  -webkit-font-smoothing:antialiased;line-height:1.6;
+}
+button,input,textarea,select{font-family:inherit;font-size:inherit}
+a{color:inherit}
+::selection{background:rgba(26,39,68,.15)}
 
-/* ===== LOGIN ===== */
+/* スクロールバー（PCでの見た目を統一） */
+*::-webkit-scrollbar{width:10px;height:10px}
+*::-webkit-scrollbar-thumb{background:#d3d7de;border-radius:6px;border:3px solid transparent;background-clip:content-box}
+*::-webkit-scrollbar-thumb:hover{background:#b9bfc9;background-clip:content-box}
+
+/* =========================================================
+   LOGIN
+========================================================= */
 #loginScreen{
-  position:fixed;inset:0;background:var(--navy);
-  display:flex;align-items:center;justify-content:center;
-  z-index:9999;
+  position:fixed;inset:0;z-index:9999;
+  background:radial-gradient(120% 90% at 15% 0%,#28406f 0%,#1a2744 45%,#0d1526 100%);
+  display:flex;align-items:center;justify-content:center;padding:24px;
 }
 #loginScreen.hide{display:none}
 .login-box{
-  background:var(--surface);border-radius:var(--r-lg);
-  padding:40px 36px;width:100%;max-width:380px;
-  box-shadow:0 8px 40px rgba(0,0,0,.3);
+  background:var(--surface);border-radius:var(--r-xl);
+  padding:38px 34px 30px;width:100%;max-width:390px;
+  box-shadow:var(--shadow-lg);
 }
-.login-logo{
-  text-align:center;margin-bottom:28px;
-}
-.login-crest{
-  width:52px;height:52px;
-  border-radius:50%;overflow:hidden;
-  margin:0 auto 12px;
-}
-.login-crest img{width:100%;height:100%;object-fit:contain;}
-.login-title{font-family:'Noto Serif JP',serif;font-size:17px;font-weight:600;color:var(--navy)}
-.login-sub{font-size:11px;color:var(--text-3);margin-top:3px}
-.form-group{margin-bottom:16px}
-.form-label{font-size:11.5px;font-weight:600;color:var(--text-3);margin-bottom:5px;display:block;letter-spacing:.04em}
+.login-logo{text-align:center;margin-bottom:26px}
+.login-crest{width:56px;height:56px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center}
+.login-crest img{width:100%;height:100%;object-fit:contain}
+.login-title{font-family:'Noto Serif JP',serif;font-size:19px;font-weight:600;color:var(--navy)}
+.login-sub{font-size:11.5px;color:var(--text-3);margin-top:4px}
+.form-group{margin-bottom:15px}
+.form-label{font-size:11.5px;font-weight:600;color:var(--text-2);margin-bottom:6px;display:block;letter-spacing:.03em}
 .form-input{
-  width:100%;height:42px;border:1.5px solid var(--border);
-  border-radius:var(--r);padding:0 13px;font-size:14px;
-  color:var(--text);background:var(--bg);outline:none;
-  transition:border-color .2s;
+  width:100%;height:44px;border:1.5px solid var(--border);
+  border-radius:var(--r);padding:0 13px;font-size:14.5px;
+  color:var(--text);background:var(--surface2);outline:none;
+  transition:border-color .15s,box-shadow .15s,background .15s;
 }
-.form-input:focus{border-color:var(--navy)}
+.form-input:focus{border-color:var(--navy);background:var(--surface);box-shadow:0 0 0 3px rgba(26,39,68,.1)}
 .btn-primary{
-  width:100%;height:44px;background:var(--navy);color:white;
-  border:none;border-radius:var(--r);font-size:14px;font-weight:600;
-  cursor:pointer;transition:background .15s;margin-top:4px;
+  width:100%;height:46px;background:var(--navy);color:#fff;
+  border:none;border-radius:var(--r);font-size:14.5px;font-weight:600;
+  cursor:pointer;transition:background .15s,transform .1s;margin-top:8px;
 }
 .btn-primary:hover{background:var(--navy-light)}
+.btn-primary:active{transform:translateY(1px)}
 .btn-primary:disabled{opacity:.5;cursor:not-allowed}
-.login-err{
-  font-size:12px;color:var(--enjii);text-align:center;
-  margin-top:12px;min-height:18px;
+.login-err{font-size:12.5px;color:var(--enjii);text-align:center;margin-top:12px;min-height:20px;line-height:1.5}
+.login-foot{
+  margin-top:20px;padding-top:16px;border-top:1px solid var(--border-2);
+  text-align:center;font-size:11px;color:var(--text-3);line-height:1.7;
 }
 
-/* ===== APP SHELL ===== */
+/* =========================================================
+   APP SHELL
+========================================================= */
 #appShell{display:none}
-#appShell.show{display:flex;min-height:100vh;flex-direction:column}
+#appShell.show{display:block}
 
-/* Header */
+/* --- Header --- */
 .adm-header{
-  position:fixed;top:0;left:0;right:0;height:var(--header-h);
-  background:var(--navy);
-  display:flex;align-items:center;padding:0 18px;gap:12px;
-  z-index:200;
+  position:fixed;top:0;left:0;right:0;z-index:200;
+  height:calc(var(--header-h) + var(--safe-t));padding:var(--safe-t) 16px 0;
+  background:var(--navy-deep);
+  display:flex;align-items:center;gap:10px;
+  box-shadow:0 1px 0 rgba(255,255,255,.06);
 }
-.adm-header-brand{
-  display:flex;align-items:center;gap:9px;flex:1;
+.adm-header-brand{display:flex;align-items:center;gap:10px;min-width:0}
+.adm-crest{width:30px;height:30px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.adm-crest img{width:100%;height:100%;object-fit:contain}
+.adm-brand-text{display:flex;flex-direction:column;line-height:1.25;min-width:0}
+.adm-brand-name{font-family:'Noto Serif JP',serif;font-size:13.5px;color:#fff;font-weight:600;white-space:nowrap}
+.adm-brand-sub{font-size:9.5px;color:rgba(255,255,255,.5);letter-spacing:.08em;white-space:nowrap}
+.adm-brand-badge{
+  font-size:9.5px;background:var(--enjii);color:#fff;font-weight:600;
+  padding:3px 9px;border-radius:20px;letter-spacing:.06em;flex-shrink:0;
 }
-.adm-crest{
-  width:30px;height:30px;
-  border-radius:50%;overflow:hidden;
+.adm-header-spacer{flex:1}
+.adm-user-chip{
+  display:flex;align-items:center;gap:9px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);
+  border-radius:22px;padding:4px 12px 4px 5px;max-width:270px;
+}
+.adm-avatar{
+  width:28px;height:28px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(140deg,#3b5490,#1a2744);
+  color:#fff;font-size:12px;font-weight:700;
   display:flex;align-items:center;justify-content:center;
 }
-.adm-crest img{width:100%;height:100%;object-fit:contain;}
-.adm-brand-name{font-family:'Noto Serif JP',serif;font-size:13px;color:rgba(255,255,255,.95);font-weight:600}
-.adm-brand-badge{
-  font-size:9.5px;background:var(--enjii);color:white;
-  padding:2px 8px;border-radius:10px;margin-left:8px;
-  letter-spacing:.04em;
+.adm-user-meta{display:flex;flex-direction:column;line-height:1.3;min-width:0}
+.adm-user-mail{
+  font-size:11.5px;color:rgba(255,255,255,.92);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px;
 }
-.adm-header-user{font-size:12px;color:rgba(255,255,255,.6)}
+.adm-user-role{font-size:9.5px;color:rgba(255,255,255,.55)}
 .adm-logout-btn{
-  height:30px;padding:0 13px;background:rgba(255,255,255,.1);
-  border:1px solid rgba(255,255,255,.2);border-radius:6px;
-  color:rgba(255,255,255,.85);font-size:12px;cursor:pointer;
-  transition:background .15s;
+  height:34px;padding:0 14px;background:rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.18);border-radius:var(--r-sm);
+  color:rgba(255,255,255,.9);font-size:12.5px;cursor:pointer;
+  transition:background .15s;white-space:nowrap;
 }
-.adm-logout-btn:hover{background:rgba(255,255,255,.18)}
+.adm-logout-btn:hover{background:rgba(255,255,255,.2)}
 
-/* Layout */
-.adm-body{
-  display:flex;padding-top:var(--header-h);min-height:100vh;
-}
+/* --- Layout --- */
+.adm-body{display:flex;padding-top:calc(var(--header-h) + var(--safe-t));min-height:100vh}
 
-/* Sidebar */
+/* --- Sidebar --- */
 .adm-sidebar{
   width:var(--sidebar-w);flex-shrink:0;
-  position:fixed;top:var(--header-h);left:0;bottom:0;
+  position:fixed;top:calc(var(--header-h) + var(--safe-t));left:0;bottom:0;
   background:var(--surface);border-right:1px solid var(--border);
-  overflow-y:auto;padding:16px 10px;
-  scrollbar-width:thin;scrollbar-color:var(--border) transparent;
+  overflow-y:auto;overscroll-behavior:contain;
+  padding:14px 10px calc(18px + var(--safe-b));
+  display:flex;flex-direction:column;gap:2px;
 }
 .sb-section-label{
-  font-size:9px;font-weight:700;letter-spacing:.14em;
-  color:var(--text-3);padding:0 8px;margin-bottom:3px;margin-top:14px;
-  text-transform:uppercase;
+  font-size:9.5px;font-weight:700;letter-spacing:.13em;
+  color:var(--text-3);padding:0 10px;margin:14px 0 4px;text-transform:uppercase;
 }
-.sb-section-label:first-child{margin-top:0}
+.sb-section-label:first-of-type{margin-top:2px}
 .adm-sb-item{
-  display:flex;align-items:center;gap:7px;
-  width:100%;padding:8px 10px;border:none;background:none;
-  border-radius:7px;font-size:13px;color:var(--text-2);
-  cursor:pointer;text-align:left;transition:background .12s,color .12s;
-  position:relative;
+  display:flex;align-items:center;gap:9px;
+  width:100%;padding:9px 11px;border:none;background:none;
+  border-radius:var(--r-sm);font-size:13px;color:var(--text-2);
+  cursor:pointer;text-align:left;position:relative;
+  transition:background .12s,color .12s;line-height:1.4;
 }
 .adm-sb-item:hover{background:var(--surface2);color:var(--text)}
-.adm-sb-item.on{background:var(--navy-dim,rgba(26,39,68,.07));color:var(--navy);font-weight:500}
+.adm-sb-item.on{background:var(--navy-dim);color:var(--navy);font-weight:600}
 .adm-sb-item.on::before{
-  content:'';position:absolute;left:0;top:20%;bottom:20%;
-  width:3px;background:var(--enjii);border-radius:0 2px 2px 0;
+  content:'';position:absolute;left:0;top:18%;bottom:18%;
+  width:3px;background:var(--enjii);border-radius:0 3px 3px 0;
 }
-.adm-sb-item svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;flex-shrink:0}
+.adm-sb-item svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;flex-shrink:0}
+.sb-count{
+  margin-left:auto;font-size:10px;font-weight:600;color:var(--text-3);
+  background:var(--surface2);border:1px solid var(--border-2);
+  padding:1px 7px;border-radius:20px;min-width:24px;text-align:center;
+}
+.adm-sb-item.on .sb-count{background:#fff}
+.sb-badge{
+  margin-left:auto;color:#fff;border-radius:20px;
+  font-size:10px;font-weight:700;padding:1px 7px;min-width:20px;text-align:center;
+}
+.sb-badge.alert{background:var(--danger)}
+.sb-badge.pending{background:#a9781a}
+.sb-foot{
+  margin-top:auto;padding:12px 11px 0;border-top:1px solid var(--border-2);
+  font-size:10.5px;color:var(--text-3);line-height:1.7;
+}
+.sb-foot a{color:var(--navy);text-decoration:none;font-weight:500}
+.sb-foot a:hover{text-decoration:underline}
 
-/* Main */
+/* --- Main --- */
 .adm-main{
-  flex:1;margin-left:var(--sidebar-w);
-  padding:28px 36px;min-width:0;
+  flex:1;margin-left:var(--sidebar-w);min-width:0;
+  padding:26px 32px calc(48px + var(--safe-b));
 }
+.adm-container{max-width:var(--content-max);margin:0 auto}
 .adm-section{display:none}
-.adm-section.on{display:block;animation:secIn .2s ease}
-@keyframes secIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+.adm-section.on{display:block;animation:secIn .22s ease}
+@keyframes secIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 
 .adm-section-header{
-  display:flex;align-items:center;justify-content:space-between;
-  margin-bottom:22px;padding-bottom:16px;
-  border-bottom:1.5px solid var(--border);
+  display:flex;align-items:flex-end;justify-content:space-between;gap:16px;
+  margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--border);
 }
-.adm-section-title{
-  font-family:'Noto Serif JP',serif;font-size:20px;font-weight:600;
-}
-.adm-section-sub{font-size:12px;color:var(--text-3);margin-top:3px}
-.btn-add{
-  display:flex;align-items:center;gap:6px;
-  height:38px;padding:0 16px;
-  background:var(--navy);color:white;
-  border:none;border-radius:var(--r);
-  font-size:13px;font-weight:500;cursor:pointer;
-  transition:background .15s;
-}
-.btn-add:hover{background:var(--navy-light)}
-.btn-add svg{width:15px;height:15px;stroke:white;fill:none;stroke-width:2.5}
+.adm-section-heading{min-width:0}
+.adm-section-title{font-family:'Noto Serif JP',serif;font-size:21px;font-weight:600;line-height:1.3}
+.adm-section-sub{font-size:12px;color:var(--text-3);margin-top:4px}
+.adm-section-tools{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
 
-/* Cards */
-.item-card{
-  background:var(--surface);border:1.5px solid var(--border);
-  border-radius:var(--r);margin-bottom:10px;
-  overflow:hidden;transition:box-shadow .15s;
+/* --- Buttons --- */
+.btn-add,.btn-ghost{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  height:38px;padding:0 16px;border-radius:var(--r-sm);
+  font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:background .15s,border-color .15s,color .15s;
 }
-.item-card:hover{box-shadow:var(--shadow-sm)}
-.item-card-header{
+.btn-add{background:var(--navy);color:#fff;border:1px solid var(--navy)}
+.btn-add:hover{background:var(--navy-light);border-color:var(--navy-light)}
+.btn-add svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2.5}
+.btn-ghost{background:var(--surface);color:var(--text-2);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--surface2);color:var(--text)}
+.btn-ghost svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+.select-ctl,.input-ctl{
+  height:38px;border:1px solid var(--border);border-radius:var(--r-sm);
+  background:var(--surface);color:var(--text);font-size:12.5px;padding:0 11px;
+  outline:none;transition:border-color .15s,box-shadow .15s;
+}
+.select-ctl:focus,.input-ctl:focus{border-color:var(--navy);box-shadow:0 0 0 3px rgba(26,39,68,.08)}
+
+/* --- Panels & cards --- */
+.panel{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);box-shadow:var(--shadow-sm);overflow:hidden;
+}
+.panel + .panel{margin-top:16px}
+.panel-pad{padding:20px 22px}
+.panel-head{
+  padding:14px 18px;border-bottom:1px solid var(--border-2);background:var(--surface2);
   display:flex;align-items:center;gap:10px;
-  padding:13px 16px;cursor:pointer;
-  user-select:none;
 }
-.item-num{
-  font-size:10px;font-weight:700;color:var(--enjii);
-  background:var(--enjii-bg);padding:2px 8px;
-  border-radius:4px;white-space:nowrap;flex-shrink:0;
-}
-.item-title{font-size:13.5px;font-weight:500;color:var(--text);flex:1}
-.item-actions{display:flex;gap:4px;flex-shrink:0}
-.btn-icon{
-  width:30px;height:30px;border:none;background:none;
-  border-radius:6px;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  color:var(--text-3);transition:background .12s,color .12s;
-}
-.btn-icon:hover{background:var(--surface2);color:var(--text)}
-.btn-icon.del:hover{background:rgba(139,26,44,.08);color:var(--enjii)}
-.btn-icon svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
-.item-card-body{
-  padding:12px 16px 16px;border-top:1px solid var(--border);
-  background:var(--surface2);
-}
-.item-body-text{font-size:13px;color:var(--text-2);line-height:1.8}
+.panel-title{font-size:13px;font-weight:600;color:var(--text)}
+.panel-hint{font-size:11.5px;color:var(--text-3);line-height:1.7}
 
-/* Forms */
-.form-row{margin-bottom:14px}
-.form-row label{
-  display:block;font-size:11.5px;font-weight:600;
-  color:var(--text-3);margin-bottom:5px;letter-spacing:.04em;
+.item-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);margin-bottom:10px;overflow:hidden;
+  transition:box-shadow .15s,border-color .15s;
+}
+.item-card:hover{box-shadow:var(--shadow-sm);border-color:#d6dae1}
+.item-card-header{display:flex;align-items:center;gap:10px;padding:13px 16px;user-select:none}
+.item-num{
+  font-size:10.5px;font-weight:700;color:var(--enjii);
+  background:var(--enjii-bg);padding:3px 9px;border-radius:var(--r-sm);
+  white-space:nowrap;flex-shrink:0;
+}
+.item-title{font-size:13.5px;font-weight:600;color:var(--text);flex:1;min-width:0}
+.item-chip{
+  font-size:10px;color:var(--navy);background:var(--navy-dim);
+  padding:2px 8px;border-radius:var(--r-sm);white-space:nowrap;
+}
+.item-actions{display:flex;gap:3px;flex-shrink:0;align-items:center}
+.btn-icon{
+  width:32px;height:32px;border:1px solid transparent;background:none;
+  border-radius:var(--r-sm);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text-3);transition:background .12s,color .12s,border-color .12s;
+}
+.btn-icon:hover{background:var(--surface2);color:var(--text);border-color:var(--border)}
+.btn-icon.del:hover{background:var(--danger-bg);color:var(--danger);border-color:#f3c9c4}
+.btn-icon:disabled{opacity:.28;cursor:not-allowed}
+.btn-icon:disabled:hover{background:none;border-color:transparent;color:var(--text-3)}
+.btn-icon svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2}
+.item-card-body{padding:12px 16px 15px;border-top:1px solid var(--border-2);background:var(--surface2)}
+.item-body-text{font-size:13px;color:var(--text-2);line-height:1.85;white-space:pre-wrap}
+
+/* リスト行（沿革・校長・行事） */
+.list-rows{display:flex;flex-direction:column}
+.list-row{
+  display:grid;grid-template-columns:190px 1fr auto;gap:12px;align-items:center;
+  padding:11px 16px;border-bottom:1px solid var(--border-2);background:var(--surface);
+}
+.list-row:last-child{border-bottom:none}
+.list-row:hover{background:var(--surface2)}
+.row-meta{font-size:12.5px;color:var(--text-3)}
+.row-main{font-size:13.5px;color:var(--text-2);line-height:1.7}
+.principals-row{grid-template-columns:76px 1fr 1fr auto}
+
+/* --- Toast / empty / spinner --- */
+.toast{
+  position:fixed;bottom:calc(24px + var(--safe-b));left:50%;
+  transform:translateX(-50%) translateY(24px);
+  background:#11151d;color:#fff;padding:12px 22px;
+  border-radius:var(--r);font-size:13px;opacity:0;
+  transition:opacity .22s,transform .22s;z-index:9999;pointer-events:none;
+  max-width:calc(100vw - 32px);text-align:center;box-shadow:var(--shadow-lg);
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.empty-state{text-align:center;padding:52px 20px;color:var(--text-3);background:var(--surface);border-radius:var(--r-lg);border:1px dashed var(--border)}
+.empty-state svg{width:38px;height:38px;stroke:#c9ced7;fill:none;stroke-width:1.5;margin-bottom:12px}
+.empty-state p{font-size:13.5px}
+.empty-state .empty-hint{font-size:11.5px;margin-top:6px;color:#a3a9b4}
+.loading-spinner{display:flex;align-items:center;justify-content:center;padding:44px;gap:10px;color:var(--text-3);font-size:13px}
+.spinner{
+  width:20px;height:20px;border:2px solid var(--border);
+  border-top-color:var(--navy);border-radius:50%;animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.notice{
+  padding:14px 16px;border-radius:var(--r);font-size:12.5px;line-height:1.8;
+  background:var(--info-bg);color:var(--info);border:1px solid #cfe0f0;
+}
+.notice.warn{background:var(--warn-bg);color:var(--warn);border-color:#f0e0b8}
+
+/* --- Badges --- */
+.badge{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap;
+}
+.badge-ok{color:var(--ok);background:var(--ok-bg)}
+.badge-warn{color:var(--warn);background:var(--warn-bg)}
+.badge-muted{color:var(--text-3);background:var(--surface3)}
+
+/* =========================================================
+   DASHBOARD（Issue #49: KPI と コンテンツ管理を明確に分離）
+========================================================= */
+.dash-hero{
+  position:relative;overflow:hidden;
+  background:linear-gradient(128deg,#26396d 0%,#1a2744 55%,#101a2f 100%);
+  color:#fff;border-radius:var(--r-lg);padding:24px 28px;margin-bottom:20px;
+}
+.dash-hero::after{
+  content:'';position:absolute;right:-40px;top:-60px;
+  width:220px;height:220px;border-radius:50%;background:rgba(255,255,255,.05);
+}
+.dash-hero::before{
+  content:'';position:absolute;right:60px;bottom:-90px;
+  width:160px;height:160px;border-radius:50%;background:rgba(139,26,44,.22);
+}
+.dash-hero-inner{position:relative;z-index:1}
+.dash-hero-eyebrow{font-size:10.5px;letter-spacing:.14em;color:rgba(255,255,255,.55);margin-bottom:6px}
+.dash-hero-title{font-family:'Noto Serif JP',serif;font-size:22px;font-weight:600;margin-bottom:6px;line-height:1.4}
+.dash-hero-sub{font-size:12.5px;color:rgba(255,255,255,.7);line-height:1.7}
+
+.dash-kpis{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(214px,1fr));
+  gap:14px;margin-bottom:26px;
+}
+.kpi-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:16px 18px;display:flex;align-items:center;gap:14px;
+  box-shadow:var(--shadow-sm);transition:transform .15s,box-shadow .15s,border-color .15s;
+}
+.kpi-card.clickable{cursor:pointer}
+.kpi-card.clickable:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);border-color:#d2d7df}
+.kpi-icon{
+  width:42px;height:42px;border-radius:12px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+}
+.kpi-icon svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2}
+.kpi-body{min-width:0;flex:1}
+.kpi-num{font-size:24px;font-weight:700;color:var(--text);line-height:1.2;font-family:'Noto Serif JP',serif}
+.kpi-label{font-size:11.5px;color:var(--text-3);margin-top:2px}
+.kpi-arrow{color:var(--text-3);flex-shrink:0}
+.kpi-arrow svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.2}
+
+.dash-block-title{
+  display:flex;align-items:center;gap:10px;
+  font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px;
+}
+.dash-block-title::after{content:'';flex:1;height:1px;background:var(--border)}
+
+.dash-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:14px}
+.dash-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  display:flex;flex-direction:column;overflow:hidden;cursor:pointer;
+  box-shadow:var(--shadow-sm);transition:transform .15s,box-shadow .15s,border-color .15s;
+  text-align:left;font:inherit;color:inherit;
+}
+.dash-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);border-color:#d2d7df}
+.dash-card-top{display:flex;align-items:center;gap:13px;padding:16px 18px 13px;flex:1}
+.dash-card-icon{
+  width:40px;height:40px;border-radius:11px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+}
+.dash-card-icon svg{width:19px;height:19px;stroke:#fff;fill:none;stroke-width:1.9}
+.dash-card-info{flex:1;min-width:0}
+.dash-card-num{font-size:22px;font-weight:700;color:var(--navy);font-family:'Noto Serif JP',serif;line-height:1.2}
+.dash-card-label{font-size:12px;color:var(--text-2);margin-top:2px;font-weight:500}
+.dash-card-bottom{
+  padding:9px 18px;border-top:1px solid var(--border-2);background:var(--surface2);
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+}
+.dash-card-link{font-size:11.5px;color:var(--enjii);font-weight:600;display:inline-flex;align-items:center;gap:4px}
+.dash-card-link svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2.6}
+.dash-card-tag{font-size:10px;font-weight:600;color:var(--text-3);background:var(--surface);border:1px solid var(--border-2);padding:2px 9px;border-radius:20px}
+
+/* =========================================================
+   FORMS / MODAL
+========================================================= */
+.form-row{margin-bottom:15px}
+.form-row:last-child{margin-bottom:0}
+.form-row > label{
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  font-size:11.5px;font-weight:600;color:var(--text-2);margin-bottom:6px;letter-spacing:.02em;
 }
 .form-row input,.form-row textarea,.form-row select{
-  width:100%;border:1.5px solid var(--border);
-  border-radius:var(--r);padding:9px 12px;
-  font-size:13.5px;color:var(--text);background:var(--surface);
-  outline:none;transition:border-color .2s;
+  width:100%;border:1.5px solid var(--border);border-radius:var(--r-sm);
+  padding:9px 12px;font-size:13.5px;color:var(--text);background:var(--surface);
+  outline:none;transition:border-color .15s,box-shadow .15s;
 }
 .form-row input:focus,.form-row textarea:focus,.form-row select:focus{
-  border-color:var(--navy);
+  border-color:var(--navy);box-shadow:0 0 0 3px rgba(26,39,68,.08);
 }
-.form-row textarea{resize:vertical;min-height:80px;line-height:1.7}
-.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-row textarea{resize:vertical;min-height:84px;line-height:1.8}
+.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+.form-row-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;align-items:start}
+.form-hint{font-size:10.5px;color:var(--text-3);margin-top:5px;line-height:1.65}
+.form-tag{
+  font-size:9.5px;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:4px;
+  background:var(--surface3);color:var(--text-3);
+}
+.form-tag.auto{background:var(--info-bg);color:var(--info)}
+.form-tag.req{background:var(--enjii-bg);color:var(--enjii)}
 
-/* Modal */
-.modal-overlay{
-  position:fixed;inset:0;background:rgba(0,0,0,.4);
-  z-index:800;display:none;align-items:center;justify-content:center;
-  padding:20px;
+/* 入力補助バー（項エディタなど） */
+.input-toolbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.tool-btn{
+  display:inline-flex;align-items:center;gap:5px;
+  height:30px;padding:0 10px;border:1px solid var(--border);border-radius:var(--r-sm);
+  background:var(--surface2);color:var(--text-2);font-size:11.5px;font-weight:500;cursor:pointer;
+  transition:background .12s,color .12s,border-color .12s;
 }
-.modal-overlay.open{display:flex;animation:moIn .2s ease}
+.tool-btn:hover{background:var(--surface);color:var(--text);border-color:#cfd4dc}
+.tool-btn svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2.4}
+
+/* 折りたたみ（詳細設定） */
+.collapse{border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden;background:var(--surface2)}
+.collapse > summary{
+  padding:9px 13px;font-size:12px;font-weight:600;color:var(--text-2);
+  cursor:pointer;list-style:none;display:flex;align-items:center;gap:7px;
+}
+.collapse > summary::-webkit-details-marker{display:none}
+.collapse > summary::before{
+  content:'';width:6px;height:6px;border-right:1.8px solid currentColor;border-bottom:1.8px solid currentColor;
+  transform:rotate(-45deg);transition:transform .15s;margin-right:2px;
+}
+.collapse[open] > summary::before{transform:rotate(45deg)}
+.collapse > summary:hover{background:var(--surface3)}
+.collapse-body{padding:13px;background:var(--surface);border-top:1px solid var(--border)}
+
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(17,21,29,.48);
+  backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+  z-index:800;display:none;align-items:center;justify-content:center;padding:24px;
+}
+.modal-overlay.open{display:flex;animation:moIn .18s ease}
 @keyframes moIn{from{opacity:0}to{opacity:1}}
 .modal{
   background:var(--surface);border-radius:var(--r-lg);
-  width:100%;max-width:580px;max-height:90vh;
-  overflow-y:auto;box-shadow:var(--shadow-md);
-  animation:modalIn .2s cubic-bezier(.4,0,.2,1);
-}
-@keyframes modalIn{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
-.modal-header{
-  padding:18px 22px 14px;
-  display:flex;align-items:center;justify-content:space-between;
-  border-bottom:1px solid var(--border);
-  position:sticky;top:0;background:var(--surface);z-index:1;
-}
-.modal-title{font-family:'Noto Serif JP',serif;font-size:16px;font-weight:600}
-.modal-close{
-  width:32px;height:32px;border:none;background:none;
-  border-radius:6px;cursor:pointer;color:var(--text-3);
-  display:flex;align-items:center;justify-content:center;
-  transition:background .12s;
-}
-.modal-close:hover{background:var(--surface2)}
-.modal-close svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
-.modal-body{padding:20px 22px}
-.modal-footer{
-  padding:14px 22px;border-top:1px solid var(--border);
-  display:flex;justify-content:flex-end;gap:8px;
-  position:sticky;bottom:0;background:var(--surface);
-}
-.btn-cancel{
-  height:38px;padding:0 18px;border:1.5px solid var(--border);
-  background:none;border-radius:var(--r);font-size:13px;
-  color:var(--text-2);cursor:pointer;transition:background .15s;
-}
-.btn-cancel:hover{background:var(--surface2)}
-.btn-save{
-  height:38px;padding:0 20px;background:var(--navy);color:white;
-  border:none;border-radius:var(--r);font-size:13px;font-weight:600;
-  cursor:pointer;transition:background .15s;
-}
-.btn-save:hover{background:var(--navy-light)}
-.btn-save:disabled{opacity:.5;cursor:not-allowed}
-
-/* Sub-items editor */
-.sub-items-wrap{border:1.5px solid var(--border);border-radius:var(--r);overflow:hidden;margin-top:6px}
-.sub-item-row{
-  display:flex;align-items:center;gap:8px;
-  padding:8px 10px;border-bottom:1px solid var(--border-2);
-}
-.sub-item-row:last-child{border-bottom:none}
-.sub-idx-tag{
-  font-size:10.5px;font-weight:700;color:var(--enjii);
-  background:var(--enjii-bg);padding:1px 7px;border-radius:4px;
-  white-space:nowrap;flex-shrink:0;
-}
-.sub-item-input{
-  flex:1;border:none;background:none;font-size:13px;
-  color:var(--text);outline:none;padding:2px 4px;
-}
-.sub-item-add{
-  display:flex;align-items:center;gap:6px;
-  padding:9px 12px;border-top:1px solid var(--border);
-  cursor:pointer;font-size:12.5px;color:var(--text-3);
-  transition:background .12s;background:none;border-top:1px solid var(--border);
-}
-.sub-item-add:hover{background:var(--surface2);color:var(--text)}
-.sub-item-add svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2.5}
-
-/* Toast */
-.toast{
-  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
-  background:#1a1a1a;color:white;padding:11px 20px;
-  border-radius:8px;font-size:13px;opacity:0;
-  transition:all .25s;z-index:9999;pointer-events:none;white-space:nowrap;
-}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-
-/* Empty state */
-.empty-state{
-  text-align:center;padding:48px 20px;
-  color:var(--text-3);
-}
-.empty-state svg{width:40px;height:40px;stroke:var(--border);fill:none;stroke-width:1.5;margin-bottom:12px}
-.empty-state p{font-size:14px}
-
-/* History specific */
-.history-row{
-  display:grid;grid-template-columns:180px 1fr auto;
-  gap:10px;align-items:center;
-  padding:10px 14px;border-bottom:1px solid var(--border-2);
-  background:var(--surface);
-}
-.history-row:last-child{border-bottom:none}
-.history-year-cell{font-size:12.5px;color:var(--text-3);font-family:'Noto Sans JP',sans-serif}
-.history-event-cell{font-size:13.5px;color:var(--text-2)}
-.principals-row{grid-template-columns:60px 1fr 1fr auto}
-
-/* Loading */
-.loading-spinner{
-  display:flex;align-items:center;justify-content:center;
-  padding:40px;gap:10px;color:var(--text-3);font-size:13px;
-}
-.spinner{
-  width:20px;height:20px;border:2px solid var(--border);
-  border-top-color:var(--navy);border-radius:50%;
-  animation:spin .7s linear infinite;
-}
-@keyframes spin{to{transform:rotate(360deg)}}
-
-/* Dashboard */
-.dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:28px}
-.dash-card{
-  background:var(--surface);border:1.5px solid var(--border);
-  border-radius:var(--r-lg);padding:0;
+  width:100%;max-width:620px;max-height:min(92vh,880px);
   display:flex;flex-direction:column;
-  transition:transform .15s, box-shadow .15s;
-  overflow:hidden;
+  box-shadow:var(--shadow-lg);animation:modalIn .2s cubic-bezier(.4,0,.2,1);
 }
-.dash-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
-.dash-card-top{
-  display:flex;align-items:center;gap:14px;
-  padding:18px 20px 14px;
+@keyframes modalIn{from{opacity:0;transform:scale(.98) translateY(10px)}to{opacity:1;transform:none}}
+.modal-header{
+  padding:16px 20px;display:flex;align-items:center;gap:10px;
+  border-bottom:1px solid var(--border);flex-shrink:0;
 }
-.dash-card-icon{
-  width:44px;height:44px;border-radius:11px;
-  display:flex;align-items:center;justify-content:center;
-  flex-shrink:0;
+.modal-title{font-family:'Noto Serif JP',serif;font-size:16.5px;font-weight:600;flex:1;min-width:0}
+.modal-close{
+  width:34px;height:34px;border:none;background:none;border-radius:var(--r-sm);
+  cursor:pointer;color:var(--text-3);display:flex;align-items:center;justify-content:center;
+  transition:background .12s,color .12s;flex-shrink:0;
 }
-.dash-card-icon svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.8}
-.dash-card-info{flex:1;min-width:0}
-.dash-card-num{font-size:26px;font-weight:700;color:var(--navy);font-family:'Noto Serif JP',serif;line-height:1.2}
-.dash-card-label{font-size:12px;color:var(--text-3);margin-top:2px}
-.dash-card-bottom{
-  padding:10px 20px;border-top:1px solid var(--border-2);
-  display:flex;align-items:center;justify-content:space-between;
-  background:var(--surface2);
+.modal-close:hover{background:var(--surface2);color:var(--text)}
+.modal-close svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2}
+.modal-body{padding:20px;overflow-y:auto;flex:1}
+.modal-footer{
+  padding:13px 20px calc(13px + var(--safe-b));border-top:1px solid var(--border);
+  display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;flex-wrap:wrap;
+  background:var(--surface);border-radius:0 0 var(--r-lg) var(--r-lg);
 }
-.dash-card-link{
-  font-size:11.5px;color:var(--enjii);cursor:pointer;
-  display:inline-flex;align-items:center;gap:4px;
-  font-weight:500;transition:color .15s;
+.btn-cancel,.btn-save,.btn-save-more{
+  height:40px;padding:0 18px;border-radius:var(--r-sm);
+  font-size:13px;font-weight:600;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  transition:background .15s,border-color .15s,color .15s;
 }
-.dash-card-link:hover{color:var(--navy)}
-.dash-card-link svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2.5}
-.dash-card-tag{
-  font-size:9.5px;font-weight:600;color:var(--text-3);
-  background:var(--surface);padding:2px 8px;border-radius:10px;
-}
+.btn-cancel{border:1.5px solid var(--border);background:var(--surface);color:var(--text-2)}
+.btn-cancel:hover{background:var(--surface2)}
+.btn-save{border:1.5px solid var(--navy);background:var(--navy);color:#fff}
+.btn-save:hover{background:var(--navy-light);border-color:var(--navy-light)}
+.btn-save:disabled,.btn-save-more:disabled{opacity:.5;cursor:not-allowed}
+.btn-save-more{border:1.5px solid var(--navy);background:var(--surface);color:var(--navy)}
+.btn-save-more:hover{background:var(--navy-dim)}
+.btn-save-more svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.4}
+.modal-footer-spacer{flex:1}
 
-/* Dashboard summary row */
-.dash-summary{
-  display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;
-  margin-bottom:22px;
+/* =========================================================
+   TABLES
+========================================================= */
+.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.data-table{width:100%;border-collapse:collapse;font-size:13px}
+.data-table thead th{
+  padding:10px 12px;text-align:left;font-weight:600;font-size:11px;
+  color:var(--text-3);background:var(--surface2);
+  border-bottom:1px solid var(--border);white-space:nowrap;
 }
-.dash-summary-card{
-  background:var(--surface);border:1.5px solid var(--border);
-  border-radius:var(--r);padding:16px 20px;
-  display:flex;align-items:center;gap:14px;
-}
-.dash-summary-icon{
-  width:38px;height:38px;border-radius:9px;
-  display:flex;align-items:center;justify-content:center;
-  flex-shrink:0;
-}
-.dash-summary-icon svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2}
-.dash-summary-info{flex:1}
-.dash-summary-num{font-size:20px;font-weight:700;color:var(--text);line-height:1.2}
-.dash-summary-label{font-size:11px;color:var(--text-3)}
-.dash-welcome{
-  margin-bottom:24px;padding:22px 26px;
-  background:linear-gradient(135deg,var(--navy) 0%,#253a78 100%);
-  border-radius:var(--r-lg);color:white;position:relative;overflow:hidden;
-}
-.dash-welcome::after{
-  content:'';position:absolute;right:-30px;top:-30px;
-  width:140px;height:140px;border-radius:50%;
-  background:rgba(255,255,255,.05);
-}
-.dash-welcome-title{font-family:'Noto Serif JP',serif;font-size:18px;font-weight:600;margin-bottom:4px}
-.dash-welcome-sub{font-size:12px;color:rgba(255,255,255,.65)}
+.data-table tbody td{padding:10px 12px;border-bottom:1px solid var(--border-2);color:var(--text-2);vertical-align:middle}
+.data-table tbody tr:last-child td{border-bottom:none}
+.data-table tbody tr:hover{background:var(--surface2)}
+.data-table .num{text-align:center;white-space:nowrap}
 
-/* ===== RESPONSIVE: hamburger / drawer (hidden on desktop) ===== */
+/* =========================================================
+   USERS（Issue #49: 属性が多いので "テーブル+カード" 併用）
+========================================================= */
+.users-toolbar{
+  display:flex;flex-wrap:wrap;gap:10px;align-items:center;
+  padding:14px 16px;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);margin-bottom:14px;box-shadow:var(--shadow-sm);
+}
+.users-search{position:relative;flex:1 1 240px;min-width:200px}
+.users-search svg{
+  position:absolute;left:11px;top:50%;transform:translateY(-50%);
+  width:15px;height:15px;stroke:var(--text-3);fill:none;stroke-width:2;pointer-events:none;
+}
+.users-search input{width:100%;padding-left:34px}
+.users-filter-group{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.users-stats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.stat-chip{
+  display:inline-flex;align-items:baseline;gap:6px;
+  padding:7px 13px;border-radius:20px;border:1px solid var(--border);
+  background:var(--surface);font-size:11.5px;color:var(--text-3);
+}
+.stat-chip b{font-size:14px;color:var(--text);font-weight:700}
+.stat-chip.alert{background:var(--warn-bg);border-color:#f0e0b8;color:var(--warn)}
+.stat-chip.alert b{color:var(--warn)}
+.stat-chip.clickable{cursor:pointer;transition:background .12s}
+.stat-chip.clickable:hover{background:var(--surface2)}
+
+.user-ident{display:flex;align-items:center;gap:10px;min-width:0}
+.user-av{
+  width:34px;height:34px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;color:#fff;background:var(--navy);
+}
+.user-ident-text{min-width:0}
+.user-name{font-size:13.5px;font-weight:600;color:var(--text);line-height:1.35;overflow-wrap:anywhere}
+.user-mail{font-size:11.5px;color:var(--text-3);line-height:1.35;overflow-wrap:anywhere}
+.user-attrs{display:flex;flex-wrap:wrap;gap:5px}
+.attr{
+  font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:var(--r-sm);
+  background:var(--surface2);color:var(--text-2);border:1px solid var(--border-2);white-space:nowrap;
+}
+.role-pill{font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap}
+.toggle-pill{border:none;cursor:pointer;font:inherit;font-size:10.5px;font-weight:700;padding:4px 11px;border-radius:20px;transition:filter .12s}
+.toggle-pill:hover{filter:brightness(.96)}
+.row-ops{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.btn-xs{
+  height:30px;padding:0 12px;border-radius:var(--r-sm);font-size:11.5px;font-weight:600;
+  border:1px solid var(--border);background:var(--surface);color:var(--text-2);cursor:pointer;
+  transition:background .12s,color .12s,border-color .12s;white-space:nowrap;
+}
+.btn-xs:hover{background:var(--surface2);color:var(--text)}
+.btn-xs.danger{border-color:#edc3bd;color:var(--danger)}
+.btn-xs.danger:hover{background:var(--danger-bg)}
+.btn-xs.primary{border-color:var(--navy);background:var(--navy);color:#fff}
+.btn-xs.primary:hover{background:var(--navy-light)}
+
+/* モバイル用ユーザーカード（テーブルとは別マークアップ） */
+.user-cards{display:none;flex-direction:column;gap:10px}
+.user-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:14px;box-shadow:var(--shadow-sm);
+}
+.user-card-top{display:flex;align-items:flex-start;gap:11px;margin-bottom:11px}
+.user-card-top .user-ident{flex:1}
+.user-card-attrs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.user-card-ops{display:flex;gap:8px;flex-wrap:wrap;padding-top:11px;border-top:1px solid var(--border-2)}
+.user-card-ops .btn-xs{flex:1;min-width:84px;height:36px}
+
+/* 件数表示 */
+.result-count{font-size:12px;color:var(--text-3);margin-bottom:10px}
+
+/* =========================================================
+   INQUIRIES / CASES
+========================================================= */
+.iq-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);margin-bottom:12px;overflow:hidden;box-shadow:var(--shadow-sm)}
+.iq-head{padding:16px 18px 0}
+.iq-meta-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.iq-subject{font-size:14.5px;font-weight:600;color:var(--text);margin-bottom:4px;line-height:1.5}
+.iq-from{font-size:12px;color:var(--text-3);margin-bottom:8px;overflow-wrap:anywhere}
+.iq-body{font-size:13px;color:var(--text-2);white-space:pre-wrap;border-left:3px solid var(--border);padding-left:12px;line-height:1.8}
+.iq-prev-reply{
+  margin-top:12px;font-size:12px;color:var(--text-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:11px 13px;background:var(--surface2);line-height:1.8;
+}
+.iq-reply-zone{padding:14px 18px 16px;margin-top:14px;border-top:1px solid var(--border-2);background:var(--surface2)}
+.iq-reply-zone textarea{
+  width:100%;border:1.5px solid var(--border);border-radius:var(--r-sm);
+  padding:10px 12px;font-size:13px;resize:vertical;min-height:78px;
+  background:var(--surface);color:var(--text);outline:none;line-height:1.8;
+}
+.iq-reply-zone textarea:focus{border-color:var(--navy);box-shadow:0 0 0 3px rgba(26,39,68,.08)}
+.iq-reply-ops{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+.iq-reply-ops .btn-xs{height:34px}
+.btn-xs.send{border-color:#1e8449;background:#1e8449;color:#fff}
+.btn-xs.send:hover{background:#19703d}
+.case-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:17px 19px;margin-bottom:12px;box-shadow:var(--shadow-sm)}
+.case-rows{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px;color:var(--text-3);margin-top:8px}
+.case-rows dt{font-weight:600;white-space:nowrap}
+.case-rows dd{color:var(--text-2);overflow-wrap:anywhere}
+.case-steps{display:flex;gap:6px;margin-top:12px}
+.case-step{flex:1;text-align:center}
+.case-step-bar{height:4px;border-radius:3px;margin-bottom:5px;background:#e0e3e8}
+.case-step.done .case-step-bar{background:var(--navy)}
+.case-step.active .case-step-bar{background:#e0a800}
+.case-step-lbl{font-size:9.5px;color:#a3a9b4}
+.case-step.done .case-step-lbl{color:var(--navy);font-weight:700}
+.case-step.active .case-step-lbl{color:var(--warn);font-weight:700}
+.case-foot{margin-top:13px;padding-top:12px;border-top:1px solid var(--border-2);display:flex;justify-content:flex-end}
+
+/* =========================================================
+   ハンバーガー / ドロワー
+========================================================= */
 .adm-menu-btn{
   display:none;align-items:center;justify-content:center;
   width:38px;height:38px;flex-shrink:0;
-  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);
-  border-radius:8px;cursor:pointer;color:#fff;
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);
+  border-radius:var(--r-sm);cursor:pointer;color:#fff;
 }
 .adm-menu-btn svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2}
 .sb-close-btn{
   display:none;align-items:center;justify-content:center;
-  width:34px;height:34px;margin-left:auto;margin-bottom:6px;
-  background:none;border:none;border-radius:7px;cursor:pointer;color:var(--text-3);
+  width:34px;height:34px;margin-left:auto;margin-bottom:4px;
+  background:none;border:none;border-radius:var(--r-sm);cursor:pointer;color:var(--text-3);
 }
 .sb-close-btn:hover{background:var(--surface2);color:var(--text)}
 .sb-close-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
 .sb-overlay{display:none}
 
-/* Tables: touch-friendly horizontal scroll */
-.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
-
-/* ===== Tablet (<=900px): sidebar becomes a drawer ===== */
-@media (max-width:900px){
-  .adm-menu-btn{display:flex}
-  .adm-sidebar{
-    top:0;z-index:300;width:min(270px,80vw);
-    padding:14px 12px calc(20px + env(safe-area-inset-bottom));
-    transform:translateX(-105%);transition:transform .22s ease;
-    box-shadow:none;
-  }
-  .adm-sidebar.open{transform:none;box-shadow:8px 0 32px rgba(0,0,0,.18)}
-  .sb-close-btn{display:flex}
-  .sb-overlay.show{
-    display:block;position:fixed;inset:0;z-index:250;
-    background:rgba(0,0,0,.42);
-  }
-  .adm-main{margin-left:0;padding:20px 16px}
-  .adm-section-header{flex-wrap:wrap;gap:12px}
-  .adm-section-title{font-size:18px}
-  .adm-sb-item{padding:11px 12px;font-size:14px}
-  .btn-icon{width:34px;height:34px}
-  /* 9-column users table: keep readable via scroll instead of crushing */
-  .users-table{min-width:840px}
-  .history-row{grid-template-columns:1fr auto}
-  .history-year-cell{grid-column:1/-1;font-size:11.5px}
-  .principals-row{grid-template-columns:auto 1fr auto}
-  .principals-row .history-year-cell{grid-column:1/-1}
+/* =========================================================
+   RESPONSIVE — Laptop (<=1180px)
+========================================================= */
+@media (max-width:1180px){
+  :root{--sidebar-w:222px}
+  .adm-main{padding:24px 24px calc(44px + var(--safe-b))}
 }
 
-/* ===== Phone (<=640px): cards, stacked layouts ===== */
-@media (max-width:640px){
-  #loginScreen{padding:20px}
-  .login-box{padding:32px 24px}
-  .adm-header{padding:0 12px;gap:8px}
-  .adm-header-user{display:none}
-  .adm-brand-name{font-size:12px}
-  .adm-main{padding:16px 12px}
-  .adm-section-title{font-size:17px}
-  .adm-section-sub{font-size:11px}
-  .btn-add{height:42px;padding:0 14px;font-size:12.5px}
-  .form-row-2{grid-template-columns:1fr}
+/* ===== Tablet (<=980px): サイドバーをドロワー化 ===== */
+@media (max-width:980px){
+  .adm-menu-btn{display:flex}
+  .adm-sidebar{
+    top:0;z-index:300;width:min(286px,84vw);
+    padding:14px 12px calc(20px + var(--safe-b));
+    transform:translateX(-105%);transition:transform .24s cubic-bezier(.4,0,.2,1);
+  }
+  .adm-sidebar.open{transform:none;box-shadow:10px 0 40px rgba(16,24,40,.24)}
+  .sb-close-btn{display:flex}
+  .sb-overlay.show{display:block;position:fixed;inset:0;z-index:250;background:rgba(17,21,29,.45)}
+  .adm-main{margin-left:0;padding:20px 18px calc(40px + var(--safe-b))}
+  .adm-user-chip{max-width:200px}
+  .adm-user-mail{max-width:130px}
+  .adm-brand-sub{display:none}
+  .adm-section-header{flex-direction:column;align-items:stretch;gap:12px}
+  .adm-section-tools{justify-content:flex-start}
+  .adm-sb-item{padding:11px 12px;font-size:13.5px}
+  .list-row{grid-template-columns:1fr auto}
+  .list-row .row-meta{grid-column:1/-1;font-size:11.5px}
+  .principals-row{grid-template-columns:auto 1fr auto}
+  .principals-row .row-meta{grid-column:1/-1}
+}
 
-  /* Dashboard: compact 2-column cards */
-  .dash-welcome{padding:18px;margin-bottom:18px}
-  .dash-welcome-title{font-size:16px}
+/* ===== Phone (<=680px) ===== */
+@media (max-width:680px){
+  :root{--header-h:54px}
+  .adm-header{padding-left:12px;padding-right:12px;gap:8px}
+  .adm-user-chip{padding:3px;border:none;background:none}
+  .adm-user-meta{display:none}
+  .adm-logout-btn{height:32px;padding:0 11px;font-size:12px}
+  .adm-brand-name{font-size:12.5px}
+  .adm-brand-badge{display:none}
+  .adm-main{padding:16px 13px calc(36px + var(--safe-b))}
+  .adm-section-title{font-size:18px}
+  .adm-section-sub{font-size:11.5px}
+  .adm-section-tools > *{flex:1 1 auto}
+  .btn-add{height:42px;width:100%}
+
+  /* ダッシュボード: 2列に圧縮 */
+  .dash-hero{padding:19px 18px;margin-bottom:16px}
+  .dash-hero-title{font-size:18px}
+  .dash-hero-sub{font-size:11.5px}
+  .dash-kpis{grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:20px}
+  .kpi-card{padding:13px;gap:10px;flex-direction:column;align-items:flex-start}
+  .kpi-icon{width:34px;height:34px;border-radius:10px}
+  .kpi-icon svg{width:17px;height:17px}
+  .kpi-num{font-size:20px}
+  .kpi-label{font-size:11px}
+  .kpi-arrow{display:none}
   .dash-grid{grid-template-columns:repeat(2,1fr);gap:10px}
-  .dash-card-top{padding:14px 14px 10px;gap:10px}
-  .dash-card-icon{width:36px;height:36px;border-radius:9px}
-  .dash-card-icon svg{width:17px;height:17px}
-  .dash-card-num{font-size:20px}
-  .dash-card-label{font-size:11px}
-  .dash-card-bottom{padding:8px 14px}
-  .dash-summary{grid-template-columns:repeat(2,1fr);gap:10px}
-  .dash-summary-card{padding:12px 14px;gap:10px}
+  .dash-card-top{padding:13px 13px 10px;gap:10px;flex-direction:column;align-items:flex-start}
+  .dash-card-icon{width:34px;height:34px;border-radius:10px}
+  .dash-card-icon svg{width:16px;height:16px}
+  .dash-card-num{font-size:19px}
+  .dash-card-label{font-size:11px;line-height:1.45}
+  .dash-card-bottom{padding:8px 13px}
+  .dash-card-tag{display:none}
 
-  /* Users table -> stacked cards */
-  .users-table{min-width:0}
-  .users-table thead{display:none}
-  .users-table,.users-table tbody,.users-table tr,.users-table td{display:block;width:100%}
-  .users-table tr{
-    background:var(--surface);border:1.5px solid var(--border);
-    border-radius:var(--r);margin-bottom:10px;overflow:hidden;
-  }
-  .users-table td{
-    display:flex!important;align-items:center;justify-content:space-between;
-    gap:12px;text-align:right!important;
-    padding:8px 14px!important;border-bottom:1px solid var(--border-2)!important;
-  }
-  .users-table td:last-child{border-bottom:none!important}
-  .users-table td::before{
-    content:attr(data-label);
-    font-size:11px;font-weight:600;color:var(--text-3);flex-shrink:0;
-  }
-  .users-table td[data-label="操作"] > div{justify-content:flex-end!important;width:100%}
-  .users-filters select{flex:1 1 calc(50% - 4px);height:38px}
-  .users-filters input{flex:1 1 100%!important;height:38px}
+  /* ユーザー: テーブル→カード */
+  .users-table-wrap{display:none}
+  .user-cards{display:flex}
+  .users-toolbar{padding:12px;gap:8px}
+  .users-filter-group{width:100%}
+  .users-filter-group .select-ctl{flex:1 1 calc(33.333% - 6px);min-width:96px;padding:0 8px}
+  .users-search{flex:1 1 100%}
+  .users-stats{gap:6px}
+  .stat-chip{padding:6px 11px;font-size:11px}
 
-  /* Curriculum table keeps columns via scroll */
-  .curriculum-table{min-width:620px}
-
-  /* Modal: near full-screen */
-  .modal-overlay{padding:10px}
-  .modal{max-height:94vh;border-radius:11px}
-  .modal-header{padding:14px 16px 12px}
+  /* フォーム・モーダル */
+  .form-row-2,.form-row-3{grid-template-columns:1fr}
+  .modal-overlay{padding:0;align-items:flex-end}
+  .modal{max-width:none;max-height:94vh;border-radius:var(--r-lg) var(--r-lg) 0 0;animation:sheetIn .24s cubic-bezier(.4,0,.2,1)}
+  @keyframes sheetIn{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
+  .modal-header{padding:14px 16px}
   .modal-body{padding:16px}
-  .modal-footer{padding:12px 16px}
+  .modal-footer{padding:12px 16px calc(12px + var(--safe-b));flex-direction:column-reverse}
+  .modal-footer .btn-cancel,.modal-footer .btn-save,.modal-footer .btn-save-more{width:100%;height:44px}
+  .modal-footer-spacer{display:none}
 
-  .toast{white-space:normal;max-width:calc(100vw - 32px);text-align:center}
-  .item-card-header{padding:12px}
-  .item-card-body{padding:10px 12px 14px}
+  .panel-pad{padding:16px}
+  .item-card-header{padding:12px 13px;flex-wrap:wrap}
+  .item-title{flex:1 1 100%;order:3}
+  .item-actions{margin-left:auto}
+  .item-card-body{padding:11px 13px 14px}
+  .list-row{padding:11px 13px}
+  .iq-head{padding:14px 14px 0}
+  .iq-reply-zone{padding:12px 14px 14px}
+  .iq-reply-ops .btn-xs{flex:1 1 calc(50% - 4px)}
+  .case-card{padding:14px}
+  .case-rows{grid-template-columns:1fr;gap:1px}
+  .case-rows dt{margin-top:6px;color:var(--text-3)}
 }
 
 /* ===== Small phone (<=380px) ===== */
 @media (max-width:380px){
-  .dash-grid{grid-template-columns:1fr 1fr;gap:8px}
-  .dash-card-num{font-size:18px}
-  .adm-brand-badge{display:none}
-  .modal-footer .btn-cancel,.modal-footer .btn-save{flex:1}
+  .dash-kpis,.dash-grid{grid-template-columns:1fr 1fr;gap:8px}
+  .kpi-num{font-size:18px}
+  .users-filter-group .select-ctl{flex:1 1 calc(50% - 4px)}
+}
+
+/* ===== 印刷 ===== */
+@media print{
+  .adm-header,.adm-sidebar,.adm-section-tools,.users-toolbar,.row-ops,.sb-overlay{display:none!important}
+  .adm-main{margin:0;padding:0}
+  .adm-body{padding-top:0}
+}
+
+/* ===== モーション設定の尊重 ===== */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
 }
 </style>
 </head>
 <body>
 
-<!-- LOGIN -->
+<!-- =========================================================
+     LOGIN
+========================================================= -->
 <div id="loginScreen">
   <div class="login-box">
     <div class="login-logo">
-      <div class="login-crest"><img src="/crest_touka.png" alt="校章"></div>
+      <div class="login-crest"><img src="/icons/admin-icon.svg" alt="管理者ポータル"></div>
       <div class="login-title">管理者ポータル</div>
       <div class="login-sub">水戸第一高等学校 デジタル生徒手帳</div>
     </div>
     <div class="form-group">
-      <label class="form-label">メールアドレス</label>
-      <input type="email" class="form-input" id="loginEmail" placeholder="admin@example.com">
+      <label class="form-label" for="loginEmail">メールアドレス</label>
+      <input type="email" class="form-input" id="loginEmail" placeholder="admin@example.com" autocomplete="username">
     </div>
     <div class="form-group">
-      <label class="form-label">パスワード</label>
-      <input type="password" class="form-input" id="loginPass" placeholder="••••••••"
-        onkeydown="if(event.key==='Enter')doLogin()">
+      <label class="form-label" for="loginPass">パスワード</label>
+      <input type="password" class="form-input" id="loginPass" placeholder="••••••••" autocomplete="current-password">
     </div>
     <button class="btn-primary" id="loginBtn">ログイン</button>
-    <div class="login-err" id="loginErr"></div>
+    <div class="login-err" id="loginErr" role="alert"></div>
+    <div class="login-foot">
+      この画面は委員会メンバー（モデレーター以上）専用です。<br>
+      生徒・先生の方は <a href="/" style="color:var(--navy)">生徒手帳トップ</a> からご利用ください。
+    </div>
   </div>
 </div>
 
-<!-- APP -->
+<!-- =========================================================
+     APP
+========================================================= -->
 <div id="appShell">
   <header class="adm-header">
     <button class="adm-menu-btn" id="menuBtn" aria-label="メニューを開く" aria-expanded="false" aria-controls="admSidebar">
       <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
     <div class="adm-header-brand">
-      <div class="adm-crest"><img src="/crest_touka.png" alt="校章"></div>
-      <span class="adm-brand-name">デジタル生徒手帳</span>
+      <div class="adm-crest"><img src="/icons/admin-icon.svg" alt="校章"></div>
+      <div class="adm-brand-text">
+        <span class="adm-brand-name">デジタル生徒手帳</span>
+        <span class="adm-brand-sub">ADMIN PORTAL</span>
+      </div>
       <span class="adm-brand-badge">管理者</span>
     </div>
-    <span class="adm-header-user" id="headerUser"></span>
+    <div class="adm-header-spacer"></div>
+    <div class="adm-user-chip">
+      <div class="adm-avatar" id="headerAvatar">—</div>
+      <div class="adm-user-meta">
+        <span class="adm-user-mail" id="headerUser"></span>
+        <span class="adm-user-role" id="headerRole"></span>
+      </div>
+    </div>
     <button class="adm-logout-btn" id="logoutBtnEl">ログアウト</button>
   </header>
 
   <div class="adm-body">
-    <!-- SIDEBAR -->
+    <!-- ============ SIDEBAR ============ -->
     <aside class="adm-sidebar" id="admSidebar" aria-label="管理メニュー">
       <button class="sb-close-btn" id="sbCloseBtn" aria-label="メニューを閉じる">
         <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
+
       <div class="sb-section-label">概要</div>
       <button class="adm-sb-item on" data-sec="dashboard">
-        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
         ダッシュボード
       </button>
+
+      <div class="sb-section-label">諸規定・条文</div>
+      <button class="adm-sb-item" data-sec="rules">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        諸規定（本則）
+        <span class="sb-count" data-count="rules">—</span>
+      </button>
+      <button class="adm-sb-item" data-sec="special">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        特別教育活動
+        <span class="sb-count" data-count="special">—</span>
+      </button>
+      <button class="adm-sb-item" data-sec="council-charter">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        知道生徒会憲章
+        <span class="sb-count" data-count="council-charter">—</span>
+      </button>
+      <button class="adm-sb-item" data-sec="council-rules">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        生徒会関係諸規定
+        <span class="sb-count" data-count="council-rules">—</span>
+      </button>
+
+      <div class="sb-section-label">学校生活</div>
+      <button class="adm-sb-item" data-sec="events">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        年間主要行事
+        <span class="sb-count" data-count="events">—</span>
+      </button>
+      <button class="adm-sb-item" data-sec="curriculum">
+        <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        教育課程
+        <span class="sb-count" data-count="curriculum">—</span>
+      </button>
+      <button class="adm-sb-item" data-sec="council-activities">
+        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>
+        生徒会活動
+      </button>
+
       <div class="sb-section-label">学校について</div>
       <button class="adm-sb-item" data-sec="history">
         <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
         本校の沿革
+        <span class="sb-count" data-count="history">—</span>
       </button>
       <button class="adm-sb-item" data-sec="principals">
         <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         歴代校長一覧
+        <span class="sb-count" data-count="principals">—</span>
       </button>
       <button class="adm-sb-item" data-sec="goals">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
@@ -599,147 +909,58 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
       </button>
       <button class="adm-sb-item" data-sec="songs">
         <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-        歌詞
+        校歌・応援歌
+        <span class="sb-count" data-count="songs">—</span>
       </button>
-      <div class="sb-section-label">諸規定</div>
-      <button class="adm-sb-item" data-sec="rules">
-        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        諸規定（本則）
-      </button>
-      <button class="adm-sb-item" data-sec="special">
-        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        特別教育活動
-      </button>
-      <div class="sb-section-label">学校生活</div>
-      <button class="adm-sb-item" data-sec="curriculum">
-        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-        教育課程
-      </button>
-      <button class="adm-sb-item" data-sec="events">
-        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        年間主要行事
-      </button>
-      <div class="sb-section-label">生徒会</div>
-      <button class="adm-sb-item" data-sec="council-activities">
-        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-        生徒会活動
-      </button>
-      <button class="adm-sb-item" data-sec="council-charter">
-        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        知道生徒会憲章
-      </button>
-      <button class="adm-sb-item" data-sec="council-rules">
-        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        生徒会関係諸規定
-      </button>
-      <div class="sb-section-label">サポート</div>
+
+      <div class="sb-section-label">運用・サポート</div>
       <button class="adm-sb-item" data-sec="inquiries" id="sbInquiries">
         <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         お問い合わせ
-        <span id="inquiryBadge" style="display:none;background:#c0392b;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:auto"></span>
+        <span class="sb-badge alert" id="inquiryBadge" style="display:none"></span>
       </button>
       <button class="adm-sb-item" data-sec="cases">
         <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
         公欠申請ケース
-        <span id="casesBadge" style="display:none;background:#856404;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:auto"></span>
+        <span class="sb-badge pending" id="casesBadge" style="display:none"></span>
       </button>
-      <div class="sb-section-label">ユーザー管理</div>
       <button class="adm-sb-item" data-sec="users">
         <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        ユーザー一覧
+        ユーザー管理
+        <span class="sb-count" data-count="users">—</span>
       </button>
+
+      <div class="sb-foot">
+        <a href="/" target="_blank" rel="noopener">生徒手帳を表示 ↗</a><br>
+        編集内容は保存後すぐに公開side へ反映されます。
+      </div>
     </aside>
     <div class="sb-overlay" id="sbOverlay"></div>
 
-    <!-- MAIN -->
+    <!-- ============ MAIN ============ -->
     <main class="adm-main">
+     <div class="adm-container">
 
       <!-- DASHBOARD -->
       <section class="adm-section on" id="sec-dashboard">
-        <div class="adm-section-header">
-          <div>
-            <div class="adm-section-title">ダッシュボード</div>
-            <div class="adm-section-sub">各セクションのコンテンツ状況</div>
-          </div>
-        </div>
-        <div class="dash-grid" id="dashGrid">
+        <div id="dashGrid">
           <div class="loading-spinner"><div class="spinner"></div>読み込み中...</div>
         </div>
-      </section>
-
-      <!-- HISTORY -->
-      <section class="adm-section" id="sec-history">
-        <div class="adm-section-header">
-          <div>
-            <div class="adm-section-title">本校の沿革</div>
-            <div class="adm-section-sub">年号と出来事を管理</div>
-          </div>
-          <button class="btn-add" data-add="history">
-            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            追加
-          </button>
-        </div>
-        <div class="item-card" style="overflow:hidden">
-          <div id="historyList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
-        </div>
-      </section>
-
-      <!-- PRINCIPALS -->
-      <section class="adm-section" id="sec-principals">
-        <div class="adm-section-header">
-          <div>
-            <div class="adm-section-title">歴代校長一覧</div>
-            <div class="adm-section-sub">代数・氏名・在任期間を管理</div>
-          </div>
-          <button class="btn-add" data-add="principals">
-            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            追加
-          </button>
-        </div>
-        <div class="item-card" style="overflow:hidden">
-          <div id="principalsList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
-        </div>
-      </section>
-
-      <!-- GOALS -->
-      <section class="adm-section" id="sec-goals">
-        <div class="adm-section-header">
-          <div>
-            <div class="adm-section-title">就学の目標</div>
-            <div class="adm-section-sub">目標の文章と校是の画像URLを管理</div>
-          </div>
-        </div>
-        <div class="item-card" style="padding:20px 22px">
-          <div id="goalsForm"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
-        </div>
-      </section>
-
-      <!-- SONGS -->
-      <section class="adm-section" id="sec-songs">
-        <div class="adm-section-header">
-          <div>
-            <div class="adm-section-title">歌詞</div>
-            <div class="adm-section-sub">校歌・応援歌の歌詞を管理</div>
-          </div>
-          <button class="btn-add" data-add="songs">
-            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            追加
-          </button>
-        </div>
-        <div id="songsList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
       </section>
 
       <!-- RULES -->
       <section class="adm-section" id="sec-rules">
         <div class="adm-section-header">
-          <div>
+          <div class="adm-section-heading">
             <div class="adm-section-title">諸規定（本則）</div>
-            <div class="adm-section-sub">条文を章ごとに管理</div>
+            <div class="adm-section-sub">条文を章ごとに管理します。並び順は ↑↓ ボタンで入れ替えできます</div>
           </div>
-          <button class="btn-add" data-add="rules">
-            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            条文を追加
-          </button>
+          <div class="adm-section-tools">
+            <button class="btn-add" data-add="rules">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              条文を追加
+            </button>
+          </div>
         </div>
         <div id="rulesList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
       </section>
@@ -747,115 +968,205 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
       <!-- SPECIAL -->
       <section class="adm-section" id="sec-special">
         <div class="adm-section-header">
-          <div>
+          <div class="adm-section-heading">
             <div class="adm-section-title">特別教育活動</div>
-            <div class="adm-section-sub">説明文と条文を管理</div>
+            <div class="adm-section-sub">前段の説明文と条文を管理します</div>
           </div>
-          <button class="btn-add" data-add="special">
-            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            条文を追加
-          </button>
+          <div class="adm-section-tools">
+            <button class="btn-add" data-add="special">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              条文を追加
+            </button>
+          </div>
         </div>
-        <div class="item-card" style="padding:20px 22px;margin-bottom:16px">
-          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">条文の前の説明文（目的など）</div>
-          <div style="font-size:11px;color:var(--text-3);margin-bottom:8px">改行を含む説明文を入力できます。条文の前に表示されます。</div>
-          <div id="specialDescForm"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
-        </div>
+        <details class="panel" style="margin-bottom:16px" open>
+          <summary class="panel-head" style="cursor:pointer;list-style:none">
+            <span class="panel-title">条文の前の説明文（目的など）</span>
+          </summary>
+          <div class="panel-pad">
+            <div class="panel-hint" style="margin-bottom:10px">改行を含む説明文を入力できます。条文の前に表示されます。</div>
+            <div id="specialDescForm"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+          </div>
+        </details>
         <div id="specialList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
-      </section>
-
-      <!-- CURRICULUM -->
-      <section class="adm-section" id="sec-curriculum">
-        <div class="adm-section-header">
-          <div>
-            <div class="adm-section-title">教育課程</div>
-            <div class="adm-section-sub">入学年度別・科目・単位数を管理</div>
-          </div>
-          <button class="btn-add" data-add="curriculum">
-            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            科目を追加
-          </button>
-        </div>
-        <div id="curriculumList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
-      </section>
-
-      <!-- EVENTS -->
-      <section class="adm-section" id="sec-events">
-        <div class="adm-section-header">
-          <div>
-            <div class="adm-section-title">年間主要行事</div>
-            <div class="adm-section-sub">月別の行事を管理</div>
-          </div>
-          <button class="btn-add" data-add="events">
-            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            行事を追加
-          </button>
-        </div>
-        <div id="eventsList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
-      </section>
-
-      <!-- COUNCIL ACTIVITIES -->
-      <section class="adm-section" id="sec-council-activities">
-        <div class="adm-section-header">
-          <div>
-            <div class="adm-section-title">生徒会活動</div>
-            <div class="adm-section-sub">活動内容の文章を管理</div>
-          </div>
-        </div>
-        <div class="item-card" style="padding:20px 22px">
-          <div id="councilActivitiesForm"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
-        </div>
       </section>
 
       <!-- COUNCIL CHARTER -->
       <section class="adm-section" id="sec-council-charter">
         <div class="adm-section-header">
-          <div>
+          <div class="adm-section-heading">
             <div class="adm-section-title">知道生徒会憲章</div>
-            <div class="adm-section-sub">前文・総則・細則の条文を管理</div>
+            <div class="adm-section-sub">前文・総則・細則の条文を管理します</div>
           </div>
-          <button class="btn-add" data-add="council-charter">
-            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            条文を追加
-          </button>
+          <div class="adm-section-tools">
+            <button class="btn-add" data-add="council-charter">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              条文を追加
+            </button>
+          </div>
         </div>
-        <div class="item-card" style="padding:20px 22px;margin-bottom:16px">
-          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">前文</div>
-          <div style="font-size:11px;color:var(--text-3);margin-bottom:8px">憲章の前文を入力できます。条文の前に表示されます。</div>
-          <div id="charterPreambleForm"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
-        </div>
+        <details class="panel" style="margin-bottom:16px" open>
+          <summary class="panel-head" style="cursor:pointer;list-style:none">
+            <span class="panel-title">前文</span>
+          </summary>
+          <div class="panel-pad">
+            <div class="panel-hint" style="margin-bottom:10px">憲章の前文を入力できます。条文の前に表示されます。</div>
+            <div id="charterPreambleForm"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+          </div>
+        </details>
         <div id="councilCharterList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
       </section>
 
       <!-- COUNCIL RULES -->
       <section class="adm-section" id="sec-council-rules">
         <div class="adm-section-header">
-          <div>
+          <div class="adm-section-heading">
             <div class="adm-section-title">生徒会関係諸規定</div>
-            <div class="adm-section-sub">条文を管理</div>
+            <div class="adm-section-sub">条文を管理します</div>
           </div>
-          <button class="btn-add" data-add="council-rules">
-            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            条文を追加
-          </button>
+          <div class="adm-section-tools">
+            <button class="btn-add" data-add="council-rules">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              条文を追加
+            </button>
+          </div>
         </div>
         <div id="councilRulesList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+      </section>
+
+      <!-- EVENTS -->
+      <section class="adm-section" id="sec-events">
+        <div class="adm-section-header">
+          <div class="adm-section-heading">
+            <div class="adm-section-title">年間主要行事</div>
+            <div class="adm-section-sub">月別の行事を管理します</div>
+          </div>
+          <div class="adm-section-tools">
+            <button class="btn-add" data-add="events">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              行事を追加
+            </button>
+          </div>
+        </div>
+        <div id="eventsList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+      </section>
+
+      <!-- CURRICULUM -->
+      <section class="adm-section" id="sec-curriculum">
+        <div class="adm-section-header">
+          <div class="adm-section-heading">
+            <div class="adm-section-title">教育課程</div>
+            <div class="adm-section-sub">入学年度別・科目・単位数を管理します</div>
+          </div>
+          <div class="adm-section-tools">
+            <button class="btn-add" data-add="curriculum">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              科目を追加
+            </button>
+          </div>
+        </div>
+        <div id="curriculumList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+      </section>
+
+      <!-- COUNCIL ACTIVITIES -->
+      <section class="adm-section" id="sec-council-activities">
+        <div class="adm-section-header">
+          <div class="adm-section-heading">
+            <div class="adm-section-title">生徒会活動</div>
+            <div class="adm-section-sub">活動内容の文章を管理します</div>
+          </div>
+        </div>
+        <div class="panel panel-pad">
+          <div id="councilActivitiesForm"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+        </div>
+      </section>
+
+      <!-- HISTORY -->
+      <section class="adm-section" id="sec-history">
+        <div class="adm-section-header">
+          <div class="adm-section-heading">
+            <div class="adm-section-title">本校の沿革</div>
+            <div class="adm-section-sub">年号と出来事を管理します</div>
+          </div>
+          <div class="adm-section-tools">
+            <button class="btn-add" data-add="history">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              追加
+            </button>
+          </div>
+        </div>
+        <div class="panel">
+          <div id="historyList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+        </div>
+      </section>
+
+      <!-- PRINCIPALS -->
+      <section class="adm-section" id="sec-principals">
+        <div class="adm-section-header">
+          <div class="adm-section-heading">
+            <div class="adm-section-title">歴代校長一覧</div>
+            <div class="adm-section-sub">代数・氏名・在任期間を管理します</div>
+          </div>
+          <div class="adm-section-tools">
+            <button class="btn-add" data-add="principals">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              追加
+            </button>
+          </div>
+        </div>
+        <div class="panel">
+          <div id="principalsList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+        </div>
+      </section>
+
+      <!-- GOALS -->
+      <section class="adm-section" id="sec-goals">
+        <div class="adm-section-header">
+          <div class="adm-section-heading">
+            <div class="adm-section-title">就学の目標</div>
+            <div class="adm-section-sub">目標の文章と校是の画像URLを管理します</div>
+          </div>
+        </div>
+        <div class="panel panel-pad">
+          <div id="goalsForm"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
+        </div>
+      </section>
+
+      <!-- SONGS -->
+      <section class="adm-section" id="sec-songs">
+        <div class="adm-section-header">
+          <div class="adm-section-heading">
+            <div class="adm-section-title">校歌・応援歌</div>
+            <div class="adm-section-sub">歌詞を管理します</div>
+          </div>
+          <div class="adm-section-tools">
+            <button class="btn-add" data-add="songs">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              追加
+            </button>
+          </div>
+        </div>
+        <div id="songsList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
       </section>
 
       <!-- INQUIRIES -->
       <section class="adm-section" id="sec-inquiries">
         <div class="adm-section-header">
-          <div>
+          <div class="adm-section-heading">
             <div class="adm-section-title">お問い合わせ管理</div>
             <div class="adm-section-sub">生徒からの問い合わせ・要望・バグ報告</div>
           </div>
-          <div style="display:flex;gap:8px">
-            <select id="inquiryFilter" class="cf-input" style="font-size:12px;padding:6px 10px;border-radius:7px;border:1px solid var(--border)" onchange="loadInquiries()">
+          <div class="adm-section-tools">
+            <select id="inquiryFilter" class="select-ctl" onchange="loadInquiries()">
               <option value="all">すべて</option>
               <option value="new">未対応</option>
               <option value="replied">返信済</option>
               <option value="closed">完了</option>
             </select>
+            <button class="btn-ghost" onclick="loadInquiries()">
+              <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              更新
+            </button>
           </div>
         </div>
         <div id="inquiriesList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
@@ -864,18 +1175,22 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
       <!-- CASES -->
       <section class="adm-section" id="sec-cases">
         <div class="adm-section-header">
-          <div>
+          <div class="adm-section-heading">
             <div class="adm-section-title">公欠申請ケース管理</div>
             <div class="adm-section-sub">すべての公欠申請の閲覧・管理</div>
           </div>
-          <div style="display:flex;gap:8px">
-            <select id="casesFilter" style="font-size:12px;padding:6px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)" onchange="loadAdminCases()">
+          <div class="adm-section-tools">
+            <select id="casesFilter" class="select-ctl" onchange="loadAdminCases()">
               <option value="all">すべて</option>
               <option value="pending_supervisor">顧問承認待ち</option>
               <option value="pending_homeroom">担任承認待ち</option>
               <option value="approved">承認済み</option>
               <option value="rejected">差し戻し</option>
             </select>
+            <button class="btn-ghost" onclick="loadAdminCases()">
+              <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              更新
+            </button>
           </div>
         </div>
         <div id="adminCasesList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
@@ -884,64 +1199,97 @@ button,input,textarea,select{font-family:'Noto Sans JP',sans-serif}
       <!-- USERS -->
       <section class="adm-section" id="sec-users">
         <div class="adm-section-header">
-          <div>
+          <div class="adm-section-heading">
             <div class="adm-section-title">ユーザー管理</div>
-            <div class="adm-section-sub">登録ユーザーの閲覧・編集・削除</div>
+            <div class="adm-section-sub">登録ユーザーの閲覧・編集・承認</div>
+          </div>
+          <div class="adm-section-tools">
+            <button class="btn-ghost" onclick="reloadUsers()">
+              <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              更新
+            </button>
           </div>
         </div>
-        <div class="users-filters" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
-          <select style="font-size:12px;padding:6px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)" onchange="filterUsers('role',this.value)">
-            <option value="all">すべてのロール</option>
-            <option value="student">生徒</option>
-            <option value="teacher">先生</option>
-            <option value="moderator">モデレーター</option>
-            <option value="admin_student">管理者（生徒）</option>
-            <option value="admin_teacher">管理者（先生）</option>
-            <option value="owner">オーナー</option>
-          </select>
-          <select style="font-size:12px;padding:6px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)" onchange="filterUsers('grade',this.value)">
-            <option value="all">全学年</option>
-            <option value="1">1年</option>
-            <option value="2">2年</option>
-            <option value="3">3年</option>
-          </select>
-          <select style="font-size:12px;padding:6px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)" onchange="filterUsers('class',this.value)">
-            <option value="all">全クラス</option>
-            <option value="1">1組</option>
-            <option value="2">2組</option>
-            <option value="3">3組</option>
-            <option value="4">4組</option>
-            <option value="5">5組</option>
-            <option value="6">6組</option>
-          </select>
-          <input type="text" placeholder="名前・メールで検索..." oninput="searchUsers(this.value)"
-            style="font-size:12px;padding:6px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text);flex:1;min-width:180px">
+        <div class="users-stats" id="usersStats"></div>
+        <div class="users-toolbar">
+          <div class="users-search">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
+            <input type="search" class="input-ctl" id="userSearchInput" placeholder="氏名・メールアドレスで検索..."
+              oninput="searchUsers(this.value)" autocomplete="off">
+          </div>
+          <div class="users-filter-group">
+            <select class="select-ctl" id="userRoleFilter" onchange="filterUsers('role',this.value)" aria-label="ロールで絞り込み">
+              <option value="all">すべてのロール</option>
+              <option value="student">生徒</option>
+              <option value="teacher">先生</option>
+              <option value="moderator">モデレーター</option>
+              <option value="admin_student">管理者（生徒）</option>
+              <option value="admin_teacher">管理者（先生）</option>
+              <option value="owner">オーナー</option>
+            </select>
+            <select class="select-ctl" id="userGradeFilter" onchange="filterUsers('grade',this.value)" aria-label="学年で絞り込み">
+              <option value="all">全学年</option>
+              <option value="1">1年</option>
+              <option value="2">2年</option>
+              <option value="3">3年</option>
+            </select>
+            <select class="select-ctl" id="userClassFilter" onchange="filterUsers('class',this.value)" aria-label="クラスで絞り込み">
+              <option value="all">全クラス</option>
+              <option value="1">1組</option>
+              <option value="2">2組</option>
+              <option value="3">3組</option>
+              <option value="4">4組</option>
+              <option value="5">5組</option>
+              <option value="6">6組</option>
+            </select>
+            <select class="select-ctl" id="userStatusFilter" onchange="filterUsers('status',this.value)" aria-label="状態で絞り込み">
+              <option value="all">承認状態すべて</option>
+              <option value="unapproved">未承認のみ</option>
+              <option value="approved">承認済みのみ</option>
+              <option value="line">LINE連携済み</option>
+              <option value="noline">LINE未連携</option>
+            </select>
+            <select class="select-ctl" id="userSortSelect" onchange="sortUsers(this.value)" aria-label="並び順">
+              <option value="role">並び順: ロール</option>
+              <option value="class">並び順: 学年・組・番号</option>
+              <option value="name">並び順: 氏名</option>
+              <option value="status">並び順: 未承認を先頭</option>
+            </select>
+          </div>
         </div>
         <div id="usersList"><div class="loading-spinner"><div class="spinner"></div>読み込み中...</div></div>
       </section>
 
+     </div>
     </main>
   </div>
 </div>
 
-<!-- MODAL -->
-<div class="modal-overlay" id="modalOverlay">
+<!-- =========================================================
+     MODAL
+========================================================= -->
+<div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
   <div class="modal" id="modal">
     <div class="modal-header">
       <span class="modal-title" id="modalTitle">追加</span>
-      <button class="modal-close" id="modalCloseBtn">
+      <button class="modal-close" id="modalCloseBtn" aria-label="閉じる">
         <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
     <div class="modal-body" id="modalBody"></div>
     <div class="modal-footer">
       <button class="btn-cancel" id="modalCancelBtn">キャンセル</button>
+      <div class="modal-footer-spacer"></div>
+      <button class="btn-save-more" id="modalSaveMoreBtn" title="保存して、同じ章・年度などを引き継いだまま次の入力を続けます">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        保存して続けて追加
+      </button>
       <button class="btn-save" id="modalSaveBtn">保存</button>
     </div>
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script type="module" src="../src/admin/main.js"></script>
 </body>
