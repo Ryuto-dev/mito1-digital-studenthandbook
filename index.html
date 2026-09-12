@@ -373,6 +373,8 @@ a{text-decoration:none;color:inherit}
   background:rgba(255,255,255,.95);
   backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
   border-top:1px solid var(--border);z-index:180;
+  transition:transform .22s cubic-bezier(.4,0,.2,1);
+  will-change:transform;
 }
 [data-theme="dark"] .bottom-nav{background:rgba(18,18,22,.97)}
 .bn-inner{display:flex;height:var(--bn-h);align-items:stretch}
@@ -382,19 +384,47 @@ a{text-decoration:none;color:inherit}
   cursor:pointer;border:none;background:none;
   color:var(--text-3);transition:color .15s;
   -webkit-tap-highlight-color:transparent;padding:0;
+  min-width:0;position:relative;
 }
 .bn-item.on{color:var(--navy)}
 [data-theme="dark"] .bn-item.on{color:#8fb4ff}
 .bn-icon-wrap{
-  width:42px;height:28px;display:flex;align-items:center;justify-content:center;
+  width:46px;height:28px;display:flex;align-items:center;justify-content:center;
   border-radius:14px;transition:background .15s,transform .15s;
 }
-.bn-icon-wrap svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7}
+.bn-icon-wrap svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.7}
 .bn-item.on .bn-icon-wrap{
   background:var(--navy-dim);transform:translateY(-1px);
 }
 [data-theme="dark"] .bn-item.on .bn-icon-wrap{background:rgba(100,130,220,.15)}
-.bn-label{font-size:9.5px;font-weight:500;letter-spacing:.02em}
+.bn-label{
+  font-size:10px;font-weight:600;letter-spacing:.01em;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+/* 未読・件数ドット（公欠申請の進捗など） */
+.bn-dot{
+  position:absolute;top:8px;left:calc(50% + 8px);
+  width:7px;height:7px;border-radius:50%;background:var(--enjii);
+  display:none;box-shadow:0 0 0 2px var(--surface);
+}
+.bn-item.has-dot .bn-dot{display:block}
+
+/* ---------------------------------------------------
+   ソフトキーボード表示中は下部ナビを退避させる (#PWA)
+   visualViewport が縮むと position:fixed の bottom:0 が
+   キーボードの上に「浮き上がる」ため、退避して隠す。
+--------------------------------------------------- */
+html.kb-open .bottom-nav,
+html.pwa-mode.kb-focus .bottom-nav{
+  transform:translateY(calc(100% + var(--safe-b) + 4px));
+  pointer-events:none;
+}
+html.kb-open .ai-float,
+html.pwa-mode.kb-focus .ai-float{opacity:0;pointer-events:none}
+html.kb-open .more-sheet,html.kb-open .sheet-overlay{display:none!important}
+/* ナビが退避している間は下部の余白も詰めて画面を広く使う */
+html.kb-open .main,
+html.pwa-mode.kb-focus .main{padding-bottom:24px!important}
 
 /* More Sheet */
 .more-sheet{
@@ -405,21 +435,62 @@ a{text-decoration:none;color:inherit}
   z-index:400;transform:translateY(100%);
   transition:transform .3s cubic-bezier(.4,0,.2,1);
   padding-bottom:var(--safe-b);
+  max-height:min(78vh,620px);
+  display:flex;flex-direction:column;
 }
 .more-sheet.open{transform:translateY(0)}
-.more-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:12px auto 0}
-.more-sheet-title{font-size:11.5px;color:var(--text-3);text-align:center;padding:9px 0 6px;letter-spacing:.08em}
-.more-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;padding:6px 10px 14px}
+.more-handle{
+  width:40px;height:4px;background:var(--border);border-radius:2px;
+  margin:10px auto 0;flex-shrink:0;
+}
+.more-sheet-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 16px 8px;flex-shrink:0;border-bottom:1px solid var(--border);
+}
+.more-sheet-title{font-size:13.5px;font-weight:700;color:var(--text);letter-spacing:.02em}
+.more-close-btn{
+  width:32px;height:32px;border:none;background:var(--surface2);
+  border-radius:50%;cursor:pointer;color:var(--text-2);
+  display:flex;align-items:center;justify-content:center;
+  -webkit-tap-highlight-color:transparent;
+}
+.more-close-btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2.2}
+.more-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding-bottom:10px}
+.more-sec-label{
+  font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--text-3);
+  padding:14px 16px 6px;
+}
+.more-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;padding:0 8px}
 .more-item{
-  display:flex;flex-direction:column;align-items:center;gap:5px;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
   padding:12px 4px;border-radius:var(--r);cursor:pointer;
   border:none;background:none;color:var(--text-2);
   transition:background .12s;-webkit-tap-highlight-color:transparent;
+  min-width:0;
 }
 .more-item:hover,.more-item:active{background:var(--surface2)}
+.more-item.on{background:var(--navy-dim);color:var(--navy)}
+.more-item.on .more-lbl{color:var(--navy);font-weight:700}
+[data-theme="dark"] .more-item.on{background:rgba(100,130,220,.15);color:#8fb4ff}
+[data-theme="dark"] .more-item.on .more-lbl{color:#8fb4ff}
 .more-item.dim{opacity:.38;pointer-events:none}
-.more-item svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7}
-.more-lbl{font-size:11px;font-weight:500;text-align:center;line-height:1.3;color:var(--text-2)}
+.more-item svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;flex-shrink:0}
+.more-lbl{
+  font-size:11px;font-weight:500;text-align:center;line-height:1.3;color:var(--text-2);
+  max-width:100%;overflow-wrap:anywhere;
+}
+/* よく使う（2列の大きめタイル） */
+.more-quick{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:0 12px}
+.more-quick .more-item{
+  flex-direction:row;justify-content:flex-start;gap:10px;
+  padding:13px 14px;border:1px solid var(--border);background:var(--surface2);
+}
+.more-quick .more-item.on{border-color:var(--navy);background:var(--navy-dim)}
+.more-quick .more-lbl{font-size:12.5px;font-weight:600;text-align:left}
+.more-sheet-foot{
+  padding:12px 16px calc(6px + var(--safe-b));
+  font-size:10.5px;color:var(--text-3);text-align:center;line-height:1.6;
+}
 .sheet-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:390}
 
 /* ===========================
@@ -1298,10 +1369,6 @@ select.cf-input{cursor:pointer}
       <div class="bn-icon-wrap"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
       <span class="bn-label">諸規定</span>
     </button>
-    <button class="bn-item" data-bp="events" onclick="nav('events')">
-      <div class="bn-icon-wrap"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-      <span class="bn-label">行事</span>
-    </button>
     <button class="bn-item" data-bp="search" onclick="nav('search')">
       <div class="bn-icon-wrap"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg></div>
       <span class="bn-label">検索</span>
@@ -1310,71 +1377,105 @@ select.cf-input{cursor:pointer}
       <div class="bn-icon-wrap"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></div>
       <span class="bn-label">公欠申請</span>
     </button>
-    <button class="bn-item" data-bp="mypage" onclick="nav('mypage')">
+    <button class="bn-item" data-bp="mypage" onclick="nav('mypage')" id="bnMypage">
       <div class="bn-icon-wrap"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
       <span class="bn-label">マイページ</span>
+      <span class="bn-dot" aria-hidden="true"></span>
+    </button>
+    <button class="bn-item" data-bp="more" onclick="toggleMore()" id="bnMore" aria-haspopup="dialog" aria-expanded="false" aria-controls="moreSheet">
+      <div class="bn-icon-wrap"><svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></div>
+      <span class="bn-label">メニュー</span>
     </button>
   </div>
 </nav>
 
 <!-- MORE SHEET -->
 <div class="sheet-overlay" id="sheetOverlay" onclick="closeMore()"></div>
-<div class="more-sheet" id="moreSheet">
+<div class="more-sheet" id="moreSheet" role="dialog" aria-modal="true" aria-label="すべてのメニュー">
   <div class="more-handle"></div>
-  <div class="more-sheet-title">すべてのメニュー</div>
-  <div class="more-grid">
-    <button class="more-item" onclick="nav('about');closeMore()">
-      <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-      <div class="more-lbl">沿革</div>
+  <div class="more-sheet-head">
+    <span class="more-sheet-title">すべてのメニュー</span>
+    <button class="more-close-btn" onclick="closeMore()" aria-label="閉じる">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
-    <button class="more-item" onclick="nav('principals');closeMore()">
-      <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      <div class="more-lbl">歴代校長</div>
-    </button>
-    <button class="more-item" onclick="nav('goals');closeMore()">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
-      <div class="more-lbl">就学の目標</div>
-    </button>
-    <button class="more-item" onclick="nav('songs');closeMore()">
-      <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-      <div class="more-lbl">歌詞</div>
-    </button>
-    <button class="more-item" onclick="nav('special');closeMore()">
-      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-      <div class="more-lbl">特別教育</div>
-    </button>
-    <button class="more-item" onclick="nav('curriculum');closeMore()">
-      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-      <div class="more-lbl">教育課程</div>
-    </button>
-    <button class="more-item" onclick="nav('council-activities');closeMore()">
-      <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-      <div class="more-lbl">生徒会活動</div>
-    </button>
-    <button class="more-item" onclick="nav('council-charter');closeMore()">
-      <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-      <div class="more-lbl">憲章</div>
-    </button>
-    <button class="more-item" onclick="nav('council-rules');closeMore()">
-      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-      <div class="more-lbl">会関係規定</div>
-    </button>
-    <button class="more-item dim">
-      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-      <div class="more-lbl">諸届申請</div>
-    </button>
-    <button class="more-item dim">
-      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      <div class="more-lbl">時間割</div>
-    </button>
-    <button class="more-item dim">
-      <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-      <div class="more-lbl">身分証</div>
-    </button>
-    <button class="more-item" onclick="nav('contact');closeMore()">
-      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      <div class="more-lbl">お問い合わせ</div>
-    </button>
+  </div>
+  <div class="more-scroll">
+    <div class="more-sec-label">よく使う</div>
+    <div class="more-quick">
+      <button class="more-item" data-mp="events" onclick="nav('events');closeMore()">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <div class="more-lbl">年間行事</div>
+      </button>
+      <button class="more-item" data-mp="curriculum" onclick="nav('curriculum');closeMore()">
+        <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <div class="more-lbl">教育課程</div>
+      </button>
+      <button class="more-item" data-mp="songs" onclick="nav('songs');closeMore()">
+        <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        <div class="more-lbl">校歌・応援歌</div>
+      </button>
+      <button class="more-item" data-mp="contact" onclick="nav('contact');closeMore()">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <div class="more-lbl">お問い合わせ</div>
+      </button>
+    </div>
+
+    <div class="more-sec-label">諸規定・生徒会</div>
+    <div class="more-grid">
+      <button class="more-item" data-mp="special" onclick="nav('special');closeMore()">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        <div class="more-lbl">特別教育活動</div>
+      </button>
+      <button class="more-item" data-mp="council-charter" onclick="nav('council-charter');closeMore()">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <div class="more-lbl">知道生徒会憲章</div>
+      </button>
+      <button class="more-item" data-mp="council-rules" onclick="nav('council-rules');closeMore()">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <div class="more-lbl">生徒会関係規定</div>
+      </button>
+      <button class="more-item" data-mp="council-activities" onclick="nav('council-activities');closeMore()">
+        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>
+        <div class="more-lbl">生徒会活動</div>
+      </button>
+    </div>
+
+    <div class="more-sec-label">学校について</div>
+    <div class="more-grid">
+      <button class="more-item" data-mp="about" onclick="nav('about');closeMore()">
+        <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        <div class="more-lbl">本校の沿革</div>
+      </button>
+      <button class="more-item" data-mp="principals" onclick="nav('principals');closeMore()">
+        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <div class="more-lbl">歴代校長</div>
+      </button>
+      <button class="more-item" data-mp="goals" onclick="nav('goals');closeMore()">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+        <div class="more-lbl">就学の目標</div>
+      </button>
+      <button class="more-item" onclick="toggleTheme()">
+        <svg id="moreThemeIcon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <div class="more-lbl" id="moreThemeLbl">ダークモード</div>
+      </button>
+    </div>
+
+    <div class="more-sec-label">近日公開</div>
+    <div class="more-grid">
+      <button class="more-item dim">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        <div class="more-lbl">諸届申請</div>
+      </button>
+      <button class="more-item dim">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <div class="more-lbl">時間割</div>
+      </button>
+      <button class="more-item dim">
+        <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+        <div class="more-lbl">身分証</div>
+      </button>
+    </div>
+    <div class="more-sheet-foot">茨城県立水戸第一高等学校・附属中学校 デジタル生徒手帳</div>
   </div>
 </div>
 
@@ -1973,16 +2074,31 @@ const PAGES=['home','search','about','principals','goals','songs',
   'rules','special','curriculum','events',
   'council-activities','council-charter','council-rules',
   'contact','apply','mypage','coming'];
+/* 下部ナビ 5 タブ（home / rules / search / apply / mypage）に
+   属さないページは 'more' 扱いとし、メニュータブを点灯させる。
+   これによりどのページを見ていても現在地が分かる。 */
 const BN_MAP={
   home:'home',search:'search',
-  about:'',principals:'',goals:'',songs:'',
   rules:'rules',special:'rules',
-  curriculum:'',events:'events',
-  'council-activities':'','council-charter':'','council-rules':'',
-  contact:'',apply:'apply',mypage:'mypage',coming:''
+  apply:'apply',mypage:'mypage',
+  about:'more',principals:'more',goals:'more',songs:'more',
+  curriculum:'more',events:'more',
+  'council-activities':'more','council-charter':'more','council-rules':'more',
+  contact:'more',coming:'more'
 };
+/* ページ → 日本語タイトル（メニュー内の現在地表示に使用） */
+const PAGE_LABELS={
+  home:'ホーム',search:'検索',rules:'諸規定',special:'特別教育活動',
+  apply:'公欠申請',mypage:'マイページ',about:'本校の沿革',
+  principals:'歴代校長',goals:'就学の目標',songs:'校歌・応援歌',
+  curriculum:'教育課程',events:'年間行事','council-activities':'生徒会活動',
+  'council-charter':'知道生徒会憲章','council-rules':'生徒会関係規定',
+  contact:'お問い合わせ',coming:'近日公開'
+};
+let currentPage='home';
 
 function nav(page, skipHash){
+  currentPage=page;
   PAGES.forEach(p=>{
     const el=document.getElementById('pg-'+p);
     if(el) el.classList.toggle('on',p===page);
@@ -1992,6 +2108,10 @@ function nav(page, skipHash){
   });
   document.querySelectorAll('.bn-item[data-bp]').forEach(el=>{
     el.classList.toggle('on',el.dataset.bp===BN_MAP[page]);
+  });
+  // メニューシート内の該当項目もハイライト
+  document.querySelectorAll('.more-item[data-mp]').forEach(el=>{
+    el.classList.toggle('on',el.dataset.mp===page);
   });
   if(page==='search'){
     setTimeout(()=>{
@@ -2034,13 +2154,60 @@ function toggleSidebar(){
   document.getElementById('sbOverlay').classList.toggle('open');
 }
 function openMore(){
+  // 入力中ならキーボードを閉じてからシートを出す
+  if(document.activeElement && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)){
+    document.activeElement.blur();
+  }
   document.getElementById('moreSheet').classList.add('open');
   document.getElementById('sheetOverlay').style.display='block';
+  document.body.style.overflow='hidden';
+  const btn=document.getElementById('bnMore');
+  if(btn){btn.setAttribute('aria-expanded','true');btn.classList.add('on')}
+  // 現在のページをシート内で点灯させる
+  document.querySelectorAll('.more-item[data-mp]').forEach(el=>{
+    el.classList.toggle('on',el.dataset.mp===currentPage);
+  });
 }
 function closeMore(){
   document.getElementById('moreSheet').classList.remove('open');
   document.getElementById('sheetOverlay').style.display='none';
+  document.body.style.overflow='';
+  const btn=document.getElementById('bnMore');
+  if(btn){
+    btn.setAttribute('aria-expanded','false');
+    // メニュー配下のページを見ていない限り消灯
+    btn.classList.toggle('on',BN_MAP[currentPage]==='more');
+  }
 }
+function toggleMore(){
+  const open=document.getElementById('moreSheet').classList.contains('open');
+  open?closeMore():openMore();
+}
+// Esc / スワイプダウンで閉じる
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&document.getElementById('moreSheet')?.classList.contains('open')) closeMore();
+});
+(function(){
+  const sheet=document.getElementById('moreSheet');
+  if(!sheet) return;
+  let y0=null;
+  sheet.addEventListener('touchstart',e=>{
+    // ハンドル/ヘッダー部からのドラッグのみ受け付ける
+    y0=e.target.closest('.more-scroll')?null:e.touches[0].clientY;
+  },{passive:true});
+  sheet.addEventListener('touchmove',e=>{
+    if(y0===null) return;
+    const dy=e.touches[0].clientY-y0;
+    if(dy>0) sheet.style.transform=`translateY(${dy}px)`;
+  },{passive:true});
+  sheet.addEventListener('touchend',e=>{
+    if(y0===null) return;
+    const dy=(e.changedTouches[0]?.clientY??y0)-y0;
+    sheet.style.transform='';
+    y0=null;
+    if(dy>80) closeMore();
+  });
+})();
 
 /* =================================
    DARK MODE
@@ -2050,12 +2217,17 @@ let darkMode = localStorage.getItem('mito1_theme') === 'dark';
 if(darkMode){
   document.documentElement.setAttribute('data-theme','dark');
 }
+const SUN_SVG='<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+const MOON_SVG='<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
 function applyThemeIcon(){
+  const svg=darkMode?SUN_SVG:MOON_SVG;
   const icon=document.getElementById('themeIcon');
-  if(!icon) return;
-  icon.innerHTML=darkMode
-    ?'<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'
-    :'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+  if(icon) icon.innerHTML=svg;
+  // メニューシート内のテーマ切替も同期させる
+  const mIcon=document.getElementById('moreThemeIcon');
+  if(mIcon) mIcon.innerHTML=svg;
+  const mLbl=document.getElementById('moreThemeLbl');
+  if(mLbl) mLbl.textContent=darkMode?'ライトモード':'ダークモード';
 }
 applyThemeIcon();
 function toggleTheme(){
@@ -2412,9 +2584,14 @@ function rmLoading(id){const el=document.getElementById(id);if(el)el.remove()}
 /* =================================
    PWA STANDALONE
 ================================= */
+function isStandalone(){
+  return window.matchMedia('(display-mode:standalone)').matches
+      || window.matchMedia('(display-mode:fullscreen)').matches
+      || window.matchMedia('(display-mode:minimal-ui)').matches
+      || navigator.standalone===true;
+}
 (function(){
-  const sa=window.matchMedia('(display-mode:standalone)').matches||navigator.standalone===true;
-  if(sa){
+  if(isStandalone()){
     // クラスをhtmlに付与 → CSSで一元管理
     document.documentElement.classList.add('pwa-mode');
     document.querySelector('.bottom-nav').style.display='block';
@@ -2423,6 +2600,76 @@ function rmLoading(id){const el=document.getElementById(id);if(el)el.remove()}
     document.querySelector('.main').style.marginLeft='0';
     document.querySelector('.main').style.paddingBottom='calc(var(--bn-h) + var(--safe-b) + 24px)';
   }
+})();
+
+/* =====================================================
+   ソフトキーボード対応（PWA の下部ナビ浮き上がり修正）
+   -----------------------------------------------------
+   iOS/Android の PWA（standalone）では、ソフトキーボードが
+   出ると visualViewport の高さだけが縮み、`position:fixed;
+   bottom:0` の下部ナビがキーボードの上へ「浮き上がる」。
+   検索ページのように即フォーカスする画面で特に目立つため、
+   キーボード表示を検知して html.kb-open を付け、CSS 側で
+   ナビを画面外へ退避させる。
+===================================================== */
+(function(){
+  const vv = window.visualViewport;
+  const root = document.documentElement;
+  // キーボードと判定する最小の縮み量(px)。アドレスバーの
+  // 伸縮(数十px)を誤検知しないよう十分大きめに取る。
+  const KB_MIN_SHRINK = 140;
+  let kbOpen = false;
+
+  function setKb(open){
+    if(open === kbOpen) return;
+    kbOpen = open;
+    root.classList.toggle('kb-open', open);
+  }
+
+  // --- visualViewport が使える環境（iOS 13+ / Chrome） ---
+  if(vv){
+    let raf = 0;
+    const onViewport = () => {
+      if(raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        // レイアウトビューポートとの差分＝キーボード等の占有高
+        const shrink = window.innerHeight - (vv.height + vv.offsetTop);
+        setKb(shrink > KB_MIN_SHRINK);
+      });
+    };
+    vv.addEventListener('resize', onViewport);
+    vv.addEventListener('scroll', onViewport);
+    onViewport();
+  }
+
+  // --- フォールバック: フォーカスの有無で判定 ---
+  // visualViewport が無い/効かない端末でも、テキスト入力に
+  // フォーカスが当たっている間はナビを退避させる。
+  const isTextInput = (el) => {
+    if(!el) return false;
+    const tag = el.tagName;
+    if(tag === 'TEXTAREA') return true;
+    if(tag === 'INPUT'){
+      return !['button','submit','reset','checkbox','radio','file','range','color','image'].includes((el.type||'text').toLowerCase());
+    }
+    return el.isContentEditable === true;
+  };
+  document.addEventListener('focusin', e => {
+    if(isTextInput(e.target)) root.classList.add('kb-focus');
+  });
+  document.addEventListener('focusout', () => {
+    // 入力間の移動でちらつかないよう次のフレームで確認
+    setTimeout(() => {
+      if(!isTextInput(document.activeElement)) root.classList.remove('kb-focus');
+    }, 60);
+  });
+
+  // ナビ内のボタンを押した瞬間にフォーカスが外れて
+  // ナビが動くのを防ぐため、押下時はフォーカスを先に外す。
+  document.querySelector('.bottom-nav')?.addEventListener('pointerdown', () => {
+    if(isTextInput(document.activeElement)) document.activeElement.blur();
+  });
 })();
 
 // Firestoreデータを動的に読み込む
@@ -2504,6 +2751,8 @@ onAuth(async user => {
 
   // ★ログイン判定は _currentUser（Authユーザー）の存在で行う
   updateAuthUI()
+  // 下部ナビのバッジ（承認待ち・差し戻しの有無）を更新
+  window.refreshMypageDot?.()
 
   // sessionStorageに遷移指示があれば window._pendingNav にセット
   // （実際のnav()呼び出しは通常スクリプト側で行う）
@@ -2900,6 +3149,8 @@ window.loadMyCases = async function() {
   try {
     const uid = _currentUser.uid
     const cases = await getMyCases(uid)
+    // 下部ナビのマイページに「未処理あり」ドットを出す
+    updateMypageDot(cases)
     if (!cases.length) {
       el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3);font-size:13px">申請履歴はありません</div>'
       return
@@ -2956,11 +3207,33 @@ window.loadMyCases = async function() {
   }
 }
 
+/**
+ * 下部ナビ「マイページ」のバッジドット制御。
+ * 承認待ち／差し戻しの申請があるときだけ点灯させ、
+ * ユーザーが確認すべき状態変化に気付けるようにする。
+ */
+function updateMypageDot(cases) {
+  const btn = document.getElementById('bnMypage')
+  if (!btn) return
+  const needsAttention = (cases || []).some(c =>
+    ['pending_supervisor', 'pending_homeroom', 'rejected'].includes(c.status)
+  )
+  btn.classList.toggle('has-dot', needsAttention)
+}
+window.updateMypageDot = updateMypageDot
+
 // マイページ表示時に自動読み込み
 const origNav = window.nav
 window.nav = function(page, skipHash) {
   origNav(page, skipHash)
   if (page === 'mypage') window.loadMyCases()
+}
+
+/** ログイン直後に一度だけ申請状況を取得してドットを更新する */
+window.refreshMypageDot = async function() {
+  if (!_currentUser) { updateMypageDot([]); return }
+  try { updateMypageDot(await getMyCases(_currentUser.uid)) }
+  catch(e) { console.warn('[nav] dot refresh failed', e) }
 }
 
 // ログアウト

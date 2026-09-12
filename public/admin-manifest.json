@@ -1,0 +1,32 @@
+{
+  "name": "水戸第一高等学校 デジタル生徒手帳 管理者ポータル",
+  "short_name": "水一手帳 管理",
+  "description": "デジタル生徒手帳のコンテンツ・ユーザー管理を行う委員会メンバー専用の管理者ポータル",
+  "id": "/admin/",
+  "start_url": "/admin/",
+  "scope": "/admin/",
+  "display": "standalone",
+  "background_color": "#131d33",
+  "theme_color": "#131d33",
+  "icons": [
+    {
+      "src": "/icons/admin-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/admin-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/admin-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "categories": ["education", "productivity"],
+  "lang": "ja"
+}
