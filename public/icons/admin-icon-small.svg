@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  管理者ポータル favicon（16/32px 用の簡略版）
+  小サイズではギアの歯が潰れるため、臙脂の丸バッジ＋白い中抜きのみに単純化している。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect x="0" y="0" width="512" height="512" rx="96" fill="#1a2744"/>
+  <g transform="translate(224 224)">
+    <circle cx="0" cy="0" r="168" fill="none" stroke="#ffffff" stroke-width="34"/>
+    <circle cx="0" cy="0" r="116" fill="#ffffff"/>
+    <g fill="#1a2744">
+      <rect x="-26" y="-86" width="52" height="172" rx="6"/>
+      <rect x="-86" y="-26" width="172" height="52" rx="6"/>
+    </g>
+  </g>
+  <circle cx="382" cy="382" r="130" fill="#1a2744"/>
+  <circle cx="382" cy="382" r="112" fill="#8b1a2c" stroke="#ffffff" stroke-width="22"/>
+  <circle cx="382" cy="382" r="40" fill="#ffffff"/>
+</svg>
