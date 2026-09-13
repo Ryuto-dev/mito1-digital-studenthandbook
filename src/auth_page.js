@@ -102,6 +102,13 @@ document.getElementById('loginBtn').addEventListener('click', doLogin)
 document.getElementById('regStudentBtn').addEventListener('click', doRegisterStudent)
 document.getElementById('regTeacherBtn').addEventListener('click', doRegisterTeacher)
 document.getElementById('resetLink').addEventListener('click', showReset)
+// Enterキーでもログインできるように（メール→パスワードへ移動、パスワード→ログイン実行）
+document.getElementById('loginEmail')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); document.getElementById('loginPass')?.focus() }
+})
+document.getElementById('loginPass')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); doLogin() }
+})
 
 // ── ログイン済みチェック → リダイレクト（ログイン時のみ使用）
 // 新規登録後は自分でリダイレクト制御するためここでは登録フローを除外
