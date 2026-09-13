@@ -117,6 +117,12 @@ export function canToggleApproval(role) {
   return isStaff(role)
 }
 
+// βテスター指定（users.betaTester）を切り替えられるか
+// 先行公開の対象者選定は露出に直結するため、委員会管理者以上のみ。
+export function canManageBetaTester(role) {
+  return isCommitteeAdmin(role)
+}
+
 // ユーザー情報（氏名・学年・クラス等）を変更できるか
 export function canEditUserInfo(role) {
   return isCommitteeAdmin(role)
@@ -237,8 +243,20 @@ export function approvalBadge(profile) {
 }
 
 /**
+ * βテスターの表示情報を返す（Issue #53）。
+ * users.betaTester === true の場合のみバッジを返す。
+ * @param {object} profile users/{uid} のドキュメント
+ * @returns {{label:string, color:string, bg:string}|null}
+ */
+export function betaBadge(profile) {
+  if (!profile || profile.betaTester !== true) return null
+  return { label: 'βテスター', color: '#5b2c6f', bg: '#e8daef' }
+}
+
+/**
  * マイページに並べて表示するバッジ一覧を返す。
  * 生徒: [ロール, 承認状態]  / それ以外: [ロール]
+ * βテスターは全ロール共通で末尾に追加。
  * @param {object} profile
  * @returns {Array<{label:string,color:string,bg:string}>}
  */
@@ -246,6 +264,8 @@ export function profileBadges(profile) {
   const badges = [roleBadge(profile?.role)]
   const appr = approvalBadge(profile)
   if (appr) badges.push({ label: appr.label, color: appr.color, bg: appr.bg })
+  const beta = betaBadge(profile)
+  if (beta) badges.push(beta)
   return badges
 }
 

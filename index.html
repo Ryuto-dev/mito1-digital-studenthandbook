@@ -1669,7 +1669,17 @@ select.cf-input{cursor:pointer}
         <div id="noticeDetail"></div>
       </div>
       <div id="noticeListWrap">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <!-- ============ βテスト (Issue #53) ============ -->
+      <!-- βテスター（+委員会スタッフ）に先行公開中の機能一覧。対象外には何も表示しない -->
+      <div id="betaFeaturesCard" class="line-linked" style="display:none;border-color:rgba(91,44,111,.35);border-left-color:#5b2c6f">
+        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:8px">
+          <span class="line-linked-badge" style="background:#e8daef;color:#5b2c6f">βテスト参加中</span>
+          <span style="font-size:12px;color:var(--text-2)">先行公開中の機能</span>
+        </div>
+        <div id="betaFeaturesList" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
           <div style="font-size:12px;color:var(--text-3)" id="noticeUnreadLine"></div>
           <button id="noticeReadAllBtn" onclick="readAllNotices()" style="font-size:12px;padding:6px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;cursor:pointer;color:var(--text-2)">すべて既読にする</button>
         </div>
@@ -2803,6 +2813,9 @@ import {
   markOneRead, markAllRead, syncLastSeenFromProfile, uidKey,
 } from '/src/announcements.js'
 import {
+  fetchFeatureFlags, filterVisibleFlags, FLAG_STATUSES,
+} from '/src/featureFlags.js'
+import {
   pushAvailability, getPushState,
   subscribePush, unsubscribePush, sendTestPush,
 } from '/src/push.js'
@@ -2885,6 +2898,8 @@ function updateAuthUI() {
     const linked = document.getElementById('lineLinkedCard')
     if (banner) banner.style.display = 'none'
     if (linked) linked.style.display = 'none'
+    const betaCard = document.getElementById('betaFeaturesCard')
+    if (betaCard) betaCard.style.display = 'none'
   }
 
   if (loggedIn) {
@@ -2905,6 +2920,9 @@ function updateAuthUI() {
 
     // PWAプッシュ通知の状態表示
     renderPushUI()
+
+    // βテスト中の機能一覧（Issue #53: 対象者のみ表示）
+    renderBetaFeatures(profile)
 
     // 現在マイページを表示中なら即座にケース一覧を読み込む
     const mypageSec = document.getElementById('pg-mypage')
@@ -2956,6 +2974,36 @@ function renderMypageBadges(profile) {
   const adminLink = document.getElementById('mypageAdminLink')
   if (adminLink) {
     adminLink.style.display = canAccessAdminPanel(profile?.role) ? '' : 'none'
+  }
+}
+
+// =============================================
+// マイページ：βテスト中の機能一覧（Issue #53）
+// ・status === 'beta' かつ自分に公開されているものだけ表示
+// ・対象外・未ログイン・取得失敗時はカードごと非表示
+// ・将来の機能ゲート用に window.Mito1Beta も公開する
+// =============================================
+async function renderBetaFeatures(profile) {
+  const card = document.getElementById('betaFeaturesCard')
+  const listEl = document.getElementById('betaFeaturesList')
+  if (!card || !listEl) return
+  card.style.display = 'none'
+  listEl.innerHTML = ''
+  try {
+    const flags = await fetchFeatureFlags()
+    const visible = filterVisibleFlags(flags, profile)
+      .filter(f => f.status === FLAG_STATUSES.BETA)
+    window.Mito1Beta = { flags, visible }
+    if (!visible.length) return
+    listEl.innerHTML = visible.map(f =>
+      `<div style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface)">` +
+      `<div style="font-size:13px;font-weight:600;color:var(--text)">${escHtml(f.name || f.key)}</div>` +
+      (f.description ? `<div style="font-size:12px;color:var(--text-2);margin-top:4px;line-height:1.7">${escHtml(f.description)}</div>` : '') +
+      `</div>`
+    ).join('')
+    card.style.display = ''
+  } catch {
+    // 取得失敗時は黙って非表示（手帳本体の閲覧を妨げない）
   }
 }
 
