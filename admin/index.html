@@ -809,7 +809,8 @@ a{color:inherit}
     <div class="login-err" id="loginErr" role="alert"></div>
     <div class="login-foot">
       この画面は委員会メンバー（モデレーター以上）専用です。<br>
-      生徒・先生の方は <a href="/" style="color:var(--navy)">生徒手帳トップ</a> からご利用ください。
+      生徒・先生の方は <a href="/" style="color:var(--navy)">生徒手帳トップ</a> からご利用ください。<br>
+      <a href="/#mypage" style="color:var(--navy)">← マイページに戻る</a>
     </div>
   </div>
 </div>
@@ -831,6 +832,7 @@ a{color:inherit}
       <span class="adm-brand-badge">管理者</span>
     </div>
     <div class="adm-header-spacer"></div>
+    <a id="backToMypageBtn" href="/#mypage" style="display:none;height:34px;padding:0 14px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:7px;color:rgba(255,255,255,.9);font-size:12.5px;cursor:pointer;text-decoration:none;align-items:center;white-space:nowrap">← マイページに戻る</a>
     <div class="adm-user-chip">
       <div class="adm-avatar" id="headerAvatar">—</div>
       <div class="adm-user-meta">
@@ -934,6 +936,8 @@ a{color:inherit}
         ユーザー管理
         <span class="sb-count" data-count="users">—</span>
       </button>
+
+      <a id="sbBackToMypage" href="/#mypage" style="display:none;margin:10px 4px 0;padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:13px;color:var(--text-2);text-decoration:none;text-align:center;background:var(--surface2)">← マイページに戻る</a>
 
       <div class="sb-foot">
         <a href="/" target="_blank" rel="noopener">生徒手帳を表示 ↗</a><br>

@@ -115,13 +115,15 @@ onAuth(async user => {
 async function redirectByRole(user) {
   const profile = await getCurrentProfile(user)
   if (profile) {
-    // 委員会スタッフ（モデレーター／管理者／オーナー）は管理者パネルへ
-    if (['moderator', 'admin_student', 'admin_teacher', 'owner'].includes(profile.role)) {
+    // モデレーター・管理者（生徒）は前提として生徒のため、一般生徒と同じくマイページへ。
+    // 自動で管理画面へ遷移させるのは管理者（先生）・オーナーのみ。
+    if (['admin_teacher', 'owner'].includes(profile.role)) {
       location.href = BASE + '/admin/'; return
     }
     if (profile.role === 'teacher') { location.href = BASE + '/teacher.html'; return }
   }
   // sessionStorageでマイページへ遷移するよう伝達
+  // （student / moderator / admin_student はここに来る）
   sessionStorage.setItem('mito1_nav', 'mypage')
   location.href = BASE + '/'
 }
