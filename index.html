@@ -11,7 +11,7 @@
   gtag('config', 'G-C0CFLJ03F6');
 </script>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#1a2744">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -410,9 +410,13 @@ a{text-decoration:none;color:inherit}
 .bn-item.has-dot .bn-dot{display:block}
 
 /* ---------------------------------------------------
-   ソフトキーボード表示中は下部ナビを退避させる (#PWA)
+   ソフトキーボード表示中は下部ナビを退避させる (#59)
    visualViewport が縮むと position:fixed の bottom:0 が
    キーボードの上に「浮き上がる」ため、退避して隠す。
+   kb-open: viewport 縮小で検知（全環境）
+   kb-focus: PWA でのテキスト入力フォーカス検知（フォールバック兼用）。
+   キーボードを閉じるアニメ中もナビを出さないよう、JS 側で
+   blur 後もしばらくクラスを維持する。
 --------------------------------------------------- */
 html.kb-open .bottom-nav,
 html.pwa-mode.kb-focus .bottom-nav{
@@ -421,7 +425,9 @@ html.pwa-mode.kb-focus .bottom-nav{
 }
 html.kb-open .ai-float,
 html.pwa-mode.kb-focus .ai-float{opacity:0;pointer-events:none}
-html.kb-open .more-sheet,html.kb-open .sheet-overlay{display:none!important}
+/* NOTE(#59): メニューシートはキーボード表示中も開ける必要がある。
+   openMore() で先に blur してキーボードを閉じるため、ここで
+   display:none にはしない（開けない/ちらつきの原因になる）。 */
 /* ナビが退避している間は下部の余白も詰めて画面を広く使う */
 html.kb-open .main,
 html.pwa-mode.kb-focus .main{padding-bottom:24px!important}
@@ -2210,6 +2216,17 @@ let currentPage='home';
 
 function nav(page, skipHash){
   currentPage=page;
+  // #59: ページ切替時はテキスト入力のフォーカスを外してキーボードを閉じる。
+  // 閉じないまま別ページへ行くと、キーボードが残って下部ナビが
+  // 「浮き上がる」ように見えるため。
+  try{
+    const ae=document.activeElement;
+    if(ae && (ae.tagName==='TEXTAREA' || ae.tagName==='SELECT' ||
+      (ae.tagName==='INPUT' && !['button','submit','reset','checkbox','radio','file','range','color','image'].includes((ae.type||'text').toLowerCase())) ||
+      ae.isContentEditable===true)){
+      ae.blur();
+    }
+  }catch(e){/* ignore */}
   PAGES.forEach(p=>{
     const el=document.getElementById('pg-'+p);
     if(el) el.classList.toggle('on',p===page);
@@ -2225,10 +2242,16 @@ function nav(page, skipHash){
     el.classList.toggle('on',el.dataset.mp===page);
   });
   if(page==='search'){
-    setTimeout(()=>{
-      const inp=document.getElementById('spInput');
-      if(inp) inp.focus();
-    },100);
+    // #59: PWA/タッチ端末では自動フォーカスしない。
+    // 自動でキーボードが開くと下部ナビが退避して「消えた」ように見えるため。
+    // デスクトップ（fine pointer・非standalone・広画面）のみ自動フォーカスする。
+    const coarse=window.matchMedia('(pointer:coarse)').matches;
+    if(!coarse && !isStandalone() && window.innerWidth>768){
+      setTimeout(()=>{
+        const inp=document.getElementById('spInput');
+        if(inp && document.getElementById('pg-search')?.classList.contains('on')) inp.focus();
+      },100);
+    }
   }
   window.scrollTo({top:0,behavior:'smooth'});
   if(window.innerWidth<=768){
@@ -2714,14 +2737,21 @@ function isStandalone(){
 })();
 
 /* =====================================================
-   ソフトキーボード対応（PWA の下部ナビ浮き上がり修正）
+   ソフトキーボード対応（#59 PWA の下部ナビ浮き上がり修正）
    -----------------------------------------------------
    iOS/Android の PWA（standalone）では、ソフトキーボードが
    出ると visualViewport の高さだけが縮み、`position:fixed;
    bottom:0` の下部ナビがキーボードの上へ「浮き上がる」。
-   検索ページのように即フォーカスする画面で特に目立つため、
    キーボード表示を検知して html.kb-open を付け、CSS 側で
    ナビを画面外へ退避させる。
+
+   #59 の反省:
+   - viewport の縮小量だけでは端末差（resizes-content 等）で
+     検知漏れがあり、マイページ等で「浮き上がり」が残った。
+   - フォーカス即退避だけでは検索を開いた瞬間にナビが
+     「消えた」ように見えた。
+   よって viewport 検知＋フォーカス検知を併用し、閉じる側は
+   アニメ終了までクラスを維持する。
 ===================================================== */
 (function(){
   const vv = window.visualViewport;
@@ -2729,12 +2759,47 @@ function isStandalone(){
   // キーボードと判定する最小の縮み量(px)。アドレスバーの
   // 伸縮(数十px)を誤検知しないよう十分大きめに取る。
   const KB_MIN_SHRINK = 140;
+  // blur 後にクラスを維持する時間(ms)。iOS のキーボードが
+  // 閉じ切るまでのアニメをカバーし、一時的な「浮き上がり」を防ぐ。
+  const KB_CLOSE_GRACE_MS = 450;
   let kbOpen = false;
+  let closeTimer = 0;
+  // キーボード無し状態の基準高さ（見た最大値）。Android の
+  // resizes-content 等で window.innerHeight 自体が縮む端末でも
+  // 検知できるよう、innerHeight とは別に保持する。
+  let baseH = vv ? vv.height : window.innerHeight;
 
   function setKb(open){
     if(open === kbOpen) return;
     kbOpen = open;
     root.classList.toggle('kb-open', open);
+  }
+
+  function isCoarseOrPwa(){
+    return root.classList.contains('pwa-mode')
+      || window.matchMedia('(pointer:coarse)').matches;
+  }
+
+  function viewportShrunk(){
+    if(!vv) return false;
+    // 基準高さは縮む前の最大値を覚える（回転・リサイズの拡大には追従）
+    if(vv.height > baseH) baseH = vv.height;
+    // layout viewport と visual viewport の両方と比較する。
+    // iOS PWA: innerHeight は変わらず vv.height だけ縮む。
+    // Android(resizes-content): 両方縮むため baseH との差で見る。
+    const shrinkVsInner = window.innerHeight - (vv.height + vv.offsetTop);
+    const shrinkVsBase = baseH - vv.height;
+    return shrinkVsInner > KB_MIN_SHRINK || shrinkVsBase > KB_MIN_SHRINK;
+  }
+
+  function refreshByViewport(){
+    if(viewportShrunk()){
+      if(closeTimer){ clearTimeout(closeTimer); closeTimer = 0; }
+      setKb(true);
+    }else if(!isTextInput(document.activeElement)){
+      // フォーカスが残っている間は閉じない（入力移動時のちらつき防止）
+      setKb(false);
+    }
   }
 
   // --- visualViewport が使える環境（iOS 13+ / Chrome） ---
@@ -2744,37 +2809,71 @@ function isStandalone(){
       if(raf) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
-        // レイアウトビューポートとの差分＝キーボード等の占有高
-        const shrink = window.innerHeight - (vv.height + vv.offsetTop);
-        setKb(shrink > KB_MIN_SHRINK);
+        refreshByViewport();
       });
     };
     vv.addEventListener('resize', onViewport);
     vv.addEventListener('scroll', onViewport);
     onViewport();
   }
+  window.addEventListener('resize', () => {
+    if(vv) return;
+    // vv 無し環境のフォールバック: 狭くなったら開いたとみなす
+    setKb(window.innerHeight < baseH - KB_MIN_SHRINK);
+  });
+  window.addEventListener('orientationchange', () => {
+    setTimeout(() => {
+      baseH = vv ? vv.height : window.innerHeight;
+      refreshByViewport();
+    }, 300);
+  });
 
-  // --- フォールバック: フォーカスの有無で判定 ---
+  // --- フォーカスの有無で判定 ---
   // visualViewport が無い/効かない端末でも、テキスト入力に
   // フォーカスが当たっている間はナビを退避させる。
   const isTextInput = (el) => {
     if(!el) return false;
     const tag = el.tagName;
     if(tag === 'TEXTAREA') return true;
+    if(tag === 'SELECT') return true;
     if(tag === 'INPUT'){
       return !['button','submit','reset','checkbox','radio','file','range','color','image'].includes((el.type||'text').toLowerCase());
     }
     return el.isContentEditable === true;
   };
+  // nav() より前に定義されるため、先に公開しておく（hoisting 対策）
+  window.__isTextInput = isTextInput;
+
   document.addEventListener('focusin', e => {
-    if(isTextInput(e.target)) root.classList.add('kb-focus');
+    if(!isTextInput(e.target)) return;
+    if(closeTimer){ clearTimeout(closeTimer); closeTimer = 0; }
+    root.classList.add('kb-focus');
+    // タッチ/PWA ではフォーカス＝ほぼキーボードが出るため先に退避。
+    // デスクトップの物理キーボードでは viewport が縮まないので退避しない。
+    if(isCoarseOrPwa()) setKb(true);
   });
-  document.addEventListener('focusout', () => {
-    // 入力間の移動でちらつかないよう次のフレームで確認
-    setTimeout(() => {
-      if(!isTextInput(document.activeElement)) root.classList.remove('kb-focus');
+  function scheduleFocusOut(){
+    if(closeTimer) clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => {
+      closeTimer = 0;
+      if(!isTextInput(document.activeElement)){
+        root.classList.remove('kb-focus');
+        // viewport がまだ縮んでいたら（閉じアニメ中）は維持する
+        if(!viewportShrunk()) setKb(false);
+        else{
+          // 念のため再確認（アニメ完了後に外す）
+          closeTimer = setTimeout(() => {
+            closeTimer = 0;
+            if(!viewportShrunk() && !isTextInput(document.activeElement)){
+              root.classList.remove('kb-focus');
+              setKb(false);
+            }
+          }, KB_CLOSE_GRACE_MS);
+        }
+      }
     }, 60);
-  });
+  }
+  document.addEventListener('focusout', scheduleFocusOut);
 
   // ナビ内のボタンを押した瞬間にフォーカスが外れて
   // ナビが動くのを防ぐため、押下時はフォーカスを先に外す。
