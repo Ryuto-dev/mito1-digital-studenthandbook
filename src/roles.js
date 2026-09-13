@@ -163,10 +163,30 @@ export function canManageTargetRole(myRole, targetRole) {
 // =============================================
 
 // 生徒が「承認済み」かどうか（role !== 'student' の場合は対象外 = true 扱い）
+// モデレーター・管理者（生徒）は前提として生徒であり、承認済みであることが
+// 当たり前のため、常に承認済み扱い（承認バッジ・承認注意文は表示しない）
 export function isApprovedStudent(profile) {
   if (!profile) return false
   if (profile.role !== ROLES.STUDENT) return true
   return !!profile.approved
+}
+
+// モデレーター・管理者（生徒）は前提として生徒のため、一般生徒と同じく
+// 公欠申請などの生徒機能を通常通り利用できる
+export function isStudentLike(profileOrRole) {
+  const role = typeof profileOrRole === 'string' ? profileOrRole : profileOrRole?.role
+  return role === ROLES.STUDENT || role === ROLES.MODERATOR || role === ROLES.ADMIN_STUDENT
+}
+
+// 学年・クラス・出席番号の割り当てが必須のロール
+// （生徒はもちろん、モデレーター・管理者（生徒）も生徒が前提のため必須）
+export function requiresClassInfo(role) {
+  return role === ROLES.STUDENT || role === ROLES.MODERATOR || role === ROLES.ADMIN_STUDENT
+}
+
+export function hasClassInfo(profile) {
+  if (!profile) return false
+  return !!(profile.grade && profile.class)
 }
 
 // デジタル身分証を利用できるか

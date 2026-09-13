@@ -2030,6 +2030,10 @@ select.cf-input{cursor:pointer}
         </div>
         <!-- 未承認生徒への案内 -->
         <div id="mypageApprovalNotice" style="display:none;margin-top:14px;padding:12px 14px;border-radius:9px;background:#fff8e5;border:1px solid #f2dfa8;font-size:12px;color:#7a5c05;line-height:1.85"></div>
+        <!-- 委員会メンバー用：管理画面への導線（モデレーター以上のみ表示） -->
+        <div id="mypageAdminLink" style="display:none;margin-top:12px">
+          <a href="/admin/" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;background:var(--navy);color:#fff;font-size:12.5px;font-weight:600;text-decoration:none">⚙️ 管理画面を開く</a>
+        </div>
       </div>
 
       <!-- ============ LINE連携 ============ -->
@@ -2791,7 +2795,7 @@ import { db } from '/src/firebase.js'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { onAuth, getCurrentProfile, logout, getTeacherDirectory } from '/src/auth.js'
 import { createCase, getMyCases, deleteCaseByStudent } from '/src/cases.js'
-import { canUseTeacherSuggest, profileBadges, approvalNotice } from '/src/roles.js'
+import { canUseTeacherSuggest, canAccessAdminPanel, profileBadges, approvalNotice } from '/src/roles.js'
 import { startLineLink, unlinkLine, isLinked } from '/src/line.js'
 import {
   fetchAnnouncements, visibleAnnouncements, categoryMeta, toMillis,
@@ -2922,6 +2926,9 @@ function updateAuthUI() {
 
 // =============================================
 // マイページ：ロール／承認状態バッジ（Issue #18・#19 のロール定義に対応）
+// ・ロールバッジは全ロールで表示（モデレーター／管理者などの役職を見せる）
+// ・承認バッジは生徒のみ。モデレーター・管理者は承認済みが当たり前のため非表示
+//   （roles.js の approvalBadge / profileBadges がその仕様）
 // =============================================
 function renderMypageBadges(profile) {
   const wrap = document.getElementById('mypageBadges')
@@ -2931,7 +2938,7 @@ function renderMypageBadges(profile) {
     ).join('')
   }
 
-  // 未承認生徒への案内
+  // 未承認生徒への案内（モデレーター・管理者は対象外のため表示されない）
   const notice = document.getElementById('mypageApprovalNotice')
   if (notice) {
     const text = approvalNotice(profile)
@@ -2942,6 +2949,13 @@ function renderMypageBadges(profile) {
       notice.style.display = 'none'
       notice.textContent = ''
     }
+  }
+
+  // 委員会メンバー（モデレーター以上）はマイページから管理画面へ遷移可能に
+  // ※ ログイン済みセッションをそのまま使うため、管理画面側で再ログインは不要
+  const adminLink = document.getElementById('mypageAdminLink')
+  if (adminLink) {
+    adminLink.style.display = canAccessAdminPanel(profile?.role) ? '' : 'none'
   }
 }
 

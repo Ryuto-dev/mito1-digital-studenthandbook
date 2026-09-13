@@ -220,27 +220,43 @@ document.addEventListener('DOMContentLoaded', () => {
 // =============================================
 // AUTH — 管理者権限チェック
 // =============================================
+// 同一 Firebase Auth セッションをそのまま使うため、管理画面側での再ログインは不要。
+// マイページでログイン済みならこの onAuthStateChanged がそのまま発火して入れる。
+// 権限不足の場合も signOut しない（マイページ側のセッションを切らないため）。
 onAuthStateChanged(auth, async user => {
+  const loginBtn = $('loginBtn')
   if (!user) {
     myProfile = null
+    updateBackToMypage(null)
     $('loginScreen')?.classList.remove('hide')
     $('appShell')?.classList.remove('show')
+    if (loginBtn) loginBtn.disabled = false
     return
   }
 
-  const profile = await getCurrentProfile(user)
+  let profile = null
+  try {
+    profile = await getCurrentProfile(user)
+  } catch (e) {
+    console.warn('[admin] getCurrentProfile failed', e)
+  }
   if (!profile || !canAccessAdminPanel(profile.role)) {
+    myProfile = null
     const err = $('loginErr')
-    if (err) err.textContent = 'この機能は委員会メンバー（モデレーター以上）のみアクセスできます'
+    if (err) err.textContent = 'この機能は委員会メンバー（モデレーター以上）のみアクセスできます。一般生徒の方はマイページをご利用ください。'
     $('loginScreen')?.classList.remove('hide')
     $('appShell')?.classList.remove('show')
-    await signOut(auth)
+    if (loginBtn) loginBtn.disabled = false
+    // signOut はしない。マイページ（/）のセッションを維持するため。
+    // 既にログイン済みの生徒が誤って /admin/ を開いてもログアウトされない。
+    updateBackToMypage({ role: profile?.role || 'student' })
     return
   }
 
   myProfile = profile
   $('loginScreen')?.classList.add('hide')
   $('appShell')?.classList.add('show')
+  if (loginBtn) loginBtn.disabled = false
 
   // ヘッダーのユーザーチップ
   const avatar = $('headerAvatar')
@@ -250,11 +266,22 @@ onAuthStateChanged(auth, async user => {
   const roleEl = $('headerRole')
   if (roleEl) roleEl.textContent = R_LABELS[profile.role] || profile.role
 
+  updateBackToMypage(profile)
   applyRoleUI()
   switchSec('dashboard', { skipNavState: true })
   loadBadgeCounts()
   loadSidebarCounts()
 })
+
+// モデレーター・管理者（生徒）は前提として生徒のため、管理画面から
+// マイページに戻る導線を見せる（ヘッダー＋サイドバー）
+function updateBackToMypage(profile) {
+  const show = profile && (profile.role === 'moderator' || profile.role === 'admin_student')
+  const hdr = $('backToMypageBtn')
+  if (hdr) hdr.style.display = show ? 'inline-flex' : 'none'
+  const sb = $('sbBackToMypage')
+  if (sb) sb.style.display = show ? 'block' : 'none'
+}
 
 // ロールに応じたサイドバー／機能の表示切替
 function applyRoleUI() {
@@ -2097,10 +2124,12 @@ function applyUserPreset(preset) {
 
 function roleAttrs(u) {
   const attrs = []
-  if (u.role === 'student') {
+  // 生徒はもちろん、モデレーター・管理者（生徒）も生徒が前提のため学年・クラス・番号を持つ
+  if (u.role === 'student' || u.role === 'moderator' || u.role === 'admin_student') {
     if (u.grade)  attrs.push(`${u.grade}年`)
     if (u.class)  attrs.push(`${u.class}組`)
     if (u.number) attrs.push(`${u.number}番`)
+    if (!u.grade || !u.class) attrs.push('⚠ 未設定')
   }
   return attrs
 }
@@ -2293,24 +2322,25 @@ window.editUser = async function (uid) {
       </select>
       <div class="form-hint">${iCanChangeRole ? '自分と同等以下のロールにのみ変更できます。' : 'ロールの変更権限がありません。'}</div>
     </div>
-    <div id="f_user_student_fields" style="${user.role === 'student' ? '' : 'display:none'}">
+    <div id="f_user_student_fields" style="${['student', 'moderator', 'admin_student'].includes(user.role) ? '' : 'display:none'}">
+      <div class="form-hint" id="f_user_class_req_hint" style="margin-bottom:8px;${['moderator', 'admin_student'].includes(user.role) ? '' : 'display:none'}">モデレーター・管理者（生徒）は生徒が前提のため、学年・クラス・出席番号は必須です。</div>
       <div class="form-row-3 form-row">
         <div>
-          <label>学年</label>
+          <label>学年 <span class="form-tag req" id="f_user_grade_req" style="${['moderator', 'admin_student'].includes(user.role) ? '' : 'display:none'}">必須</span></label>
           <select id="f_user_grade">
             <option value="">—</option>
             ${[1, 2, 3].map(i => `<option value="${i}"${String(user.grade) === String(i) ? ' selected' : ''}>${i}年</option>`).join('')}
           </select>
         </div>
         <div>
-          <label>クラス</label>
+          <label>クラス <span class="form-tag req" id="f_user_class_req" style="${['moderator', 'admin_student'].includes(user.role) ? '' : 'display:none'}">必須</span></label>
           <select id="f_user_class">
             <option value="">—</option>
             ${[1, 2, 3, 4, 5, 6].map(i => `<option value="${i}"${String(user.class) === String(i) ? ' selected' : ''}>${i}組</option>`).join('')}
           </select>
         </div>
         <div>
-          <label>出席番号</label>
+          <label>出席番号 <span class="form-tag req" id="f_user_number_req" style="${['moderator', 'admin_student'].includes(user.role) ? '' : 'display:none'}">必須</span></label>
           <input type="number" id="f_user_number" value="${escHtml(user.number || '')}" min="1" max="50">
         </div>
       </div>
@@ -2328,13 +2358,23 @@ window.editUser = async function (uid) {
       </details>
     </div>`
 
-  // 生徒以外を選んだら学年・クラス・番号の欄を隠す
+  // 生徒系（生徒／モデレーター／管理者（生徒））以外を選んだら学年・クラス・番号の欄を隠す
+  // モデレーター・管理者（生徒）を選んだら必須表示に切り替える
   const roleSel = $('f_user_role')
-  roleSel?.addEventListener('change', () => {
-    const isStudent = roleSel.value === 'student'
+  const syncStudentFields = () => {
+    const v = roleSel?.value || user.role
+    const isStudentLike = ['student', 'moderator', 'admin_student'].includes(v)
+    const needsRequired = ['moderator', 'admin_student'].includes(v)
     const box = $('f_user_student_fields')
-    if (box) box.style.display = isStudent ? '' : 'none'
-  })
+    if (box) box.style.display = isStudentLike ? '' : 'none'
+    const hint = $('f_user_class_req_hint')
+    if (hint) hint.style.display = needsRequired ? '' : 'none'
+    ;['f_user_grade_req', 'f_user_class_req', 'f_user_number_req'].forEach(id => {
+      const el = document.getElementById(id)
+      if (el) el.style.display = needsRequired ? '' : 'none'
+    })
+  }
+  roleSel?.addEventListener('change', syncStudentFields)
 
   // ユーザー編集専用の保存処理を一時的にバインド
   const saveBtn = $('modalSaveBtn')
@@ -2347,11 +2387,22 @@ window.editUser = async function (uid) {
         if (!canAssignRole(myRole, newRole)) throw new Error('そのロールへの変更権限がありません')
         data.role = newRole
       }
-      if ((data.role || user.role) === 'student') {
+      const targetRole = data.role || user.role
+      if (['student', 'moderator', 'admin_student'].includes(targetRole)) {
         const g = val('f_user_grade'), c = val('f_user_class'), n = val('f_user_number')
-        if (g) data.grade  = Number(g)
-        if (c) data.class  = c
-        if (n) data.number = Number(n)
+        // モデレーター・管理者（生徒）は生徒前提のため学年・クラス・番号は必須
+        if (['moderator', 'admin_student'].includes(targetRole)) {
+          if (!g) throw new Error('学年を入力してください（モデレーター・管理者（生徒）は必須）')
+          if (!c) throw new Error('クラスを入力してください（モデレーター・管理者（生徒）は必須）')
+          if (!n) throw new Error('出席番号を入力してください（モデレーター・管理者（生徒）は必須）')
+          data.grade  = Number(g)
+          data.class  = c
+          data.number = Number(n)
+        } else {
+          if (g) data.grade  = Number(g)
+          if (c) data.class  = c
+          if (n) data.number = Number(n)
+        }
       }
       await updateDoc(doc(db, 'users', uid), data)
       showToast('ユーザーを更新しました')
