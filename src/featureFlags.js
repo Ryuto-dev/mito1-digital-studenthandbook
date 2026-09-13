@@ -39,6 +39,47 @@ export const FLAG_STATUS_LABELS = {
 export const FLAG_KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 // =============================================
+// 既知の機能フラグ（Issue #53）
+// アプリ本体に組み込まれた機能の一覧（管理画面の案内・βカード表示用カタログ）。
+// 未作成時の動作は defaultStatus（公開）に従う。
+// βにする／リリースするのは管理画面で同 key のドキュメントを作って切り替える。
+// =============================================
+export const KNOWN_FLAGS = {
+  'web-push': {
+    name: 'プッシュ通知（PWA）',
+    description: '公欠申請の承認完了などを端末にプッシュ通知する機能',
+    defaultStatus: 'enabled',
+  },
+  'absence-request': {
+    name: '公欠申請',
+    description: '生徒によるオンライン公欠申請・進捗追跡の機能',
+    defaultStatus: 'enabled',
+  },
+}
+
+/** Firestore未作成の既知フラグも含めた status 解決。未知の key は enabled 扱い（後方互換）。 */
+export function getFlagStatus(flags, key) {
+  const doc = flags && typeof flags === 'object' ? flags[key] : null
+  if (doc && typeof doc === 'object' && doc.status) {
+    return normalizeFlag(doc).status
+  }
+  return getKnownDefault(key)
+}
+
+function getKnownDefault(key) {
+  const known = KNOWN_FLAGS[key]
+  if (known && Object.values(FLAG_STATUSES).includes(known.defaultStatus)) {
+    return known.defaultStatus
+  }
+  return FLAG_STATUSES.ENABLED
+}
+
+/** key 指定でこの機能を見せてよいか（未作成の既知フラグはデフォルト状態で判定） */
+export function isFlagEnabled(flags, key, profile) {
+  return isFeatureEnabled(getFlagStatus(flags, key), profile)
+}
+
+// =============================================
 // 正規化・バリデーション
 // =============================================
 export function normalizeFlag(raw) {
