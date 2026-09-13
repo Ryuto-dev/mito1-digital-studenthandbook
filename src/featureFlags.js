@@ -40,20 +40,20 @@ export const FLAG_KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 // =============================================
 // 既知の機能フラグ（Issue #53）
-// アプリ本体に組み込まれたβ対象機能の一覧。
-// Firestore にドキュメントが無い場合のデフォルト状態を保持する。
-// 管理画面で同 key のドキュメントを作ると、そちらが優先される。
+// アプリ本体に組み込まれた機能の一覧（管理画面の案内・βカード表示用カタログ）。
+// 未作成時の動作は defaultStatus（公開）に従う。
+// βにする／リリースするのは管理画面で同 key のドキュメントを作って切り替える。
 // =============================================
 export const KNOWN_FLAGS = {
   'web-push': {
     name: 'プッシュ通知（PWA）',
     description: '公欠申請の承認完了などを端末にプッシュ通知する機能',
-    defaultStatus: 'beta',
+    defaultStatus: 'enabled',
   },
   'absence-request': {
     name: '公欠申請',
     description: '生徒によるオンライン公欠申請・進捗追跡の機能',
-    defaultStatus: 'beta',
+    defaultStatus: 'enabled',
   },
 }
 

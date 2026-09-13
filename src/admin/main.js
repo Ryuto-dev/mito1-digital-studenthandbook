@@ -1847,7 +1847,7 @@ async function loadBetaFlags() {
         </div>
         <div class="item-card-body">
           <div class="item-body-text">${escHtml(meta.description || '')}</div>
-          <div style="font-size:11px;color:var(--text-3);margin-top:6px">ドキュメント未作成のため「${escHtml(FLAG_STATUS_LABELS[meta.defaultStatus] || meta.defaultStatus)}」として動作中。公開するには「機能フラグを追加」で同じキーを作成してください。</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:6px">ドキュメント未作成のため「${escHtml(FLAG_STATUS_LABELS[meta.defaultStatus] || meta.defaultStatus)}」として動作中。状態を変えるには「機能フラグを追加」で同じキーを作成してください。</div>
         </div>
       </div>`).join('')}`
   }
