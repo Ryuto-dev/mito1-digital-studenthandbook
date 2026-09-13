@@ -14,8 +14,11 @@ import {
   ROLE_LABELS as R_LABELS, ROLE_COLORS as R_COLORS, ROLE_BGS as R_BGS,
   canAccessAdminPanel, canViewCasesAdmin, canManageRoles, canToggleApproval,
   canEditUserInfo, canViewUsers, canReplyInquiries, canManageTargetRole,
-  canAssignRole, assignableRoles,
+  canAssignRole, assignableRoles, canManageBetaTester,
 } from '../roles.js'
+import {
+  FLAG_STATUSES, FLAG_STATUS_LABELS, validateFlagKey, normalizeFlag,
+} from '../featureFlags.js'
 
 // =============================================
 // STATE
@@ -368,6 +371,7 @@ async function loadSection(sec) {
     case 'council-rules':      return loadList('council-rules', renderArticleList('councilRulesList'))
     case 'inquiries':          return loadInquiries()
     case 'announcements':      return loadAnnouncements()
+    case 'beta':               return loadBetaFlags()
     case 'cases':              return canViewCasesAdmin(myProfile?.role) ? loadAdminCases() : renderCasesForbidden()
     case 'users':              return loadUsers()
   }
@@ -650,6 +654,14 @@ async function loadBadgeCounts() {
     const pubCount = anSnap.docs.filter(d => (d.data().status || 'published') === 'published').length
     const anBadge = document.getElementById('annBadge')
     if (anBadge) { anBadge.textContent = `${pubCount}件公開中`; anBadge.style.display = pubCount ? '' : 'none' }
+  } catch(e) { /* ignore */ }
+
+  try {
+    // βテストバッジ（βテスト中の件数。Issue #53）
+    const betaSnap = await getDocs(collection(db, 'featureFlags'))
+    const betaCount = betaSnap.docs.filter(d => (d.data().status || 'enabled') === FLAG_STATUSES.BETA).length
+    const betaBadge = document.getElementById('betaBadge')
+    if (betaBadge) { betaBadge.textContent = betaCount ? `${betaCount}件β中` : ''; betaBadge.style.display = betaCount ? '' : 'none' }
   } catch(e) { /* ignore */ }
 }
 
@@ -1415,6 +1427,7 @@ const REQUIRED_FIELDS = {
   'council-charter':  [['f_number', '条番号']],
   'council-rules':    [['f_number', '条番号']],
   announcements:      [['f_ann_title', 'タイトル'], ['f_ann_body', '本文']],
+  featureFlags:       [['f_flag_key', 'キー（機能ID）'], ['f_flag_name', '機能名']],
 }
 
 function validateModal(type) {
@@ -1510,6 +1523,11 @@ async function saveModal({ keepOpen = false } = {}) {
     const data = cfg.getData(type)
     // お知らせ (Issue #37): 新規作成時に createdAt を付与（必須チェックは REQUIRED_FIELDS 側で行う）
     if (type === 'announcements' && !editingId) data.createdAt = serverTimestamp()
+    // 機能フラグ (Issue #53): 新規作成時に作成情報を付与
+    if (type === 'featureFlags' && !editingId) {
+      data.createdAt = serverTimestamp()
+      data.createdBy = auth.currentUser?.email || auth.currentUser?.uid || ''
+    }
 
     if (editingId) {
       await updateDoc(doc(db, type, editingId), data)
@@ -1751,6 +1769,112 @@ MODAL_CONFIGS['announcements'] = {
     document.getElementById('f_ann_linkPage').value = data.linkPage || ''
     document.getElementById('f_ann_pinned').checked = !!data.pinned
     document.getElementById('f_ann_publishedAt').value = toLocalInputValue(data.publishedAt || data.createdAt)
+  },
+}
+
+// =============================================
+// 機能フラグ管理 (Issue #53: βテスト)
+// 公開フロー: 無効 → βテスト中（βテスターのみ） → 公開（全員）
+// =============================================
+const FLAG_STATUS_META = {
+  [FLAG_STATUSES.DISABLED]: { label: '無効', color: '#818894', bg: '#eceef2' },
+  [FLAG_STATUSES.BETA]:     { label: 'βテスト中', color: '#5b2c6f', bg: '#e8daef' },
+  [FLAG_STATUSES.ENABLED]:  { label: '公開', color: '#155724', bg: '#d4edda' },
+}
+
+function flagStatusPill(status) {
+  const m = FLAG_STATUS_META[status] || FLAG_STATUS_META[FLAG_STATUSES.ENABLED]
+  return `<span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;color:${m.color};background:${m.bg}">${m.label}</span>`
+}
+
+async function loadBetaFlags() {
+  const el = document.getElementById('betaFlagsList')
+  if (!el) return
+  el.innerHTML = spinner()
+  let items = []
+  try {
+    const snap = await getDocs(collection(db, 'featureFlags'))
+    items = snap.docs.map(d => ({ id: d.id, ...normalizeFlag(d.data()) }))
+    items.sort((a, b) => String(a.key).localeCompare(String(b.key), 'ja'))
+  } catch (e) {
+    el.innerHTML = errorState(e)
+    return
+  }
+
+  const betaCount = items.filter(f => f.status === FLAG_STATUSES.BETA).length
+  const badge = document.getElementById('betaBadge')
+  if (badge) { badge.textContent = betaCount ? `${betaCount}件β中` : ''; badge.style.display = betaCount ? '' : 'none' }
+
+  if (!items.length) {
+    el.innerHTML = `<div class="empty-state">
+      <svg viewBox="0 0 24 24"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 7.7l5.4-.8z"/></svg>
+      <p>まだ機能フラグがありません。「機能フラグを追加」からβテストを開始できます。</p>
+      <p class="empty-hint">例: キー「new-search」／機能名「新しい検索画面」／状態「βテスト中」</p>
+    </div>`
+    return
+  }
+
+  el.innerHTML = items.map(f => `
+    <div class="item-card" style="margin-bottom:10px">
+      <div class="item-card-header">
+        <span class="item-num">β</span>
+        <span class="item-title">${escHtml(f.name || '(名称未設定)')} <span style="font-weight:400;color:var(--text-3);font-size:11px">key: ${escHtml(f.key)}</span></span>
+        ${flagStatusPill(f.status)}
+        <div class="item-actions">
+          <button class="btn-icon" data-edit="featureFlags|${f.id}" title="編集" aria-label="編集">
+            <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="btn-icon del" data-delete="featureFlags|${f.id}" title="削除" aria-label="削除">
+            <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          </button>
+        </div>
+      </div>
+      ${f.description ? `<div class="item-card-body"><div class="item-body-text">${escHtml(f.description)}</div></div>` : ''}
+    </div>`).join('')
+}
+
+MODAL_CONFIGS['featureFlags'] = {
+  title: '機能フラグ',
+  fields: () => `
+    <div class="form-row">
+      <label>キー（機能ID） <span class="form-tag req">必須</span></label>
+      <input type="text" id="f_flag_key" placeholder="例: new-search" maxlength="60" style="font-family:monospace">
+      <div class="form-hint">半角英小文字・数字・ハイフンのみ。アプリ側の判定キーになります（例: <code>isFeatureEnabled(flags['new-search'], profile)</code>）。作成後の変更は避けてください。</div>
+    </div>
+    <div class="form-row">
+      <label>機能名 <span class="form-tag req">必須</span></label>
+      <input type="text" id="f_flag_name" placeholder="例: 新しい検索画面">
+    </div>
+    <div class="form-row">
+      <label>説明（任意）</label>
+      <textarea id="f_flag_description" rows="3" placeholder="βテストの内容・確認してほしい点を入力..."></textarea>
+    </div>
+    <div class="form-row">
+      <label>公開状態</label>
+      <select id="f_flag_status">
+        ${Object.values(FLAG_STATUSES).map(s => `<option value="${s}">${escHtml(FLAG_STATUS_LABELS[s] || s)}</option>`).join('')}
+      </select>
+      <div class="form-hint">無効→βテスト中→公開の順に切り替えてリリースします。</div>
+    </div>
+  `,
+  getData: () => {
+    const keyErr = validateFlagKey(trimVal('f_flag_key'))
+    if (keyErr) throw new Error(keyErr)
+    return {
+      key: trimVal('f_flag_key'),
+      name: trimVal('f_flag_name'),
+      description: trimVal('f_flag_description'),
+      status: val('f_flag_status') || FLAG_STATUSES.BETA,
+      updatedAt: serverTimestamp(),
+      updatedBy: auth.currentUser?.email || auth.currentUser?.uid || '',
+    }
+  },
+  fill: (data) => {
+    document.getElementById('f_flag_key').value = data.key || ''
+    document.getElementById('f_flag_key').disabled = true
+    document.getElementById('f_flag_name').value = data.name || ''
+    document.getElementById('f_flag_description').value = data.description || ''
+    document.getElementById('f_flag_status').value = data.status || FLAG_STATUSES.BETA
   },
 }
 
@@ -2047,6 +2171,7 @@ function filteredUsers() {
   switch (userFilters.status) {
     case 'unapproved': list = list.filter(u => u.role === 'student' && !u.approved); break
     case 'approved':   list = list.filter(u => u.role === 'student' && !!u.approved); break
+    case 'beta':       list = list.filter(u => u.betaTester === true); break
     case 'line':       list = list.filter(u => !!u.lineUserId); break
     case 'noline':     list = list.filter(u => !u.lineUserId); break
   }
@@ -2088,6 +2213,7 @@ function renderUserStats() {
   const staff      = allUsers.filter(u => ['moderator', 'admin_student', 'admin_teacher', 'owner'].includes(u.role)).length
   const teachers   = allUsers.filter(u => u.role === 'teacher').length
   const lineLinked = allUsers.filter(u => !!u.lineUserId).length
+  const betaTesters = allUsers.filter(u => u.betaTester === true).length
 
   el.innerHTML = `
     <button class="stat-chip clickable" type="button" data-filter-preset="all"><b>${total}</b> 全ユーザー</button>
@@ -2095,7 +2221,8 @@ function renderUserStats() {
     ${unapproved ? `<button class="stat-chip alert clickable" type="button" data-filter-preset="unapproved"><b>${unapproved}</b> 未承認</button>` : ''}
     <button class="stat-chip clickable" type="button" data-filter-preset="teacher"><b>${teachers}</b> 先生</button>
     <button class="stat-chip clickable" type="button" data-filter-preset="staff"><b>${staff}</b> 委員会メンバー</button>
-    <button class="stat-chip clickable" type="button" data-filter-preset="line"><b>${lineLinked}</b> LINE連携済み</button>`
+    <button class="stat-chip clickable" type="button" data-filter-preset="line"><b>${lineLinked}</b> LINE連携済み</button>
+    ${betaTesters ? `<button class="stat-chip clickable" type="button" data-filter-preset="beta"><b>${betaTesters}</b> βテスター</button>` : ''}`
 }
 
 /** 統計チップからのワンクリック絞り込み */
@@ -2106,6 +2233,7 @@ function applyUserPreset(preset) {
   if (preset === 'student')         { userFilters.role = 'student' }
   else if (preset === 'teacher')    { userFilters.role = 'teacher' }
   else if (preset === 'unapproved') { userFilters.status = 'unapproved'; userSort = 'status' }
+  else if (preset === 'beta')       { userFilters.status = 'beta' }
   else if (preset === 'line')       { userFilters.status = 'line' }
   else if (preset === 'staff')      { userFilters.status = 'all' } // 下で個別処理
 
@@ -2151,6 +2279,17 @@ function lineCell(u) {
     : '<span class="badge badge-muted">未連携</span>'
 }
 
+// βテスター指定 (Issue #53)。操作は委員会管理者以上のみ。
+function betaCell(u, iCanManageBeta) {
+  const on = u.betaTester === true
+  const pill = on
+    ? '<span class="badge" style="color:#5b2c6f;background:#e8daef">β</span>'
+    : '<span style="color:var(--text-3)">—</span>'
+  if (!iCanManageBeta) return pill
+  return `<button class="toggle-pill" style="${on ? 'color:#5b2c6f;background:#e8daef' : 'color:var(--text-3);background:var(--surface3)'}" onclick="toggleBetaTester('${u.id}', ${!on})"
+    title="クリックで${on ? 'βテスターから外す' : 'βテスターに指定する'}">${on ? 'β' : '—'}</button>`
+}
+
 function renderUsers() {
   const el = $('usersList')
   if (!el) return
@@ -2171,6 +2310,7 @@ function renderUsers() {
   const iCanEditInfo   = canEditUserInfo(myRole)   // 氏名・学年等の編集
   const iCanToggleAppr = canToggleApproval(myRole) // 承認状態の切替
   const iCanManageRole = canManageRoles(myRole)    // ロール変更・削除
+  const iCanManageBeta = canManageBetaTester(myRole) // βテスター指定 (Issue #53)
 
   const ops = (u) => {
     const canOpEdit   = iCanEditInfo   && canManageTargetRole(myRole, u.role)
@@ -2206,6 +2346,7 @@ function renderUsers() {
               <th class="num">学年・組・番号</th>
               <th class="num">承認</th>
               <th class="num">LINE</th>
+              <th class="num">β</th>
               <th></th>
             </tr>
           </thead>
@@ -2221,6 +2362,7 @@ function renderUsers() {
                 </td>
                 <td class="num">${approvalCell(u, iCanToggleAppr)}</td>
                 <td class="num">${lineCell(u)}</td>
+                <td class="num">${betaCell(u, iCanManageBeta)}</td>
                 <td><div class="row-ops">${ops(u)}</div></td>
               </tr>`).join('')}
           </tbody>
@@ -2240,6 +2382,7 @@ function renderUsers() {
             ${roleAttrs(u).map(a => `<span class="attr">${a}</span>`).join('')}
             ${approvalCell(u, iCanToggleAppr)}
             ${lineCell(u)}
+            ${betaCell(u, iCanManageBeta)}
           </div>
           ${(iCanEditInfo || iCanManageRole) ? `<div class="user-card-ops">${ops(u)}</div>` : ''}
         </div>`).join('')}
@@ -2257,6 +2400,23 @@ window.toggleApproval = async function (uid, newApproved) {
     await updateDoc(doc(db, 'users', uid), { approved: newApproved })
     user.approved = newApproved
     showToast(newApproved ? '生徒を承認済みにしました' : '承認を取り消しました')
+    renderUsers()
+  } catch (e) {
+    showToast('エラー: ' + (e?.message || String(e)))
+  }
+}
+
+// βテスター指定の切替 (Issue #53)。委員会管理者以上のみ。
+// 自分より上位ロールのユーザーには操作できない（ロール変更と同等の制約）。
+window.toggleBetaTester = async function (uid, newBeta) {
+  if (!canManageBetaTester(myProfile?.role)) { showToast('βテスターの変更権限がありません（委員会管理者以上のみ）'); return }
+  const user = allUsers.find(u => u.id === uid)
+  if (!user) return
+  if (!canManageTargetRole(myProfile?.role, user.role)) { showToast('このユーザーを操作する権限がありません'); return }
+  try {
+    await updateDoc(doc(db, 'users', uid), { betaTester: newBeta })
+    user.betaTester = newBeta
+    showToast(newBeta ? 'βテスターに指定しました' : 'βテスターから外しました')
     renderUsers()
   } catch (e) {
     showToast('エラー: ' + (e?.message || String(e)))

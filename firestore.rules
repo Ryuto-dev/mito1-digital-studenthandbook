@@ -101,6 +101,15 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
 
+    // 本人が自分のドキュメントに書き込んでよいフィールド
+    // （LINE連携・お知らせ既読・氏名等の自己更新用。
+    //  role / approved / betaTester は権限昇格に直結するため本人更新不可）
+    function selfUpdatableKeys() {
+      return ['name', 'grade', 'class', 'number',
+              'lineUserId', 'lineDisplayName', 'linePictureUrl', 'lineNotify', 'lineLinkedAt',
+              'lastSeenAnnouncementsAt'];
+    }
+
     // =============================================
     // Users collection
     // =============================================
@@ -117,15 +126,20 @@ service cloud.firestore {
         || (isApprovedStudentSelf() && resource.data.role == 'teacher');
 
       // 作成: 本人の登録時のみ
-      allow create: if isOwnerUid(userId);
+      // （role は student/teacher のみ。approved / betaTester 付きでの登録は不可 — Issue #53）
+      allow create: if isOwnerUid(userId)
+        && request.resource.data.role in ['student', 'teacher']
+        && (!('approved' in request.resource.data) || request.resource.data.approved == false)
+        && (!('betaTester' in request.resource.data) || request.resource.data.betaTester == false);
 
       // 更新:
-      //  1. 本人による自分の情報更新
+      //  1. 本人による自分の情報更新（LINE連携・既読管理等の安全なフィールドのみ。
+      //     role / approved / betaTester の自己変更は不可 — Issue #53）
       //  2. モデレーター: 生徒の承認状態（approved）のみ切替可能。ロール変更・その他情報変更は不可
       //  3. 委員会管理者(admin_student/admin_teacher)・オーナー: 自分のロールレベル以下の
-      //     ユーザーに対してのみ、情報変更・ロール変更が可能（自分より上位ロールへの変更や、
-      //     自分より上位ロールのユーザーの変更は不可）
-      allow update: if isOwnerUid(userId)
+      //     ユーザーに対してのみ、情報変更・ロール変更が可能（betaTester の付与を含む。
+      //     自分より上位ロールへの変更や、自分より上位ロールのユーザーの変更は不可）
+      allow update: if (isOwnerUid(userId) && onlyChanged(selfUpdatableKeys()))
         || (isModerator() && resource.data.role == 'student' && onlyChanged(['approved']))
         || (
              isCommitteeAdmin()
@@ -236,6 +250,20 @@ service cloud.firestore {
       allow create: if true;  // Anyone can submit
       allow update: if isCommitteeAdmin();
       allow delete: if isCommitteeAdmin();
+    }
+
+    // =============================================
+    // Feature flags — βテスト管理 (Issue #53)
+    //  - read: 全員可（未ログインでも判定できるよう公開。
+    //    フラグ自体に機密情報は持たせないこと）
+    //  - write: 委員会スタッフ（モデレーター以上）のみ
+    // フィールド:
+    //  key, name, description, status(disabled/beta/enabled),
+    //  createdAt, updatedAt, createdBy
+    // =============================================
+    match /featureFlags/{flagId} {
+      allow read: if true;
+      allow write: if isStaff();
     }
 
     // =============================================
