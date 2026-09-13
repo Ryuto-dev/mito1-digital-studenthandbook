@@ -17,7 +17,7 @@ import {
   canAssignRole, assignableRoles, canManageBetaTester,
 } from '../roles.js'
 import {
-  FLAG_STATUSES, FLAG_STATUS_LABELS, validateFlagKey, normalizeFlag,
+  FLAG_STATUSES, FLAG_STATUS_LABELS, validateFlagKey, normalizeFlag, KNOWN_FLAGS,
 } from '../featureFlags.js'
 
 // =============================================
@@ -1831,6 +1831,26 @@ async function loadBetaFlags() {
       </div>
       ${f.description ? `<div class="item-card-body"><div class="item-body-text">${escHtml(f.description)}</div></div>` : ''}
     </div>`).join('')
+
+  // アプリに組み込まれた既知フラグで未作成のものは、デフォルト状態で動作中である旨を表示
+  const existingKeys = new Set(items.map(f => f.key))
+  const missingKnown = Object.entries(KNOWN_FLAGS).filter(([key]) => !existingKeys.has(key))
+  if (missingKnown.length) {
+    el.innerHTML += `
+      <div class="dash-block-title" style="margin-top:18px">未作成の組み込み機能（デフォルト状態で動作中）</div>
+      ${missingKnown.map(([key, meta]) => `
+      <div class="item-card" style="margin-bottom:10px;opacity:.85">
+        <div class="item-card-header">
+          <span class="item-num">β</span>
+          <span class="item-title">${escHtml(meta.name)} <span style="font-weight:400;color:var(--text-3);font-size:11px">key: ${escHtml(key)}</span></span>
+          ${flagStatusPill(meta.defaultStatus)}
+        </div>
+        <div class="item-card-body">
+          <div class="item-body-text">${escHtml(meta.description || '')}</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:6px">ドキュメント未作成のため「${escHtml(FLAG_STATUS_LABELS[meta.defaultStatus] || meta.defaultStatus)}」として動作中。公開するには「機能フラグを追加」で同じキーを作成してください。</div>
+        </div>
+      </div>`).join('')}`
+  }
 }
 
 MODAL_CONFIGS['featureFlags'] = {

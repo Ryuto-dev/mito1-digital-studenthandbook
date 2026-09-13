@@ -1943,6 +1943,15 @@ select.cf-input{cursor:pointer}
         <a href="/auth.html" class="btn-navy" style="display:inline-block;padding:11px 28px;border-radius:8px;font-weight:600;font-size:14px;background:var(--navy);color:#fff">ログイン / 新規登録</a>
       </div>
     </div>
+    <!-- βテスト中（対象外には申請フォームの代わりに表示） -->
+    <div id="applyBetaNotice" style="display:none">
+      <div class="card" style="text-align:center;padding:40px 24px">
+        <div style="display:inline-block;font-size:11px;font-weight:700;color:#5b2c6f;background:#e8daef;padding:3px 12px;border-radius:20px;margin-bottom:12px">βテスト中</div>
+        <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px">この機能は現在βテスト中です</div>
+        <p style="font-size:13px;color:var(--text-3);margin-bottom:20px">対象のβテスターにのみ先行公開しています。正式リリースまでお待ちください。</p>
+        <button onclick="nav('mypage')" style="display:inline-block;padding:11px 28px;border-radius:8px;font-weight:600;font-size:14px;background:var(--navy);color:#fff;border:none;cursor:pointer;font-family:inherit">マイページに戻る</button>
+      </div>
+    </div>
     <!-- ログイン済みフォーム -->
     <div id="applyForm" style="display:none">
       <div class="card">
@@ -2104,7 +2113,7 @@ select.cf-input{cursor:pointer}
 
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
         <div style="font-size:14px;font-weight:600;color:var(--text)">公欠申請の履歴</div>
-        <button onclick="nav('apply')" style="font-size:12px;padding:6px 14px;background:var(--navy);color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:inherit">＋ 新しい申請</button>
+        <button id="mypageNewApplyBtn" onclick="nav('apply')" style="font-size:12px;padding:6px 14px;background:var(--navy);color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:inherit">＋ 新しい申請</button>
       </div>
       <div id="mypageCaseList">
         <div style="padding:32px;text-align:center;color:var(--text-3);font-size:13px">読み込み中...</div>
@@ -2813,7 +2822,7 @@ import {
   markOneRead, markAllRead, syncLastSeenFromProfile, uidKey,
 } from '/src/announcements.js'
 import {
-  fetchFeatureFlags, filterVisibleFlags, FLAG_STATUSES,
+  fetchFeatureFlags, filterVisibleFlags, FLAG_STATUSES, isFlagEnabled, KNOWN_FLAGS,
 } from '/src/featureFlags.js'
 import {
   pushAvailability, getPushState,
@@ -2880,11 +2889,9 @@ function updateAuthUI() {
   // ★ログイン判定はAuthユーザーの存在で行う（Firestoreプロフィール不要）
   const loggedIn = !!_currentUser
 
-  // 公欠申請ページ
-  const applyLogin = document.getElementById('applyLoginRequired')
-  const applyForm  = document.getElementById('applyForm')
-  if (applyLogin) applyLogin.style.display = loggedIn ? 'none' : ''
-  if (applyForm)  applyForm.style.display  = loggedIn ? ''     : 'none'
+  // 公欠申請ページ・ナビの表示は機能フラグで制御（Issue #53: βテスト中は対象者のみ）
+  // ※ フラグ取得後に上書きするため、ここでは触らない（初期状態は非表示のまま）
+  applyFeatureGates(loggedIn ? (_currentProfile || {}) : null, { loggedIn })
 
   // マイページ
   const mpLogin   = document.getElementById('mypageLoginRequired')
@@ -2943,6 +2950,47 @@ function updateAuthUI() {
 }
 
 // =============================================
+// 機能フラグによる表示ゲート（Issue #53）
+// ・公欠申請: 対象外はナビを隠し、ページにはβ案内を表示（フォーム・ログイン誘導は出さない）
+// ・マイページの「新しい申請」ボタンも対象外では隠す
+// ※ 承認側（approve.html / teacher.html）はβ期間中も動かす必要があるため対象外
+// =============================================
+async function applyFeatureGates(profile, { loggedIn } = {}) {
+  const isLoggedIn = loggedIn ?? !!_currentUser
+  let applyVisible = true
+  try {
+    const flags = await fetchFeatureFlags()
+    applyVisible = isFlagEnabled(flags, 'absence-request', profile)
+  } catch {
+    // 取得失敗時は従来通り表示（手帳本体の利用を妨げない）
+    applyVisible = true
+  }
+
+  // ナビ（サイドバー・下部タブ）の公欠申請エントリ
+  document.querySelectorAll('[data-p="apply"],[data-bp="apply"]').forEach(el => {
+    el.style.display = applyVisible ? '' : 'none'
+  })
+
+  // マイページの「新しい申請」ボタン
+  const newApplyBtn = document.getElementById('mypageNewApplyBtn')
+  if (newApplyBtn) newApplyBtn.style.display = applyVisible ? '' : 'none'
+
+  // 公欠申請ページ本体
+  const betaNotice = document.getElementById('applyBetaNotice')
+  const applyLogin = document.getElementById('applyLoginRequired')
+  const applyForm  = document.getElementById('applyForm')
+  if (!applyVisible) {
+    if (betaNotice) betaNotice.style.display = ''
+    if (applyLogin) applyLogin.style.display = 'none'
+    if (applyForm)  applyForm.style.display  = 'none'
+  } else {
+    if (betaNotice) betaNotice.style.display = 'none'
+    if (applyLogin) applyLogin.style.display = isLoggedIn ? 'none' : ''
+    if (applyForm)  applyForm.style.display  = isLoggedIn ? ''     : 'none'
+  }
+}
+
+// =============================================
 // マイページ：ロール／承認状態バッジ（Issue #18・#19 のロール定義に対応）
 // ・ロールバッジは全ロールで表示（モデレーター／管理者などの役職を見せる）
 // ・承認バッジは生徒のみ。モデレーター・管理者は承認済みが当たり前のため非表示
@@ -2991,9 +3039,14 @@ async function renderBetaFeatures(profile) {
   listEl.innerHTML = ''
   try {
     const flags = await fetchFeatureFlags()
-    const visible = filterVisibleFlags(flags, profile)
+    // Firestore未作成の既知フラグもデフォルト状態で一覧に含める
+    const merged = { ...(flags || {}) }
+    for (const [key, meta] of Object.entries(KNOWN_FLAGS)) {
+      if (!merged[key]) merged[key] = { key, ...meta, status: meta.defaultStatus }
+    }
+    const visible = filterVisibleFlags(merged, profile)
       .filter(f => f.status === FLAG_STATUSES.BETA)
-    window.Mito1Beta = { flags, visible }
+    window.Mito1Beta = { flags: merged, visible }
     if (!visible.length) return
     listEl.innerHTML = visible.map(f =>
       `<div style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface)">` +
@@ -3264,6 +3317,9 @@ window.submitApply = async function() {
 }
 
 window.resetApply = function() {
+  // βテスト対象外ではフォームを復活させない（Issue #53）
+  const betaNotice = document.getElementById('applyBetaNotice')
+  if (betaNotice && betaNotice.style.display !== 'none') return
   document.getElementById('applyTitle').value = ''
   document.getElementById('applyReasonDetail').value = ''
   document.getElementById('applySupervisorEmail').value = ''
@@ -3424,6 +3480,11 @@ async function renderPushUI() {
   const btn   = document.getElementById('pushToggleBtn')
   const testRow = document.getElementById('pushTestRow')
   if (!card || !_currentUser) { if (card) card.style.display = 'none'; return }
+  // βテスト中は対象外にカードごと非表示（Issue #53）
+  try {
+    const flags = await fetchFeatureFlags()
+    if (!isFlagEnabled(flags, 'web-push', _currentProfile)) { card.style.display = 'none'; return }
+  } catch { /* 取得失敗時は従来通り表示 */ }
   card.style.display = ''
 
   const avail = pushAvailability()

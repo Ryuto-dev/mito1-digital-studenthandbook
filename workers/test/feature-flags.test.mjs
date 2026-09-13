@@ -23,6 +23,9 @@ import {
   isFeatureEnabled,
   filterVisibleFlags,
   onlyBetaFlags,
+  KNOWN_FLAGS,
+  getFlagStatus,
+  isFlagEnabled,
 } from '../../src/featureFlags.js'
 import {
   canManageBetaTester,
@@ -141,4 +144,28 @@ test('betaBadge / profileBadges はβテスターのみ付与', () => {
   assert.ok(badges.some(b => b.label === 'βテスター'))
   const noBeta = profileBadges({ role: 'student', approved: true })
   assert.ok(!noBeta.some(b => b.label === 'βテスター'))
+})
+
+test('既知フラグ web-push / absence-request は未作成でも beta 扱い', () => {
+  assert.ok(KNOWN_FLAGS['web-push'])
+  assert.ok(KNOWN_FLAGS['absence-request'])
+  assert.equal(getFlagStatus({}, 'web-push'), 'beta')
+  assert.equal(getFlagStatus({}, 'absence-request'), 'beta')
+  assert.equal(getFlagStatus(null, 'web-push'), 'beta')
+  // 未知の key は enabled 扱い（後方互換）
+  assert.equal(getFlagStatus({}, 'some-future-feature'), 'enabled')
+  // ドキュメントがあればそちらが優先
+  assert.equal(getFlagStatus({ 'web-push': { status: 'enabled' } }, 'web-push'), 'enabled')
+  assert.equal(getFlagStatus({ 'web-push': { status: 'disabled' } }, 'web-push'), 'disabled')
+  assert.equal(getFlagStatus({ 'web-push': { status: 'beta' } }, 'web-push'), 'beta')
+})
+
+test('isFlagEnabled は既知フラグのデフォルトで判定する', () => {
+  assert.equal(isFlagEnabled({}, 'web-push', student), false)
+  assert.equal(isFlagEnabled({}, 'web-push', betaStudent), true)
+  assert.equal(isFlagEnabled({}, 'web-push', moderator), true)
+  assert.equal(isFlagEnabled({}, 'absence-request', teacher), false)
+  assert.equal(isFlagEnabled({}, 'absence-request', betaTeacher), true)
+  assert.equal(isFlagEnabled({}, 'unknown-key', guest), true)
+  assert.equal(isFlagEnabled({ 'absence-request': { status: 'enabled' } }, 'absence-request', guest), true)
 })
