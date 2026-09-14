@@ -1,4 +1,6 @@
-import { onAuth, login, registerStudent, registerTeacher, resetPassword, getCurrentProfile } from './auth.js'
+import { onAuth, login, registerStudent, registerTeacher, resetPassword, getCurrentProfile,
+  loginWithGoogle, linkPendingGoogleCredential, googleCredentialFromError } from './auth.js'
+import { fetchFeatureFlags, getFlagStatus, FLAG_STATUSES } from './featureFlags.js'
 
 const BASE = ''
 
@@ -21,6 +23,17 @@ document.getElementById('mainCard').innerHTML = `
     </div>
     <button class="btn-primary" id="loginBtn">ログイン</button>
     <div class="hint"><a id="resetLink">パスワードを忘れた方</a></div>
+
+    <!-- Googleログイン（連携済みのみ。新規登録不可。featureFlags 'google-auth' で制御） -->
+    <div id="googleLoginWrap" style="display:none">
+      <div class="divider"><span>または</span></div>
+      <button class="btn-google" id="googleLoginBtn">
+        <svg viewBox="0 0 24 24" width="17" height="17"><path fill="#4285F4" d="M23.5 12.3c0-.9-.1-1.5-.3-2.3H12v4.3h6.5c0 1.1-.7 2.7-2.1 3.8l-.1.1 3 2.4.2.1c1.9-1.8 3-4.4 3-8.4z"/><path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.8-2.9c-.7.4-1.9 1-4.1 1-3.1 0-5.7-2.1-6.6-4.9H1.5v3C3.5 21.3 7.5 24 12 24z"/><path fill="#FBBC05" d="M5.4 14.3c-.2-.7-.4-1.5-.4-2.3s.1-1.6.4-2.3v-3H1.5C.6 8.2 0 10 0 12s.6 3.8 1.5 5.3l3.9-3z"/><path fill="#EA4335" d="M12 4.7c1.8 0 3 .8 3.7 1.4l3.3-3.2C17.9 1.1 15.2 0 12 0 7.5 0 3.5 2.7 1.5 6.7l3.9 3c.9-2.8 3.5-5 6.6-5z"/></svg>
+        Googleでログイン <span class="beta-pill" id="googleBetaPill" style="display:none">β</span>
+      </button>
+      <div class="link-guide" id="googleLinkGuide" style="display:none"></div>
+      <div class="hint">※ Googleでの新規登録はできません。先にメールアドレスで登録し、マイページで連携してください。<br>学校Googleアカウント（@mito1-h.ibk.ed.jp）のみ利用できます。</div>
+    </div>
   </div>
 
   <div class="section" id="sec-register">
@@ -99,9 +112,25 @@ document.getElementById('mainCard').innerHTML = `
 
 // イベント登録
 document.getElementById('loginBtn').addEventListener('click', doLogin)
+document.getElementById('googleLoginBtn')?.addEventListener('click', doGoogleLogin)
 document.getElementById('regStudentBtn').addEventListener('click', doRegisterStudent)
 document.getElementById('regTeacherBtn').addEventListener('click', doRegisterTeacher)
 document.getElementById('resetLink').addEventListener('click', showReset)
+// Googleボタン表示は featureFlags 'google-auth' で制御。
+// ※ 未ログイン時はβテスター判定ができないため、disabled 以外（beta/enabled）で表示し、
+//    beta の場合はβバッジを付ける。厳密なゲートはマイページの連携ボタン側で行う
+;(async () => {
+  try {
+    const flags = await fetchFeatureFlags()
+    const status = getFlagStatus(flags, 'google-auth')
+    if (status !== FLAG_STATUSES.DISABLED) {
+      document.getElementById('googleLoginWrap').style.display = ''
+      if (status === FLAG_STATUSES.BETA) {
+        document.getElementById('googleBetaPill').style.display = ''
+      }
+    }
+  } catch { /* 取得失敗時は非表示のまま（従来ログインを妨げない） */ }
+})()
 // Enterキーでもログインできるように（メール→パスワードへ移動、パスワード→ログイン実行）
 document.getElementById('loginEmail')?.addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); document.getElementById('loginPass')?.focus() }
@@ -145,6 +174,12 @@ function fbErr(code) {
     'auth/weak-password':        'パスワードは6文字以上にしてください',
     'auth/invalid-email':        'メールアドレスの形式が正しくありません',
     'auth/too-many-requests':    'しばらく時間をおいてから再試行してください',
+    'auth/popup-closed-by-user': 'Googleの選択画面が閉じられました。もう一度お試しください',
+    'auth/cancelled-popup-request': '処理中です。そのままお待ちください',
+    'auth/popup-blocked':        'ポップアップがブロックされました。ブラウザの許可設定をご確認ください',
+    'auth/account-exists-with-different-credential': 'このメールアドレスはパスワード登録済みです。下の案内に沿って連携してください',
+    'google/no-profile':         'このGoogleアカウントは登録されていません。先にメールアドレスで新規登録し、マイページでGoogle連携を行ってください',
+    'google/domain-not-allowed': '学校のGoogleアカウント（@mito1-h.ibk.ed.jp）のみ利用できます',
   })[code] || 'エラー（' + code + '）'
 }
 function showErr(msg) {
@@ -166,11 +201,68 @@ async function doLogin() {
   setBtn('loginBtn', true, 'ログイン')
   try {
     await login(email, pass)
+    // Google連携待ちのcredentialがあればここで紐付け（衝突解決フロー）
+    if (pendingGoogleCred) {
+      try {
+        await linkPendingGoogleCredential(pendingGoogleCred)
+        pendingGoogleCred = null
+        hideLinkGuide()
+        alert('Googleアカウントの連携が完了しました。次回からGoogleボタンでログインできます')
+      } catch (e) {
+        pendingGoogleCred = null
+        console.warn('[google-link] failed:', e)
+        showErr('ログインしましたが、Google連携に失敗しました。マイページから改めて連携してください')
+        setBtn('loginBtn', false, 'ログイン')
+        return
+      }
+    }
     // onAuth がリダイレクト
   } catch(e) {
     showErr(fbErr(e.code))
     setBtn('loginBtn', false, 'ログイン')
   }
+}
+
+// ── Googleでログイン（連携済みのみ。新規登録不可） ──────────────────
+// 同メアドのパスワード登録がある場合は衝突エラーになるため、
+// credentialを滞留させてパスワードでのログインを促す
+let pendingGoogleCred = null
+
+async function doGoogleLogin() {
+  clearErr()
+  setGoogleBtn(true)
+  try {
+    await loginWithGoogle()
+    // onAuth がリダイレクト
+  } catch(e) {
+    setGoogleBtn(false)
+    if (e?.code === 'auth/account-exists-with-different-credential') {
+      pendingGoogleCred = googleCredentialFromError(e)
+      showLinkGuide()
+      showErr('このメールアドレスはパスワードで登録済みです。上のメール欄に同じメアドとパスワードを入力してログインすると、Google連携が完了します')
+      return
+    }
+    if (e?.code === 'auth/popup-closed-by-user') return // キャンセルは何も表示しない
+    showErr(fbErr(e?.code))
+  }
+}
+
+function setGoogleBtn(loading) {
+  const btn = document.getElementById('googleLoginBtn')
+  if (btn) btn.disabled = loading
+}
+
+function showLinkGuide() {
+  const el = document.getElementById('googleLinkGuide')
+  if (el) {
+    el.innerHTML = '🔗 <b>Google連携の手順</b><br>1. 上のメール欄に登録時のメアドとパスワードを入力<br>2. 「ログイン」を押すと連携が完了します'
+    el.style.display = ''
+  }
+}
+
+function hideLinkGuide() {
+  const el = document.getElementById('googleLinkGuide')
+  if (el) { el.style.display = 'none'; el.innerHTML = '' }
 }
 
 // ── 生徒新規登録 ──────────────────────────────────────────────────
