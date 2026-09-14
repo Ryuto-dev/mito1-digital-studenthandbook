@@ -55,6 +55,11 @@ export const KNOWN_FLAGS = {
     description: '生徒によるオンライン公欠申請・進捗追跡の機能',
     defaultStatus: 'enabled',
   },
+  'google-auth': {
+    name: 'Googleログイン（連携）',
+    description: '学校Googleアカウント（@mito1-h.ibk.ed.jp）を既存アカウントに連携し、Googleボタンでログインできる機能。新規登録はできず連携のみ',
+    defaultStatus: 'beta',
+  },
 }
 
 /** Firestore未作成の既知フラグも含めた status 解決。未知の key は enabled 扱い（後方互換）。 */

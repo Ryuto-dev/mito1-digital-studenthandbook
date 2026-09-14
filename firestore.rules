@@ -102,10 +102,13 @@ service cloud.firestore {
     }
 
     // 本人が自分のドキュメントに書き込んでよいフィールド
-    // （LINE連携・お知らせ既読・氏名等の自己更新用。
+    // （LINE連携・Google連携・お知らせ既読・氏名等の自己更新用。
     //  role / approved / betaTester は権限昇格に直結するため本人更新不可）
+    // email / previousEmails / authProvider / photoURL / googleLinkedAt は
+    // Google連携時の正規メアド同期用（連携のみ・新規登録不可の方針）
     function selfUpdatableKeys() {
       return ['name', 'grade', 'class', 'number',
+              'email', 'previousEmails', 'authProvider', 'photoURL', 'googleLinkedAt',
               'lineUserId', 'lineDisplayName', 'linePictureUrl', 'lineNotify', 'lineLinkedAt',
               'lastSeenAnnouncementsAt'];
     }
