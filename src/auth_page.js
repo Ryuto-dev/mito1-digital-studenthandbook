@@ -1,5 +1,5 @@
 import { onAuth, login, registerStudent, registerTeacher, resetPassword, getCurrentProfile,
-  loginWithGoogle, linkPendingGoogleCredential, googleCredentialFromError } from './auth.js'
+  loginWithGoogle } from './auth.js'
 import { fetchFeatureFlags, getFlagStatus, FLAG_STATUSES } from './featureFlags.js'
 
 const BASE = ''
@@ -201,22 +201,9 @@ async function doLogin() {
   setBtn('loginBtn', true, 'ログイン')
   try {
     await login(email, pass)
-    // Google連携待ちのcredentialがあればここで紐付け（衝突解決フロー）
-    if (pendingGoogleCred) {
-      try {
-        await linkPendingGoogleCredential(pendingGoogleCred)
-        pendingGoogleCred = null
-        hideLinkGuide()
-        alert('Googleアカウントの連携が完了しました。次回からGoogleボタンでログインできます')
-      } catch (e) {
-        pendingGoogleCred = null
-        console.warn('[google-link] failed:', e)
-        showErr('ログインしましたが、Google連携に失敗しました。マイページから改めて連携してください')
-        setBtn('loginBtn', false, 'ログイン')
-        return
-      }
-    }
     // onAuth がリダイレクト
+    // ※ Google連携はマイページの連携ボタンからのみ行う。
+    //   ここで自動リンクしない（解除後に再リンクされて「解除できない」に見える原因になるため）
   } catch(e) {
     showErr(fbErr(e.code))
     setBtn('loginBtn', false, 'ログイン')
@@ -224,10 +211,8 @@ async function doLogin() {
 }
 
 // ── Googleでログイン（連携済みのみ。新規登録不可） ──────────────────
-// 同メアドのパスワード登録がある場合は衝突エラーになるため、
-// credentialを滞留させてパスワードでのログインを促す
-let pendingGoogleCred = null
-
+// 同メアドのパスワード登録がある場合（未連携・解除済み含む）は衝突エラーになるため、
+// パスワードでログイン後にマイページの連携ボタンから紐付けるよう案内する
 async function doGoogleLogin() {
   clearErr()
   setGoogleBtn(true)
@@ -237,9 +222,8 @@ async function doGoogleLogin() {
   } catch(e) {
     setGoogleBtn(false)
     if (e?.code === 'auth/account-exists-with-different-credential') {
-      pendingGoogleCred = googleCredentialFromError(e)
       showLinkGuide()
-      showErr('このメールアドレスはパスワードで登録済みです。上のメール欄に同じメアドとパスワードを入力してログインすると、Google連携が完了します')
+      showErr('このGoogleアカウントはまだ連携されていません。上のメール欄からパスワードでログインし、マイページのGoogle連携ボタンから連携してください')
       return
     }
     if (e?.code === 'auth/popup-closed-by-user') return // キャンセルは何も表示しない
@@ -255,14 +239,9 @@ function setGoogleBtn(loading) {
 function showLinkGuide() {
   const el = document.getElementById('googleLinkGuide')
   if (el) {
-    el.innerHTML = '🔗 <b>Google連携の手順</b><br>1. 上のメール欄に登録時のメアドとパスワードを入力<br>2. 「ログイン」を押すと連携が完了します'
+    el.innerHTML = '🔗 <b>Google連携の手順</b><br>1. 上のメール欄からパスワードでログイン<br>2. マイページのGoogle連携カードで「連携する」を押す'
     el.style.display = ''
   }
-}
-
-function hideLinkGuide() {
-  const el = document.getElementById('googleLinkGuide')
-  if (el) { el.style.display = 'none'; el.innerHTML = '' }
 }
 
 // ── 生徒新規登録 ──────────────────────────────────────────────────
