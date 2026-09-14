@@ -10,6 +10,7 @@ import {
   onAuthStateChanged,
   sendPasswordResetEmail,
   browserSessionPersistence,
+  browserLocalPersistence,
   setPersistence,
   GoogleAuthProvider,
   signInWithPopup,
@@ -22,14 +23,60 @@ import {
   updateDoc, arrayUnion, deleteField,
 } from 'firebase/firestore'
 
-// タブを閉じたらログアウト
-setPersistence(auth, browserSessionPersistence).catch(() => {})
+// =============================================
+// Auth永続化ポリシー（#54）
+//  - PWA（ホーム画面追加の standalone 等）: browserLocalPersistence
+//    → 端末側に保持し、タスクキル後もログイン継続
+//  - 通常ブラウザタブ: browserSessionPersistence（従来通り）
+//    → タブを閉じたらログアウト（共用端末での取り残し防止）
+// Firebaseのpersistenceは次回以降のsignInに適用されるため、
+// ログイン/登録系の直前にも ensureAuthPersistence() で再適用する。
+// =============================================
+export function isStandalonePwa() {
+  try {
+    if (typeof window === 'undefined') return false
+    if (window.matchMedia) {
+      if (window.matchMedia('(display-mode: standalone)').matches) return true
+      if (window.matchMedia('(display-mode: fullscreen)').matches) return true
+      if (window.matchMedia('(display-mode: minimal-ui)').matches) return true
+    }
+    if (window.navigator && window.navigator.standalone === true) return true
+  } catch { /* noop */ }
+  return false
+}
+
+export function resolveAuthPersistence() {
+  return isStandalonePwa() ? browserLocalPersistence : browserSessionPersistence
+}
+
+export function ensureAuthPersistence() {
+  try {
+    return setPersistence(auth, resolveAuthPersistence()).catch(() => {})
+  } catch {
+    return Promise.resolve()
+  }
+}
+
+// 初期適用（モジュール読込時。次回起動時の復元にも効く）
+ensureAuthPersistence()
+
+// display-modeの変化（インストール直後など）に追従し、
+// PWA化されたら次回起動からlocal復元できるよう切り替える
+try {
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    const mql = window.matchMedia('(display-mode: standalone)')
+    const onChange = (e) => { if (e.matches) ensureAuthPersistence() }
+    if (typeof mql.addEventListener === 'function') mql.addEventListener('change', onChange)
+    else if (typeof mql.addListener === 'function') mql.addListener(onChange)
+  }
+} catch { /* noop */ }
 
 // =============================================
 // 新規登録（生徒）
 // =============================================
 export async function registerStudent({ email, password, name, grade, classLabel, number }) {
   // メール形式チェック（学校ドメインは任意制限・今は全ドメイン許可）
+  await ensureAuthPersistence()
   const cred = await createUserWithEmailAndPassword(auth, email, password)
   const uid  = cred.user.uid
 
@@ -51,6 +98,7 @@ export async function registerStudent({ email, password, name, grade, classLabel
 // 新規登録（先生）
 // =============================================
 export async function registerTeacher({ email, password, name }) {
+  await ensureAuthPersistence()
   const cred = await createUserWithEmailAndPassword(auth, email, password)
   const uid  = cred.user.uid
 
@@ -68,6 +116,7 @@ export async function registerTeacher({ email, password, name }) {
 // ログイン
 // =============================================
 export async function login(email, password) {
+  await ensureAuthPersistence()
   const cred = await signInWithEmailAndPassword(auth, email, password)
   return cred.user
 }
@@ -122,6 +171,7 @@ export function isGoogleLinked(user) {
  * auth/account-exists-with-different-credential が投げられる（呼び出し側で案内UIへ）。
  */
 export async function loginWithGoogle() {
+  await ensureAuthPersistence()
   const cred = await signInWithPopup(auth, getGoogleProvider())
   const googleEmail = cred.user.email || ''
 
