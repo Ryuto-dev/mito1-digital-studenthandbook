@@ -110,6 +110,13 @@ export default {
       return geminiDiag(env)
     }
 
+    // GET /mail/diag -> メール設定の疎通診断
+    //   ?to=<アドレス> を付けると実際にテスト送信する。
+    //   「メールが送れない」と言われたら、まずここを開けば原因が分かる。
+    if (request.method === 'GET' && url.pathname === '/mail/diag') {
+      return mailDiag(url, env)
+    }
+
     if (request.method !== 'POST') {
       return json({ error: 'Method not allowed' }, 405)
     }
@@ -398,11 +405,10 @@ async function sendApproval(body, env) {
   </div>
 </div></body></html>`
 
-  const r = await resend(env, { to: recipientEmail, subject: `【公欠申請】${studentName} - ${title}（${datesStr}）`, html })
+  const r = await sendMail(env, { to: recipientEmail, subject: `【公欠申請】${studentName} - ${title}（${datesStr}）`, html })
   if (!r.ok) {
-    const detail = await r.text().catch(() => 'Unknown error')
-    console.error('[send-approval] Resend API error:', r.status, detail)
-    return json({ error: 'Email send failed', detail, status: r.status }, 500)
+    console.error('[send-approval] mail failed:', r.status, r.detail)
+    return json({ error: 'Email send failed', detail: r.detail, hint: r.hint, status: r.status }, 500)
   }
   return json({ ok: true })
 }
@@ -437,11 +443,10 @@ async function sendComplete(body, env) {
   </div>
 </div></body></html>`
 
-  const r = await resend(env, { to: studentEmail, subject: `【承認完了】公欠申請「${title}」（${datesStr}）`, html })
+  const r = await sendMail(env, { to: studentEmail, subject: `【承認完了】公欠申請「${title}」（${datesStr}）`, html })
   if (!r.ok) {
-    const detail = await r.text().catch(() => 'Unknown error')
-    console.error('[send-complete] Resend API error:', r.status, detail)
-    return json({ error: 'Email send failed', detail, status: r.status }, 500)
+    console.error('[send-complete] mail failed:', r.status, r.detail)
+    return json({ error: 'Email send failed', detail: r.detail, hint: r.hint, status: r.status }, 500)
   }
   return json({ ok: true })
 }
@@ -478,11 +483,10 @@ async function sendReply(body, env) {
   </div>
 </div></body></html>`
 
-  const r = await resend(env, { to: recipientEmail, subject: `【回答】${subject || 'お問い合わせ'}`, html })
+  const r = await sendMail(env, { to: recipientEmail, subject: `【回答】${subject || 'お問い合わせ'}`, html })
   if (!r.ok) {
-    const detail = await r.text().catch(() => 'Unknown error')
-    console.error('[send-reply] Resend API error:', r.status, detail)
-    return json({ error: 'Email send failed', detail, status: r.status }, 500)
+    console.error('[send-reply] mail failed:', r.status, r.detail)
+    return json({ error: 'Email send failed', detail: r.detail, hint: r.hint, status: r.status }, 500)
   }
   return json({ ok: true })
 }
@@ -994,6 +998,42 @@ async function vapidJwt(audience, subject, vapidPublicB64, vapidPrivateB64) {
   return `${unsignedToken}.${bytesToB64url(sig)}`
 }
 
+// ---- WebCrypto の型ゆらぎを吸収するヘルパー ----
+//
+// crypto.subtle.generateKey / exportKey はユニオン型を返すため、
+// 呼び出し側でそのまま .publicKey / new Uint8Array() を使うと型エラーになる。
+// ここで一度だけ「実行時チェック＋型の絞り込み」を行い、以降は素直に扱えるようにする。
+// （runtime の想定外レスポンスも早期に検知できるので、単なる型キャストより安全）
+
+/**
+ * ECDH P-256 の一時鍵ペアを生成する。
+ * @returns {Promise<CryptoKeyPair>}
+ */
+async function generateEcdhKeyPair() {
+  const keys = await crypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']
+  )
+  // ECDH は必ず鍵ペアを返す。万一 CryptoKey 単体なら実装側の異常なので落とす。
+  if (!('publicKey' in keys) || !('privateKey' in keys)) {
+    throw new Error('ECDH generateKey did not return a CryptoKeyPair')
+  }
+  return /** @type {CryptoKeyPair} */ (keys)
+}
+
+/**
+ * 公開鍵を非圧縮形式(0x04 || X || Y, 65バイト)のバイト列として取り出す。
+ * @param {CryptoKey} publicKey
+ * @returns {Promise<Uint8Array>}
+ */
+async function exportRawPublicKey(publicKey) {
+  const raw = await crypto.subtle.exportKey('raw', publicKey)
+  // 'raw' 指定なので ArrayBuffer が返る（JsonWebKey は 'jwk' 指定時のみ）。
+  if (!(raw instanceof ArrayBuffer)) {
+    throw new Error('exportKey("raw") did not return an ArrayBuffer')
+  }
+  return new Uint8Array(raw)
+}
+
 // ---- aes128gcm 本文暗号化 (RFC8188 §4.3) ----
 async function encryptAes128gcm(clientP256dhB64, clientAuthB64, plaintextBytes) {
   const te = new TextEncoder()
@@ -1001,15 +1041,23 @@ async function encryptAes128gcm(clientP256dhB64, clientAuthB64, plaintextBytes) 
   const authSecret = b64urlToBytes(clientAuthB64)
 
   // サーバー側エフェメラル鍵
-  const serverKeys = await crypto.subtle.generateKey(
-    { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']
-  )
-  const serverPubRaw = new Uint8Array(await crypto.subtle.exportKey('raw', serverKeys.publicKey))
+  //
+  // ★エディタの赤線について
+  //   crypto.subtle.generateKey() の型定義は戻り値が `CryptoKey | CryptoKeyPair` の
+  //   ユニオン型になっている。ECDH/ECDSA では実際には必ず CryptoKeyPair が返るが、
+  //   TypeScript(JSの型チェック)は実行時のアルゴリズム名まで見てくれないので
+  //   `serverKeys.publicKey` が「CryptoKey に publicKey は存在しない」と警告される。
+  //   同様に exportKey() の戻り値も `ArrayBuffer | JsonWebKey` のユニオンなので、
+  //   'raw' 指定でも JsonWebKey の可能性が残り new Uint8Array() に渡せないと言われる。
+  //   実行時の挙動は正しいので「型だけの問題」だが、赤線を放置すると
+  //   本物のエラーが埋もれるため、下のヘルパーで明示的に絞り込む。
+  const serverKeys = await generateEcdhKeyPair()
+  const serverPubRaw = await exportRawPublicKey(serverKeys.publicKey)
   const clientPubKey = await crypto.subtle.importKey(
     'raw', clientPub, { name: 'ECDH', namedCurve: 'P-256' }, false, []
   )
   const shared = new Uint8Array(await crypto.subtle.deriveBits(
-    { name: 'ECDH', public: clientPubKey }, serverKeys.privateKey, 256
+    /** @type {any} */ ({ name: 'ECDH', public: clientPubKey }), serverKeys.privateKey, 256
   ))
 
   const prkKey = await hkdfExtract(authSecret, shared)
@@ -1088,34 +1136,145 @@ async function hkdfExpand(prk, info, len) {
 }
 
 // -- Resend API ---------------------------------------------------------
-function resend(env, { to, subject, html }) {
+//
+// ■ RESEND_FROM 未設定で「送信そのものを諦めていた」問題について
+//   以前の実装は RESEND_FROM が無いと Resend を一切呼ばずに 403 を返していた。
+//   これは「ドメイン認証していないと誰にも送れない」という前提だったが、
+//   実際には Resend のサンドボックス送信元 onboarding@resend.dev でも
+//   「Resend アカウント所有者のアドレス宛」なら正常に届く。
+//   つまり未設定時は *必ず* 失敗させるのではなく、
+//   とりあえず送ってみて Resend の返す本当のエラーを見せるほうが正しい。
+//
+//   さらに重要なのは、この 403 が「RESEND_FROM が無い」としか言わないため、
+//   本当の原因（APIキー失効・ドメイン未認証・宛先制限など）が
+//   まったく切り分けできなくなっていたこと。
+//   そこで下記のように、
+//     1. RESEND_FROM が無ければサンドボックス送信元にフォールバックする
+//     2. Resend からのエラーはそのまま利用者に見せる
+//     3. 典型的な失敗には日本語の対処法を添える
+//   という方針に変更する。
+
+/** RESEND_FROM 未設定時のフォールバック送信元（所有者宛にのみ届く） */
+const RESEND_SANDBOX_FROM = 'mito1-handbook <onboarding@resend.dev>'
+
+/**
+ * メールを1通送る。
+ * 例外を投げず、常に { ok, status, detail, hint } を返す。
+ * @returns {Promise<{ok: boolean, status: number, detail: string, hint: string}>}
+ */
+async function sendMail(env, { to, subject, html }) {
   if (!env.RESEND_API_KEY) {
     console.error('[resend] RESEND_API_KEY is not set in Workers secrets')
-    // Return a fake Response-like object that indicates failure
-    return Promise.resolve({
+    return {
       ok: false,
       status: 500,
-      text: () => Promise.resolve('RESEND_API_KEY not configured in Workers secrets'),
-    })
+      detail: 'RESEND_API_KEY not configured in Workers secrets',
+      hint: 'Workers のシークレットに RESEND_API_KEY が登録されていません。'
+        + '`npx wrangler secret put RESEND_API_KEY --config workers/wrangler.toml` で登録してください。',
+    }
   }
 
-  // Use RESEND_FROM env var if set, otherwise fall back to sandbox address.
-  // IMPORTANT: onboarding@resend.dev can ONLY deliver to the Resend account owner's email.
-  if (!env.RESEND_FROM) {
-    return Promise.resolve({
-      ok: false,
-      status: 403,
-      text: () => Promise.resolve('RESEND_FROM is not set. onboarding@resend.dev can only send to the Resend account owner. Please verify your domain and set the RESEND_FROM environment variable.'),
-    })
+  if (!to || !String(to).includes('@')) {
+    return { ok: false, status: 400, detail: `invalid recipient: ${to}`, hint: '宛先メールアドレスが正しくありません。' }
   }
 
-  const from = env.RESEND_FROM
+  const usingSandbox = !env.RESEND_FROM
+  const from = env.RESEND_FROM || RESEND_SANDBOX_FROM
 
-  return fetch('https://api.resend.com/emails', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.RESEND_API_KEY}` },
-    body:    JSON.stringify({ from, to: [to], subject, html }),
-  })
+  let res
+  try {
+    res = await fetch('https://api.resend.com/emails', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.RESEND_API_KEY}` },
+      body:    JSON.stringify({ from, to: [to], subject, html }),
+    })
+  } catch (e) {
+    const detail = String((e && e.message) || e)
+    console.error('[resend] network error:', detail)
+    return { ok: false, status: 0, detail, hint: 'Resend API に接続できませんでした。時間をおいて再試行してください。' }
+  }
+
+  if (res.ok) {
+    if (usingSandbox) {
+      // 届いてはいるが、所有者以外には送れない状態。運用上は必ず直すべきなのでログに残す。
+      console.warn('[resend] sent using sandbox sender. Set RESEND_FROM to deliver to arbitrary recipients.')
+    }
+    return { ok: true, status: res.status, detail: '', hint: '' }
+  }
+
+  const detail = await res.text().catch(() => '')
+  console.error(`[resend] API error (${res.status}):`, detail.slice(0, 500))
+  return { ok: false, status: res.status, detail: detail.slice(0, 500), hint: resendHint(res.status, detail, usingSandbox) }
+}
+
+/** Resend のエラーレスポンスから、利用者が取るべき対処を日本語で返す */
+function resendHint(status, detail, usingSandbox) {
+  const msg = String(detail || '')
+
+  // 送信元ドメインが未認証 / 宛先が所有者以外
+  if (/domain is not verified|not verified/i.test(msg)) {
+    return '送信元ドメインが Resend で認証されていません。Resend のダッシュボードでドメインを認証し、'
+      + '環境変数 RESEND_FROM にそのドメインのアドレスを設定してください。'
+  }
+  if (usingSandbox && (status === 403 || /you can only send testing emails to your own email/i.test(msg))) {
+    return 'RESEND_FROM が未設定のため、テスト用送信元 onboarding@resend.dev を使用しました。'
+      + 'この送信元では Resend アカウント所有者のアドレスにしか届きません。'
+      + 'Resend でドメイン認証を行い、環境変数 RESEND_FROM を設定してください。'
+  }
+  if (status === 401 || status === 403) {
+    return 'Resend の API キーが無効か、権限が不足しています。RESEND_API_KEY を再発行して登録し直してください。'
+  }
+  if (status === 422) {
+    return '送信内容が Resend に拒否されました（宛先や送信元の形式を確認してください）。'
+  }
+  if (status === 429) {
+    return 'Resend の送信レート制限に達しました。少し時間をおいて再試行してください。'
+  }
+  return 'メールの送信に失敗しました。Workers のログと Resend のダッシュボードを確認してください。'
+}
+
+/**
+ * GET /mail/diag
+ *   メール設定の自己診断。?to=xxx@example.com を付けるとテスト送信も行う。
+ *   APIキーそのものは絶対に返さない（長さと先頭数文字のみ）。
+ */
+async function mailDiag(url, env) {
+  const hasKey = Boolean(env.RESEND_API_KEY)
+  const from   = env.RESEND_FROM || null
+
+  const info = {
+    ok: hasKey && Boolean(from),
+    hasResendApiKey: hasKey,
+    keyPreview: hasKey ? `${env.RESEND_API_KEY.slice(0, 5)}...(${env.RESEND_API_KEY.length} chars)` : null,
+    resendFrom: from,
+    effectiveFrom: from || RESEND_SANDBOX_FROM,
+    usingSandboxSender: !from,
+    appBaseUrl: env.APP_BASE_URL || null,
+  }
+
+  if (!hasKey) {
+    info.message = 'RESEND_API_KEY が未設定です。これが設定されるまでメールは一切送信されません。'
+  } else if (!from) {
+    info.message = 'RESEND_FROM が未設定のため onboarding@resend.dev で送信します。'
+      + 'この送信元は Resend アカウント所有者のアドレスにしか届きません。'
+      + 'Resend でドメイン認証を行い RESEND_FROM を設定してください。'
+  } else {
+    info.message = 'メール設定は正常です。?to=<アドレス> を付けるとテスト送信できます。'
+  }
+
+  // 実際に1通送ってみる（設定が生きているかを最終確認する用途）
+  const to = url.searchParams.get('to')
+  if (to) {
+    const r = await sendMail(env, {
+      to,
+      subject: '【テスト送信】デジタル生徒手帳 メール設定の確認',
+      html: '<p>このメールが届いていれば、Workers からのメール送信は正常に動作しています。</p>',
+    })
+    info.testSend = { to, ok: r.ok, status: r.status, detail: r.detail, hint: r.hint }
+    info.ok = info.ok && r.ok
+  }
+
+  return json(info, info.ok ? 200 : 500)
 }
 
 // -- JSON response helper -----------------------------------------------

@@ -59,14 +59,30 @@ async function sendEmail(endpoint, payload) {
       body: JSON.stringify(payload),
     })
     if (!res.ok) {
-      const body = await res.text().catch(() => '')
-      console.warn(`[email] ${endpoint} failed (${res.status}):`, body)
-      return { ok: false, status: res.status, detail: body }
+      // Workers は { error, detail, hint } を返す。
+      // hint は「利用者が次に何をすればよいか」を日本語で書いたもの（あれば最優先で表示）。
+      const raw = await res.text().catch(() => '')
+      let hint = ''
+      let detail = raw
+      try {
+        const parsed = JSON.parse(raw)
+        hint = parsed.hint || ''
+        detail = parsed.detail || parsed.error || raw
+      } catch {
+        // JSON でなければ本文をそのまま detail として扱う
+      }
+      console.warn(`[email] ${endpoint} failed (${res.status}):`, raw)
+      return { ok: false, status: res.status, detail, hint }
     }
-    return { ok: true, detail: '' }
+    return { ok: true, status: res.status, detail: '', hint: '' }
   } catch (e) {
     console.warn(`[email] ${endpoint} network error:`, e.message)
-    return { ok: false, status: 0, detail: e.message }
+    return {
+      ok: false,
+      status: 0,
+      detail: e.message,
+      hint: 'ネットワークに接続できませんでした。通信環境を確認して、マイページから再度お試しください。',
+    }
   }
 }
 
@@ -126,7 +142,12 @@ export async function createCase({ studentId, studentName, studentEmail, title, 
     appBaseUrl: APP_BASE,
   })
 
-  return { caseId: ref.id, emailSent: emailResult.ok, emailError: emailResult.detail }
+  return {
+    caseId: ref.id,
+    emailSent: emailResult.ok,
+    emailError: emailResult.detail,
+    emailHint:  emailResult.hint,
+  }
 }
 
 // =============================================
