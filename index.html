@@ -3148,6 +3148,8 @@ async function applyFeatureGates(profile, { loggedIn } = {}) {
   const ttImages = document.getElementById('timetableImagesFront')
   if (ttNotice) ttNotice.style.display = timetableVisible ? 'none' : ''
   if (ttImages) ttImages.style.display = timetableVisible ? '' : 'none'
+  // β通過時のみ画像を先読み（対象外のユーザーには画像バイトを取得させない）
+  if (timetableVisible && window.renderTimetableImages) window.renderTimetableImages()
 
   // 公欠申請ページ本体
   const betaNotice = document.getElementById('applyBetaNotice')
@@ -3760,9 +3762,12 @@ window.nav = function(page, skipHash) {
   origNav(page, skipHash)
   if (page === 'mypage') window.loadMyCases()
   if (page === 'notices') window.loadNotices()
-  // 時間割を開いたら既読にする（サイドバーのNEWバッジ消去用）
-  if (page === 'timetable' && window._timetableUpdatedAt) {
-    try { localStorage.setItem('timetableSeenAt', window._timetableUpdatedAt) } catch {}
+  // 時間割を開いたら画像を描画＋既読にする（サイドバーのNEWバッジ消去用）
+  if (page === 'timetable') {
+    if (window.renderTimetableImages) window.renderTimetableImages()
+    if (window._timetableUpdatedAt) {
+      try { localStorage.setItem('timetableSeenAt', window._timetableUpdatedAt) } catch {}
+    }
     const badge = document.getElementById('sbBadgeTimetable')
     if (badge) badge.style.display = 'none'
   }

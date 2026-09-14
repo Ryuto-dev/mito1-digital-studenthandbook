@@ -101,7 +101,7 @@ def sniff_ext(blob):
         return "jpg"
     if blob[:4] == b"RIFF" and blob[8:12] == b"WEBP":
         return "webp"
-    if blob[:4] in (b"GIF8",):
+    if blob.startswith(b"GIF8"):
         return "gif"
     return "bin"
 
@@ -163,13 +163,12 @@ def sync():
         fname = f"slot-{i}.{im['ext']}"
         (OUT_DIR / fname).write_bytes(im["blob"])
         entries.append({"file": fname, "hash": im["hash"], "bytes": im["bytes"]})
-    for stale in list(OUT_DIR.glob("slot-*.png")) + list(OUT_DIR.glob("slot-*.jpg")) \
-            + list(OUT_DIR.glob("slot-*.webp")) + list(OUT_DIR.glob("slot-*.gif")):
-        if stale.name not in {e["file"] for e in entries}:
+    for stale in OUT_DIR.glob("slot-*.*"):
+        if stale.name != MANIFEST_NAME and stale.name not in {e["file"] for e in entries}:
             stale.unlink()
     manifest = {
         "updatedAt": now.isoformat(timespec="seconds"),
-        "updatedAtLabel": now.strftime("%Y年%-m月%-d日 %-H:%M更新"),
+        "updatedAtLabel": f"{now.year}年{now.month}月{now.day}日 {now.hour}:{now.minute:02d}更新",
         "images": entries,
     }
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
@@ -181,7 +180,7 @@ def sync():
 # -------------------------------------------------------------------
 # Web Push一斉送信（FIREBASE_SERVICE_ACCOUNT_JSONがある場合のみ）
 # -------------------------------------------------------------------
-def broadcast_push(manifest):
+def broadcast_push():
     sa_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON", "")
     if not sa_json.strip():
         log("SA鍵なし → Push送信をスキップ")
@@ -205,21 +204,18 @@ def broadcast_push(manifest):
         r.raise_for_status()
         return r.json() if r.content else {}
 
-    # 全ユーザーを列挙 → 各自の pushSubscriptions を集める
-    subs, page_token, users = [], "", 0
-    while True:
-        params = {"pageSize": 300}
-        if page_token:
-            params["pageToken"] = page_token
-        data = rest("GET", "/users", params=params) or {}
-        for doc in data.get("documents", []):
-            users += 1
-            uid = doc["name"].split("/")[-1]
-            sub_data = rest("GET", f"/users/{uid}/pushSubscriptions", params={"pageSize": 100}) or {}
-            for sdoc in sub_data.get("documents", []):
+    def list_user_subs(uid):
+        """1ユーザーの pushSubscriptions を全ページ取得する."""
+        out, token = [], ""
+        while True:
+            params = {"pageSize": 100}
+            if token:
+                params["pageToken"] = token
+            data = rest("GET", f"/users/{uid}/pushSubscriptions", params=params) or {}
+            for sdoc in data.get("documents", []):
                 f = sdoc.get("fields", {})
                 try:
-                    subs.append({
+                    out.append({
                         "name": sdoc["name"],
                         "endpoint": f["endpoint"]["stringValue"],
                         "keys": {
@@ -229,10 +225,27 @@ def broadcast_push(manifest):
                     })
                 except KeyError:
                     continue
+            token = data.get("nextPageToken", "")
+            if not token:
+                return out
+
+    # 全ユーザーを列挙 → 各自の pushSubscriptions を並列で集める
+    # （逐次だとユーザー数に比例して遅延するため。購読の送信自体も後段で並列化）
+    uids, page_token = [], ""
+    while True:
+        params = {"pageSize": 300}
+        if page_token:
+            params["pageToken"] = page_token
+        data = rest("GET", "/users", params=params) or {}
+        uids.extend(doc["name"].split("/")[-1] for doc in data.get("documents", []))
         page_token = data.get("nextPageToken", "")
         if not page_token:
             break
-    log(f"購読取得: ユーザー{users}件 → 購読{subs.__len__()}件")
+    subs = []
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for user_subs in pool.map(list_user_subs, uids):
+            subs.extend(user_subs)
+    log(f"購読取得: ユーザー{len(uids)}件 → 購読{len(subs)}件")
 
     payload = {
         "title": "時間割が更新されました",
@@ -293,7 +306,7 @@ def main():
     result = sync()
     # 減枚のみの更新ではPushしない（表示の同期はする）
     if result.get("changed") and result.get("notify", True):
-        result["push"] = broadcast_push({})
+        result["push"] = broadcast_push()
     elif result.get("changed"):
         log("通知なし更新のためPush送信をスキップ")
     emit_output(result)
