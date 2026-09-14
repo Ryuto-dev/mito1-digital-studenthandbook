@@ -598,6 +598,7 @@ export async function loadAllData() {
     loadSongs(),
     loadEvents(),
     loadCurriculum(),
+    loadTimetable(),
     loadCouncilActivities(),
     loadArticles('rules',           'rulesContentFront',   'rulesTocFront'),
     loadArticles('special',         'specialContentFront', 'specialTocFront'),
@@ -712,6 +713,53 @@ function buildAIContext() {
   }
 
   window._aiContext = lines.join('\n')
+}
+
+// =============================================
+// 今日の時間割（Actionsが5分おきに同期する静的ファイル）
+// public/timetable/manifest.json + slot-*.png
+// =============================================
+async function loadTimetable() {
+  let manifest = null
+  try {
+    const res = await fetch('timetable/manifest.json', { cache: 'no-store' })
+    if (res.ok) manifest = await res.json()
+  } catch {
+    // まだ初回同期前
+  }
+
+  const el = document.getElementById('timetableImagesFront')
+  const meta = document.getElementById('timetableMeta')
+  const cardSub = document.getElementById('timetableCardSub')
+
+  if (!manifest?.images?.length) {
+    if (el) el.innerHTML = '<p style="padding:40px;text-align:center;color:var(--text-3);font-size:13px">時間割はまだ登録されていません</p>'
+    if (meta) meta.textContent = '準備中'
+    if (cardSub) cardSub.textContent = '準備中'
+    return
+  }
+
+  window._timetableUpdatedAt = manifest.updatedAt || ''
+  const v = encodeURIComponent(manifest.updatedAt || '')
+  if (el) {
+    el.innerHTML = manifest.images.map(im => `
+      <img src="timetable/${im.file}?v=${v}" alt="今日の時間割" loading="lazy"
+        style="width:100%;border-radius:var(--r);margin-bottom:12px;display:block">
+    `).join('')
+  }
+  if (meta) meta.textContent = manifest.updatedAtLabel || ''
+  if (cardSub) cardSub.textContent = manifest.updatedAtLabel || '自動更新'
+
+  // NEWバッジ（開いたら既読になる。既読処理はnavラッパー側）
+  try {
+    const seen = localStorage.getItem('timetableSeenAt')
+    const isNew = !!manifest.updatedAt && seen !== manifest.updatedAt
+    const badge = document.getElementById('sbBadgeTimetable')
+    if (badge) {
+      badge.textContent = isNew ? 'NEW' : ''
+      badge.style.display = isNew ? '' : 'none'
+    }
+  } catch { /* ignore */ }
 }
 
 // =============================================

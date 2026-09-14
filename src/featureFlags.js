@@ -60,6 +60,11 @@ export const KNOWN_FLAGS = {
     description: '学校Googleアカウント（@mito1-h.ibk.ed.jp）を既存アカウントに連携し、Googleボタンでログインできる機能。新規登録はできず連携のみ',
     defaultStatus: 'beta',
   },
+  'timetable': {
+    name: '今日の時間割',
+    description: 'スプレッドシートの時間割画像を5分おきに自動同期して表示する機能',
+    defaultStatus: 'beta',
+  },
 }
 
 /** Firestore未作成の既知フラグも含めた status 解決。未知の key は enabled 扱い（後方互換）。 */

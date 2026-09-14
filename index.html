@@ -1377,6 +1377,11 @@ select.cf-input{cursor:pointer}
   </div>
   <div class="sb-section">
     <div class="sb-label">学校生活</div>
+    <button class="sb-item" data-p="timetable" onclick="nav('timetable')">
+      <span class="sb-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+      今日の時間割
+      <span class="sb-badge" id="sbBadgeTimetable" style="display:none;background:#c0392b;color:#fff"></span>
+    </button>
     <button class="sb-item" data-p="curriculum" onclick="nav('curriculum')">
       <span class="sb-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
       教育課程
@@ -1416,7 +1421,6 @@ select.cf-input{cursor:pointer}
   </div>
   <div class="sb-section">
     <div class="sb-label">近日公開</div>
-    <button class="sb-item dim"><span class="sb-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>時間割<span class="sb-dim-badge">準備中</span></button>
     <button class="sb-item dim"><span class="sb-icon"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>デジタル身分証<span class="sb-dim-badge">準備中</span></button>
   </div>
   <div class="sb-section">
@@ -1475,6 +1479,10 @@ select.cf-input{cursor:pointer}
       <button class="more-item" data-mp="events" onclick="nav('events');closeMore()">
         <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         <div class="more-lbl">年間行事</div>
+      </button>
+      <button class="more-item" data-mp="timetable" onclick="nav('timetable');closeMore()">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <div class="more-lbl">今日の時間割</div>
       </button>
       <button class="more-item" data-mp="curriculum" onclick="nav('curriculum');closeMore()">
         <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
@@ -1567,6 +1575,17 @@ select.cf-input{cursor:pointer}
       </div>
 
       <div class="cat-grid">
+        <div class="cat-card cat-card-events" id="timetableHomeCard" onclick="nav('timetable')">
+          <div class="cat-card-inner">
+            <div>
+              <div class="cat-card-line"></div>
+              <div class="cat-card-title">今日の<br>時間割</div>
+              <div class="cat-card-sub" id="timetableCardSub">自動更新</div>
+            </div>
+            <div class="cat-card-arrow">開く<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+          </div>
+        </div>
+
         <div class="cat-card cat-card-rules" onclick="nav('rules')">
           <div class="cat-card-inner">
             <div>
@@ -1823,6 +1842,22 @@ select.cf-input{cursor:pointer}
     </div>
   </section>
 
+  <!-- 時間割 -->
+  <section class="pg" id="pg-timetable">
+    <div class="pg-header">
+      <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>時間割</span></div>
+      <h1 class="pg-title">今日の時間割</h1>
+      <div class="pg-meta"><span id="timetableMeta">読み込み中...</span></div>
+    </div>
+    <div id="timetableBetaNotice" style="display:none;padding:40px 20px;text-align:center;color:var(--text-3);font-size:13px">
+      時間割は現在βテスト中です。<br>公開までお待ちください。
+    </div>
+    <div id="timetableImagesFront">
+      <div style="padding:40px;text-align:center;color:var(--text-3);font-size:13px">読み込み中...</div>
+    </div>
+    <p style="font-size:12px;color:var(--text-3);text-align:center;margin-top:8px">生徒用時間割を5分おきに自動確認しています</p>
+  </section>
+
   <!-- 生徒会活動 -->
   <section class="pg" id="pg-council-activities">
     <div class="pg-header">
@@ -1927,7 +1962,6 @@ select.cf-input{cursor:pointer}
       <h1 class="coming-ttl">近日公開予定</h1>
       <p class="coming-sub">以下の機能を鋭意開発中です。公開をお待ちください。</p>
       <div class="coming-cards">
-        <div class="coming-card"><div class="coming-card-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div class="coming-card-ttl">時間割</div><div class="coming-card-desc">クラス別時間割の確認</div></div>
         <div class="coming-card"><div class="coming-card-icon"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div><div class="coming-card-ttl">デジタル身分証</div><div class="coming-card-desc">生徒証をスマートフォンで提示</div></div>
       </div>
     </div>
@@ -2207,7 +2241,7 @@ window.addEventListener('load',()=>{
    NAVIGATION
 ================================= */
 const PAGES=['home','notices','search','about','principals','goals','songs',
-  'rules','special','curriculum','events',
+  'rules','special','curriculum','events','timetable',
   'council-activities','council-charter','council-rules',
   'contact','apply','mypage','coming'];
 /* 下部ナビ 5 タブ（home / rules / search / apply / mypage）に
@@ -2218,7 +2252,7 @@ const BN_MAP={
   rules:'rules',special:'rules',
   apply:'apply',mypage:'mypage',
   about:'more',principals:'more',goals:'more',songs:'more',
-  curriculum:'more',events:'more',
+  curriculum:'more',events:'more',timetable:'more',
   'council-activities':'more','council-charter':'more','council-rules':'more',
   contact:'more',coming:'more'
 };
@@ -2227,7 +2261,7 @@ const PAGE_LABELS={
   home:'ホーム',notices:'お知らせ',search:'検索',rules:'諸規定',special:'特別教育活動',
   apply:'公欠申請',mypage:'マイページ',about:'本校の沿革',
   principals:'歴代校長',goals:'就学の目標',songs:'校歌・応援歌',
-  curriculum:'教育課程',events:'年間行事','council-activities':'生徒会活動',
+  curriculum:'教育課程',events:'年間行事',timetable:'時間割','council-activities':'生徒会活動',
   'council-charter':'知道生徒会憲章','council-rules':'生徒会関係規定',
   contact:'お問い合わせ',coming:'近日公開'
 };
@@ -3076,18 +3110,23 @@ function updateAuthUI() {
 // =============================================
 // 機能フラグによる表示ゲート（Issue #53）
 // ・公欠申請: 対象外はナビを隠し、ページにはβ案内を表示（フォーム・ログイン誘導は出さない）
+// ・時間割: 対象外はナビ・ホームカード・画像を隠し、ページにはβ案内を表示
 // ・マイページの「新しい申請」ボタンも対象外では隠す
 // ※ 承認側（approve.html / teacher.html）はβ期間中も動かす必要があるため対象外
 // =============================================
 async function applyFeatureGates(profile, { loggedIn } = {}) {
   const isLoggedIn = loggedIn ?? !!_currentUser
   let applyVisible = true
+  let timetableVisible = false
   try {
     const flags = await fetchFeatureFlags()
     applyVisible = isFlagEnabled(flags, 'absence-request', profile)
+    timetableVisible = isFlagEnabled(flags, 'timetable', profile)
   } catch {
-    // 取得失敗時は従来通り表示（手帳本体の利用を妨げない）
+    // 取得失敗時は従来通り表示（手帳本体の利用を妨げない）。
+    // 時間割のみ既定βのため、取得失敗時は非表示側に倒す。
     applyVisible = true
+    timetableVisible = false
   }
 
   // ナビ（サイドバー・下部タブ）の公欠申請エントリ
@@ -3098,6 +3137,17 @@ async function applyFeatureGates(profile, { loggedIn } = {}) {
   // マイページの「新しい申請」ボタン
   const newApplyBtn = document.getElementById('mypageNewApplyBtn')
   if (newApplyBtn) newApplyBtn.style.display = applyVisible ? '' : 'none'
+
+  // 時間割（β）: ナビ・ホームカード・ページ本体をゲート
+  document.querySelectorAll('[data-p="timetable"],[data-mp="timetable"]').forEach(el => {
+    el.style.display = timetableVisible ? '' : 'none'
+  })
+  const timetableCard = document.getElementById('timetableHomeCard')
+  if (timetableCard) timetableCard.style.display = timetableVisible ? '' : 'none'
+  const ttNotice = document.getElementById('timetableBetaNotice')
+  const ttImages = document.getElementById('timetableImagesFront')
+  if (ttNotice) ttNotice.style.display = timetableVisible ? 'none' : ''
+  if (ttImages) ttImages.style.display = timetableVisible ? '' : 'none'
 
   // 公欠申請ページ本体
   const betaNotice = document.getElementById('applyBetaNotice')
@@ -3710,6 +3760,12 @@ window.nav = function(page, skipHash) {
   origNav(page, skipHash)
   if (page === 'mypage') window.loadMyCases()
   if (page === 'notices') window.loadNotices()
+  // 時間割を開いたら既読にする（サイドバーのNEWバッジ消去用）
+  if (page === 'timetable' && window._timetableUpdatedAt) {
+    try { localStorage.setItem('timetableSeenAt', window._timetableUpdatedAt) } catch {}
+    const badge = document.getElementById('sbBadgeTimetable')
+    if (badge) badge.style.display = 'none'
+  }
 }
 
 /** ログイン直後に一度だけ申請状況を取得してドットを更新する */
