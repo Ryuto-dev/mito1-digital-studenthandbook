@@ -350,7 +350,7 @@ async function sendApproval(body, env) {
   const {
     studentName, title, dates, reason, reasonDetail,
     step, recipientEmail, recipientRole,
-    supervisorEmail, approveToken, rejectToken, appBaseUrl,
+    supervisorEmail, supervisorName, approveToken, rejectToken, appBaseUrl,
   } = body
 
   // Validate required fields
@@ -365,8 +365,13 @@ async function sendApproval(body, env) {
   // Always include caseId in approve/reject URLs
   const approveUrl = `${base}/approve.html?caseId=${body.caseId}&token=${approveToken}&action=approve`
   const rejectUrl  = `${base}/approve.html?caseId=${body.caseId}&token=${rejectToken}&action=reject`
+  // Issue #61: 担任向けメールでは顧問の氏名も表示（登録がある場合）。未登録時はメールのみ
+  const escH = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  const supLabel = (supervisorName || '').trim()
+    ? `${escH(supervisorName)}先生（${escH(supervisorEmail)}）`
+    : escH(supervisorEmail)
   const supNote    = step === 'homeroom'
-    ? `<p style="color:#27ae60;background:#eafaf1;padding:10px 14px;border-radius:6px;font-size:13px;margin:12px 0">顧問（${supervisorEmail}）が承認済みです。</p>`
+    ? `<p style="color:#27ae60;background:#eafaf1;padding:10px 14px;border-radius:6px;font-size:13px;margin:12px 0">顧問（${supLabel}）が承認済みです。</p>`
     : ''
 
   const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"></head>

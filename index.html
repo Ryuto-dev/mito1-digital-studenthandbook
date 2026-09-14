@@ -3368,13 +3368,18 @@ window.submitApply = async function() {
   if (!supervisorEmail.includes('@')) { showErr('顧問のメールアドレスを正しく入力してください'); return }
   if (!homeRoomEmail.includes('@'))   { showErr('担任のメールアドレスを正しく入力してください'); return }
 
-  // 確認ダイアログ
+  // 確認ダイアログ（Issue #61: 登録済みの先生は名前付きで表示）
   const datesStr = dates.join('、')
   const reasonDisplay = reasonDetail ? `${reason}（${reasonDetail}）` : reason
+  const dirForConfirm = await loadTeacherDirectory()
+  const nameForConfirm = (email) => {
+    const hit = (dirForConfirm || []).find(t => String(t.email || '').toLowerCase() === String(email || '').toLowerCase())
+    return (hit && hit.name && hit.name !== email) ? `${hit.name}（${email}）` : email
+  }
   const ok = confirm(
     `以下の内容で申請します。\n\n` +
     `件名: ${title}\n公欠日: ${datesStr}\n事由: ${reasonDisplay}\n` +
-    `顧問: ${supervisorEmail}\n担任: ${homeRoomEmail}\n\nよろしいですか？`
+    `顧問: ${nameForConfirm(supervisorEmail)}\n担任: ${nameForConfirm(homeRoomEmail)}\n\nよろしいですか？`
   )
   if (!ok) return
 
@@ -3383,11 +3388,17 @@ window.submitApply = async function() {
   btn.textContent = '送信中...'
 
   try {
+    const nameForSave = (email) => {
+      const hit = (dirForConfirm || []).find(t => String(t.email || '').toLowerCase() === String(email || '').toLowerCase())
+      return (hit && hit.name) ? hit.name : ''
+    }
     const result = await createCase({
       studentId:      _currentUser.uid,
       studentName:    (_currentProfile && _currentProfile.name) || _currentUser.email,
       studentEmail:   _currentUser.email,
       title, reason, reasonDetail, dates, supervisorEmail, homeRoomEmail,
+      supervisorName: nameForSave(supervisorEmail),
+      homeRoomName:   nameForSave(homeRoomEmail),
     })
     document.getElementById('applyForm').style.display = 'none'
     document.getElementById('applyDone').style.display = ''
@@ -3471,6 +3482,25 @@ window.loadMyCases = async function() {
     const cases = await getMyCases(uid)
     // 下部ナビのマイページに「未処理あり」ドットを出す
     updateMypageDot(cases)
+    // Issue #61: 誰に申請したかを表示するため先生名を解決
+    // （登録があれば名前、なければメールアドレス表示。取得失敗時はメールのみ）
+    let teacherNameByEmail = new Map()
+    try {
+      const dir = await loadTeacherDirectory()
+      teacherNameByEmail = new Map(
+        (dir || []).map(t => [String(t.email || '').toLowerCase(), t.name || ''])
+      )
+    } catch (e) {
+      console.warn('[mypage] teacher directory lookup failed:', e)
+    }
+    const teacherLabel = (email, storedName) => {
+      const em = String(email || '')
+      if (!em) return ''
+      if (storedName && storedName !== em) return `${storedName}（${em}）`
+      const name = teacherNameByEmail.get(em.toLowerCase())
+      if (name && name !== em) return `${name}（${em}）`
+      return em
+    }
     if (!cases.length) {
       el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3);font-size:13px">申請履歴はありません</div>'
       return
@@ -3479,6 +3509,11 @@ window.loadMyCases = async function() {
     el.innerHTML = cases.map(c => {
       const datesStr = (c.dates || []).join('、')
       const st = c.status
+      const supervisorLabel = teacherLabel(c.supervisorEmail, c.supervisorName)
+      const homeRoomLabel = teacherLabel(c.homeRoomEmail, c.homeRoomName)
+      const destLine = (supervisorLabel || homeRoomLabel)
+        ? `<div style="font-size:12px;color:var(--text-2);margin-bottom:2px">👨‍🏫 顧問: ${escHtml(supervisorLabel || '—')} ／ 担任: ${escHtml(homeRoomLabel || '—')}</div>`
+        : ''
       const steps = [
         { label:'申請',     done: true,                                             active: false },
         { label:'顧問承認', done: ['pending_homeroom','approved'].includes(st),     active: st==='pending_supervisor' },
@@ -3490,7 +3525,7 @@ window.loadMyCases = async function() {
 
       const progressBar = rejected
         ? `<div style="margin:12px 0;font-size:11.5px;color:#721c24;background:#f8d7da;padding:8px 12px;border-radius:6px">
-             ❌ 差し戻されました${c.rejectedReason ? '：' + c.rejectedReason : ''}
+             ❌ 差し戻されました${c.rejectedReason ? '：' + escHtml(c.rejectedReason) : ''}
            </div>`
         : `<div style="display:flex;margin:14px 0 4px;gap:0">
              ${steps.map(s=>`
@@ -3516,8 +3551,9 @@ window.loadMyCases = async function() {
             <span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:4px;color:${STATUS_COLOR[st]||'#888'};background:${STATUS_BG[st]||'#eee'}">${STATUS_LABEL[st]||st}</span>
             <span style="font-size:11px;color:var(--text-3);margin-left:auto">${c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString('ja') : ''}</span>
           </div>
-          <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px">${c.title||''}</div>
-          <div style="font-size:12px;color:var(--text-3);margin-bottom:2px">${c.reason||''} ／ 📅 ${datesStr}</div>
+          <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px">${escHtml(c.title||'')}</div>
+          <div style="font-size:12px;color:var(--text-3);margin-bottom:2px">${escHtml(c.reason||'')} ／ 📅 ${escHtml(datesStr)}</div>
+          ${destLine}
           ${progressBar}
           ${deleteBtn}
         </div>`

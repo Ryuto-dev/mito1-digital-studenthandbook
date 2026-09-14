@@ -73,7 +73,7 @@ async function sendEmail(endpoint, payload) {
 // =============================================
 // ケース作成 + 顧問へ承認依頼メール送信
 // =============================================
-export async function createCase({ studentId, studentName, studentEmail, title, reason, reasonDetail, dates, supervisorEmail, homeRoomEmail }) {
+export async function createCase({ studentId, studentName, studentEmail, title, reason, reasonDetail, dates, supervisorEmail, homeRoomEmail, supervisorName = '', homeRoomName = '' }) {
   const approveToken = genToken()
   const rejectToken  = genToken()
 
@@ -100,6 +100,8 @@ export async function createCase({ studentId, studentName, studentEmail, title, 
     dates,                    // ["2025-06-14", "2025-06-15"]
     supervisorEmail,
     homeRoomEmail,
+    supervisorName: supervisorName || '',
+    homeRoomName: homeRoomName || '',
     status: 'pending_supervisor',
     approveToken,             // 顧問用承認トークン
     rejectToken,              // 顧問用差し戻しトークン
@@ -235,6 +237,7 @@ export async function processToken(token, action, caseIdFromUrl = null) {
           recipientEmail: caseData.homeRoomEmail,
           recipientRole: 'homeroom',
           supervisorEmail: caseData.supervisorEmail,
+          supervisorName: caseData.supervisorName || '',
           approveToken: hrApproveToken,
           rejectToken:  hrRejectToken,
           appBaseUrl: APP_BASE,
@@ -305,10 +308,23 @@ export async function approveByTeacher(caseId, step, teacherUid) {
   if (step === 'supervisor') {
     const hrApproveToken = genToken()
     const hrRejectToken  = genToken()
+    // 承認した顧問の氏名を取得（担任向けメール・履歴表示用。取得失敗時は申請時の保存名、なければ空文字でフォールバック）
+    // 実際に承認操作した先生を優先し、取得できない場合のみ申請時の保存名を使う
+    let supervisorName = ''
+    try {
+      if (teacherUid) {
+        const teacherSnap = await getDoc(doc(db, 'users', teacherUid))
+        if (teacherSnap.exists()) supervisorName = teacherSnap.data().name || ''
+      }
+    } catch (e) {
+      console.warn('[approveByTeacher] teacher name fetch failed:', e)
+    }
+    if (!supervisorName) supervisorName = caseData.supervisorName || ''
     await updateDoc(caseRef, {
       status: 'pending_homeroom',
       supervisorApprovedAt: serverTimestamp(),
       supervisorUid: teacherUid,
+      supervisorName,
       approveToken: '',
       rejectToken:  '',
       homeRoomApproveToken: hrApproveToken,
@@ -324,6 +340,7 @@ export async function approveByTeacher(caseId, step, teacherUid) {
       recipientEmail: caseData.homeRoomEmail,
       recipientRole: 'homeroom',
       supervisorEmail: caseData.supervisorEmail,
+      supervisorName,
       approveToken: hrApproveToken,
       rejectToken:  hrRejectToken,
       appBaseUrl: APP_BASE,
