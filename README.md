@@ -64,6 +64,18 @@
    npm run dev
    ```
 
+### テストと型チェック
+
+```bash
+npm test        # Workers のロジック（メール送信・Web Push 暗号化・機能フラグ）の回帰テスト
+npm run typecheck   # workers/index.js を Cloudflare Workers の型で検査
+```
+
+`npm run typecheck` は `workers/jsconfig.json` を使って `workers/index.js` を検査します。
+この設定が無いと、エディタは Workers のコードを Node.js / DOM の型で解釈してしまい、
+`crypto.subtle.generateKey()` などの正しいコードにも赤線が出ます
+（`generateKey` の戻り値が `CryptoKey | CryptoKeyPair` のユニオン型のため）。
+
 ### Cloudflare Workers の設定
 
 `workers/index.js` を Cloudflare Workers にデプロイし、以下の環境変数・シークレットを設定します。
@@ -102,6 +114,30 @@
 2. API キーを作り直した場合、**キーが紐づく Google Cloud プロジェクトが変わると利用可能モデルも変わります**。
    新規プロジェクトでは古い世代のモデル（例: `gemini-2.5-flash`）が `no longer available to new users` として 404 になります。
 3. コードを修正しただけでは本番に反映されません。必ず Worker を再デプロイしてください（上記の自動デプロイ推奨）。
+
+### メールが届かないときの切り分け
+
+公欠申請で「⚠️ 顧問への承認依頼メールの自動送信に失敗しました」と表示されたときの手順です。
+なお、この警告が出ても**申請データ自体は保存されています**（メール送信の失敗で申請は巻き戻りません）。
+
+1. `https://<your-worker>.workers.dev/mail/diag` を開く（GET）。
+   - `hasResendApiKey: false` → `RESEND_API_KEY` が未設定。メールは一切送信されません。
+   - `usingSandboxSender: true` → `RESEND_FROM` が未設定。テスト用送信元 `onboarding@resend.dev` で送信するため、
+     **Resend アカウント所有者のアドレスにしか届きません**（顧問の先生には届かない）。
+   - `resendFrom` が設定済みで `ok: true` → 設定は正常。
+2. `?to=<自分のアドレス>` を付けて開くと、実際に1通テスト送信して結果（`testSend`）を返します。
+   失敗した場合は `testSend.hint` に日本語の対処法が入ります。
+3. **`RESEND_FROM` は必ず `workers/wrangler.toml` の `[vars]` に書いてコミットしてください。**
+   `wrangler deploy` は `[vars]` の内容で Worker の環境変数を**全置換**するため、
+   Cloudflare ダッシュボードで手動追加した変数は、次の自動デプロイで消えます。
+   （「今まで送れていたメールが急に送れなくなった」の典型的な原因がこれです）
+4. API キーなどの秘密情報は `[vars]` ではなく `wrangler secret put` で登録してください。
+   secret はデプロイで消えません。
+   ```bash
+   npx wrangler secret put RESEND_API_KEY --config workers/wrangler.toml
+   ```
+5. 任意の宛先に送るには、Resend のダッシュボードで独自ドメインを認証し、
+   そのドメインのアドレスを `RESEND_FROM` に設定する必要があります。
 
 ### 新機能をβテストしてからリリースする（Issue #53）
 

@@ -2037,8 +2037,18 @@ window.sendReplyEmail = async function (id, evt) {
       }),
     })
     if (!res.ok) {
-      const detail = await res.text().catch(() => '')
-      throw new Error(`送信失敗 (${res.status}): ${detail}`)
+      // Workers は { error, detail, hint } を返す。
+      // hint は「次に何をすればよいか」を日本語で書いたものなので、あれば最優先で見せる。
+      // 生の JSON をそのままトーストに出すと原因が読み取れないため。
+      const raw = await res.text().catch(() => '')
+      let message = raw
+      try {
+        const parsed = JSON.parse(raw)
+        message = parsed.hint || parsed.detail || parsed.error || raw
+      } catch {
+        // JSON でなければ本文をそのまま使う
+      }
+      throw new Error(`送信失敗 (${res.status}): ${message}`)
     }
     await updateDoc(doc(db, 'inquiries', id), { reply: ta.value, status: 'replied' })
     showToast('メールを送信しました')
