@@ -14,7 +14,6 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   linkWithPopup,
-  linkWithCredential,
   unlink,
   deleteUser,
 } from 'firebase/auth'
@@ -116,15 +115,6 @@ export function isGoogleLinked(user) {
   return u.providerData.some(p => p?.providerId === GoogleAuthProvider.PROVIDER_ID)
 }
 
-/** 衝突エラーからGoogle credentialを取り出す（パスワードログイン後のリンク用） */
-export function googleCredentialFromError(error) {
-  try {
-    return GoogleAuthProvider.credentialFromError(error)
-  } catch {
-    return null
-  }
-}
-
 /**
  * Googleでログイン（連携済みユーザーのみ）。
  * 未登録（users/{uid}なし）の場合は作成直後のAuthユーザーを掃除して弾く。
@@ -208,24 +198,6 @@ export async function linkGoogleAccount() {
     patch.email = googleEmail
   }
   await updateDoc(doc(db, 'users', user.uid), patch)
-  return googleEmail
-}
-
-/** 衝突解決用：パスワードログイン直後に滞留Google credentialを紐付ける */
-export async function linkPendingGoogleCredential(pendingCred) {
-  const user = auth.currentUser
-  if (!user || !pendingCred) return null
-  const result = await linkWithCredential(user, pendingCred)
-  const googleEmail = result.user.email || ''
-  if (googleEmail && isGoogleDomainAllowed(googleEmail)) {
-    try {
-      await updateDoc(doc(db, 'users', user.uid), {
-        authProvider: 'google',
-        photoURL: result.user.photoURL || '',
-        googleLinkedAt: serverTimestamp(),
-      })
-    } catch { /* noop */ }
-  }
   return googleEmail
 }
 
