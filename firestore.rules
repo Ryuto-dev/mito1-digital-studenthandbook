@@ -130,10 +130,22 @@ service cloud.firestore {
 
       // 作成: 本人の登録時のみ
       // （role は student/teacher のみ。approved / betaTester 付きでの登録は不可 — Issue #53）
+      // 生徒は学年・クラス・出席番号が必須（空欄→0での登録を防ぐ）
       allow create: if isOwnerUid(userId)
         && request.resource.data.role in ['student', 'teacher']
         && (!('approved' in request.resource.data) || request.resource.data.approved == false)
-        && (!('betaTester' in request.resource.data) || request.resource.data.betaTester == false);
+        && (!('betaTester' in request.resource.data) || request.resource.data.betaTester == false)
+        && (
+          request.resource.data.role != 'student'
+          || (
+            request.resource.data.grade is number
+            && request.resource.data['class'] is number
+            && request.resource.data.number is number
+            && request.resource.data.grade >= 1 && request.resource.data.grade <= 3
+            && request.resource.data['class'] >= 1 && request.resource.data['class'] <= 6
+            && request.resource.data.number >= 1 && request.resource.data.number <= 50
+          )
+        );
 
       // 更新:
       //  1. 本人による自分の情報更新（LINE連携・既読管理等の安全なフィールドのみ。

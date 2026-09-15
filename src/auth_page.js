@@ -62,8 +62,8 @@ document.getElementById('mainCard').innerHTML = `
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">出席番号</label>
-          <input class="form-input" id="regNumber" type="number" min="1" max="50" placeholder="1">
+          <label class="form-label">出席番号 <span class="req">必須</span></label>
+          <input class="form-input" id="regNumber" type="number" min="1" max="50" placeholder="1" required>
         </div>
       </div>
       <div class="form-group">
@@ -174,6 +174,8 @@ function fbErr(code) {
     'auth/weak-password':        'パスワードは6文字以上にしてください',
     'auth/invalid-email':        'メールアドレスの形式が正しくありません',
     'auth/too-many-requests':    'しばらく時間をおいてから再試行してください',
+    'auth/invalid-attendance-number': '出席番号を入力してください（1〜50）',
+    'auth/invalid-class-info': '学年・クラスが不正です',
     'auth/popup-closed-by-user': 'Googleの選択画面が閉じられました。もう一度お試しください',
     'auth/cancelled-popup-request': '処理中です。そのままお待ちください',
     'auth/popup-blocked':        'ポップアップがブロックされました。ブラウザの許可設定をご確認ください',
@@ -255,6 +257,7 @@ async function doRegisterStudent() {
   const pass  = document.getElementById('regPass').value
   const pass2 = document.getElementById('regPass2').value
   if (!name || !email || !pass) { showErr('必須項目を入力してください'); return }
+  if (!num || !/^\d+$/.test(String(num).trim()) || Number(num) < 1 || Number(num) > 50) { showErr('出席番号を入力してください（1〜50）'); return }
   if (pass !== pass2)           { showErr('パスワードが一致しません'); return }
   if (pass.length < 6)          { showErr('パスワードは6文字以上にしてください'); return }
   setBtn('regStudentBtn', true, '登録して始める')
@@ -264,7 +267,7 @@ async function doRegisterStudent() {
     await registerStudent({
       email, password: pass, name,
       grade: Number(grade), classLabel: Number(cls),
-      number: num ? Number(num) : 0
+      number: Number(num)
     })
     location.href = BASE + '/'
   } catch(e) {

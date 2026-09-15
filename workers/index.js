@@ -895,7 +895,7 @@ async function lineNotifyComplete(body, env) {
 // =======================================================================
 //
 // フロー:
-//   1. ユーザーが公式アカウントに「時間割」と送る
+//   1. ユーザーが公式アカウントに「>時間割」と送る
 //   2. LINEプラットフォームが POST /line/webhook にイベントを送る
 //   3. x-line-signature をチャネルシークレットで検証（改ざん・なりすまし対策）
 //   4. 公開マニフェスト（APP_BASE_URL/timetable/manifest.json）を読んで
@@ -908,10 +908,12 @@ async function lineNotifyComplete(body, env) {
 
 const LINE_REPLY_URL = 'https://api.line.me/v2/bot/message/reply'
 
-// 時間割の問い合わせとみなすキーワード
+// 時間割の問い合わせとみなすメッセージ。
+// 誤送信での誤爆を防ぐため、完全一致（前後の空白のみ許容）とする。
+// 半角「>」・全角「＞」のどちらも受け付ける。
 function isTimetableQuery(text) {
   if (typeof text !== 'string' || !text) return false
-  return /時間割|じかんわり|ジカンワリ|timetable/i.test(text)
+  return /^[>＞]時間割$/.test(text.trim())
 }
 
 /**
@@ -948,7 +950,7 @@ function buildTimetableReplyMessages(manifest, base) {
   if (!images.length) {
     return [{
       type: 'text',
-      text: '時間割はまだ登録されていません。しばらくしてからもう一度「時間割」と送ってください。',
+      text: '時間割はまだ登録されていません。しばらくしてからもう一度「>時間割」と送ってください。',
     }]
   }
   const label = manifest.updatedAtLabel ? `（${manifest.updatedAtLabel}）` : ''

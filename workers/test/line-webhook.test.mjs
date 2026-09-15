@@ -61,17 +61,19 @@ fs.unlinkSync(tmpFile)
 // --------------------------------------------------------------------------
 // キーワード判定
 // --------------------------------------------------------------------------
-test('isTimetableQuery: 時間割の問い合わせを検出する', () => {
-  assert.equal(isTimetableQuery('時間割'), true)
-  assert.equal(isTimetableQuery('今日の時間割教えて'), true)
-  assert.equal(isTimetableQuery('じかんわり'), true)
-  assert.equal(isTimetableQuery('timetable'), true)
-  assert.equal(isTimetableQuery('TimeTable'), true)
+test('isTimetableQuery: 「>時間割」の完全一致のみ検出する', () => {
+  assert.equal(isTimetableQuery('>時間割'), true)
+  assert.equal(isTimetableQuery('＞時間割'), true)
+  assert.equal(isTimetableQuery('  >時間割  '), true)
 })
 
-test('isTimetableQuery: 無関係な文には反応しない', () => {
+test('isTimetableQuery: 無関係・部分一致には反応しない', () => {
+  assert.equal(isTimetableQuery('時間割'), false)
+  assert.equal(isTimetableQuery('今日の時間割教えて'), false)
+  assert.equal(isTimetableQuery('じかんわり'), false)
+  assert.equal(isTimetableQuery('timetable'), false)
+  assert.equal(isTimetableQuery('>時間割です'), false)
   assert.equal(isTimetableQuery('こんにちは'), false)
-  assert.equal(isTimetableQuery('公欠申請したい'), false)
   assert.equal(isTimetableQuery(''), false)
   assert.equal(isTimetableQuery(null), false)
   assert.equal(isTimetableQuery(undefined), false)
