@@ -304,11 +304,17 @@ def emit_output(result):
 
 def main():
     result = sync()
-    # 減枚のみの更新ではPushしない（表示の同期はする）
+    force = os.environ.get("FORCE_NOTIFY", "") in ("true", "1")
+    # 減枚のみの更新ではPushしない（表示の同期はする）。
+    # 手動実行の force_notify はテスト用に差分なしでも送信する。
     if result.get("changed") and result.get("notify", True):
         result["push"] = broadcast_push()
     elif result.get("changed"):
         log("通知なし更新のためPush送信をスキップ")
+    elif force:
+        log("force_notify のためテスト送信する")
+        result["push"] = broadcast_push()
+        result["push"]["test"] = True
     emit_output(result)
     return 0
 
