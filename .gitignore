@@ -3,6 +3,10 @@ dist/
 dist-ssr/
 *.local
 
+# Python
+__pycache__/
+*.pyc
+
 # Logs
 logs
 *.log

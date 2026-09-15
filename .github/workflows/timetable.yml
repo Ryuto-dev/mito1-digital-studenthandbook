@@ -1,6 +1,6 @@
 name: Timetable sync
 
-# 時間割の自動同期（4:00〜24:00 JST、5分おき）
+# 時間割の自動同期（4:00〜24:00 JST、15分おき）
 #   1. シートのhtmlviewを取得 → 時間割画像を抽出
 #   2. 画像バイトのハッシュを前回分と比較（トークンは回転するためURL比較不可）
 #   3. 差分があれば public/timetable/ に上書きコミット → Pagesが自動再デプロイ
@@ -11,10 +11,11 @@ name: Timetable sync
 
 on:
   schedule:
-    # JST 4:00-24:00（= UTC 前日19:00〜当日15:00）に5分おき。GitHub cronはUTC指定。
+    # JST 4:00-24:00（= UTC 前日19:00〜当日15:00）に15分おき。GitHub cronはUTC指定。
     # 時間帯は2行に分ける（1行のカンマリストだと起動しない事例があるため）。
-    - cron: "*/5 19-23 * * *"
-    - cron: "*/5 0-15 * * *"
+    # 5分おき（*/5）だとGitHub Actionsのスケジューラー制限で遅延・スキップが多発するため15分おきに設定。
+    - cron: "*/15 19-23 * * *"
+    - cron: "*/15 0-15 * * *"
   workflow_dispatch:
     inputs:
       force_notify:
