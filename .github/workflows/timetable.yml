@@ -22,6 +22,10 @@ on:
         required: false
         default: false
         type: boolean
+  # Workers Cronからの起動用（GitHubのscheduleが発火しない場合の迂回路）。
+  # Workers側の scheduled ハンドラが PAT でこのイベントを作る。
+  repository_dispatch:
+    types: [timetable-poll]
 
 permissions:
   contents: write

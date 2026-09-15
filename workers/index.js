@@ -74,6 +74,11 @@ const CORS = {
 }
 
 export default {
+  // Cron Trigger（wrangler.toml [triggers]）→ GitHubへdispatch。
+  // GitHubのscheduleが発火しない場合の迂回路（10分おき）。
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(githubDispatch(env))
+  },
   async fetch(request, env) {
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: CORS })
@@ -1432,4 +1437,50 @@ function json(data, status = 200) {
     status,
     headers: { ...CORS, 'Content-Type': 'application/json' },
   })
+}
+
+// =======================================================================
+// Cron Trigger → GitHub repository_dispatch（時間割ポーリングの迂回路）
+// =======================================================================
+//
+// GitHubのscheduleが発火しない場合に、Workers Cron（10分おき）から
+// repository_dispatchイベントを作って timetable.yml を起動する。
+// 必要なsecret（Dashboard > Worker > Settings > Variables and Secrets）:
+//   GH_DISPATCH_PAT -- Fine-grained PAT（対象リポジトリのみ、Actions: Read and write）
+//                      または classic PAT（public_repo）。コードには書かないこと。
+
+/** dispatchリクエストの組み立て（純粋関数・テスト用） */
+function buildDispatchRequest(pat) {
+  return {
+    url: 'https://api.github.com/repos/Ryuto-dev/mito1-digital-studenthandbook/dispatches',
+    init: {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/vnd.github+json',
+        'Authorization': `Bearer ${pat}`,
+        'User-Agent': 'mito1-timetable-cron',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ event_type: 'timetable-poll' }),
+    },
+  }
+}
+
+async function githubDispatch(env) {
+  const pat = env.GH_DISPATCH_PAT || ''
+  if (!pat) {
+    console.error('[cron] GH_DISPATCH_PAT not set in Workers secrets')
+    return
+  }
+  try {
+    const { url, init } = buildDispatchRequest(pat)
+    const res = await fetch(url, init)
+    if (res.status !== 204) {
+      console.error('[cron] dispatch failed:', res.status, (await res.text()).slice(0, 200))
+    } else {
+      console.log('[cron] dispatch sent: timetable-poll')
+    }
+  } catch (e) {
+    console.error('[cron] dispatch network error:', e)
+  }
 }

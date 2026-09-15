@@ -24,6 +24,11 @@ name = "mito1-hundbook"
 main = "index.js"
 compatibility_date = "2025-09-01"
 
+# 時間割ポーリングの迂回路：10分おきに scheduled ハンドラを起動し、
+# GitHubへrepository_dispatchを送る（GitHubのschedule不発時の対策）。
+[triggers]
+crons = ["*/10 * * * *"]
+
 # =====================================================================
 # ★★★ 重要: [vars] はデプロイのたびに「丸ごと置き換え」られます ★★★
 #
