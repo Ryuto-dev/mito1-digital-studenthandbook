@@ -11,8 +11,10 @@ name: Timetable sync
 
 on:
   schedule:
-    # UTC 19-23,0-15 = JST 4:00-24:00。GitHub cronはUTC指定。
-    - cron: "*/5 19-23,0-15 * * *"
+    # JST 4:00-24:00（= UTC 前日19:00〜当日15:00）に5分おき。GitHub cronはUTC指定。
+    # 時間帯は2行に分ける（1行のカンマリストだと起動しない事例があるため）。
+    - cron: "*/5 19-23 * * *"
+    - cron: "*/5 0-15 * * *"
   workflow_dispatch:
     inputs:
       force_notify:
