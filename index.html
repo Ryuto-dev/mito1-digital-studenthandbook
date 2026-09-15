@@ -11,7 +11,7 @@
   gtag('config', 'G-C0CFLJ03F6');
 </script>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-visual">
 <meta name="theme-color" content="#1a2744">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -209,7 +209,7 @@ a{text-decoration:none;color:inherit}
   backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
   border-bottom:1px solid var(--border);
   z-index:200;display:flex;align-items:center;
-  padding:0 14px;gap:10px;
+  padding:0 calc(14px + var(--safe-r)) 0 calc(14px + var(--safe-l));gap:10px;
   transition:background .3s,border-color .3s;
 }
 [data-theme="dark"] .header{background:rgba(14,14,17,.92)}
@@ -370,12 +370,14 @@ a{text-decoration:none;color:inherit}
   position:fixed;bottom:0;left:0;right:0;
   height:calc(var(--bn-h) + var(--safe-b));
   padding-bottom:var(--safe-b);
+  padding-left:var(--safe-l);padding-right:var(--safe-r);
   background:rgba(255,255,255,.95);
   backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
   border-top:1px solid var(--border);z-index:180;
-  transition:transform .22s cubic-bezier(.4,0,.2,1);
+  transition:transform .22s cubic-bezier(.4,0,.2,1),visibility .22s;
   will-change:transform;
 }
+html.kb-open .bottom-nav{visibility:hidden}
 [data-theme="dark"] .bottom-nav{background:rgba(18,18,22,.97)}
 .bn-inner{display:flex;height:var(--bn-h);align-items:stretch}
 .bn-item{
@@ -410,27 +412,24 @@ a{text-decoration:none;color:inherit}
 .bn-item.has-dot .bn-dot{display:block}
 
 /* ---------------------------------------------------
-   ソフトキーボード表示中は下部ナビを退避させる (#59)
-   visualViewport が縮むと position:fixed の bottom:0 が
-   キーボードの上に「浮き上がる」ため、退避して隠す。
-   kb-open: viewport 縮小で検知（全環境）
-   kb-focus: PWA でのテキスト入力フォーカス検知（フォールバック兼用）。
-   キーボードを閉じるアニメ中もナビを出さないよう、JS 側で
-   blur 後もしばらくクラスを維持する。
+   ソフトキーボード表示中は下部ナビを退避させる (#59再設計)
+   原則: viewport の実測縮小＋テキスト入力フォーカスの両方が
+   揃ったときだけ退避する（kb-open のみ）。
+   フォーカスだけ（kb-focus）では退避しない — デスクトップの
+   物理キーボードやフォーカス移動でナビが「消えた」に見える
+   誤作動を防ぐため。キーボード close アニメ中は JS 側の
+   grace 期間で kb-open を維持する。
 --------------------------------------------------- */
-html.kb-open .bottom-nav,
-html.pwa-mode.kb-focus .bottom-nav{
+html.kb-open .bottom-nav{
   transform:translateY(calc(100% + var(--safe-b) + 4px));
   pointer-events:none;
 }
-html.kb-open .ai-float,
-html.pwa-mode.kb-focus .ai-float{opacity:0;pointer-events:none}
-/* NOTE(#59): メニューシートはキーボード表示中も開ける必要がある。
+html.kb-open .ai-float{opacity:0;pointer-events:none}
+/* NOTE: メニューシートはキーボード表示中も開ける必要がある。
    openMore() で先に blur してキーボードを閉じるため、ここで
    display:none にはしない（開けない/ちらつきの原因になる）。 */
 /* ナビが退避している間は下部の余白も詰めて画面を広く使う */
-html.kb-open .main,
-html.pwa-mode.kb-focus .main{padding-bottom:24px!important}
+html.kb-open .main{padding-bottom:24px!important}
 
 /* More Sheet */
 .more-sheet{
@@ -441,7 +440,8 @@ html.pwa-mode.kb-focus .main{padding-bottom:24px!important}
   z-index:400;transform:translateY(100%);
   transition:transform .3s cubic-bezier(.4,0,.2,1);
   padding-bottom:var(--safe-b);
-  max-height:min(78vh,620px);
+  padding-left:var(--safe-l);padding-right:var(--safe-r);
+  max-height:min(78vh,620px);max-height:min(78dvh,620px);
   display:flex;flex-direction:column;
 }
 .more-sheet.open{transform:translateY(0)}
@@ -502,7 +502,9 @@ html.pwa-mode.kb-focus .main{padding-bottom:24px!important}
 /* ===========================
    MAIN CONTENT
 =========================== */
-.main{flex:1;margin-left:var(--sidebar-w);padding:32px 40px;min-width:0}
+.main{flex:1;margin-left:var(--sidebar-w);padding:32px 40px 64px;min-width:0}
+.pg{max-width:1000px;margin:0 auto;width:100%}
+#pg-home{max-width:940px}
 
 /* ===========================
    PAGES
@@ -566,22 +568,16 @@ html.pwa-mode.kb-focus .main{padding-bottom:24px!important}
 .home-headline{font-family:'Noto Serif JP',serif;font-size:20px;font-weight:600;color:var(--text);margin-bottom:3px}
 .home-sub{font-size:12px;color:var(--text-3);letter-spacing:.06em}
 
-/* Category grid — explicit named areas, no auto-placement surprises */
+/* Category grid — auto-placement + span (named areas は重なり事故の温床になるため廃止) */
 .cat-grid{
   display:grid;
   grid-template-columns:repeat(3,1fr);
-  grid-template-areas:
-    "rules    events   council"
-    "curric   curric   songs"
-    "about    about    about";
   gap:13px;
 }
-.cat-card-rules     { grid-area:rules; }
-.cat-card-events    { grid-area:events; }
-.cat-card-council   { grid-area:council; }
-.cat-card-curriculum{ grid-area:curric; }
-.cat-card-songs     { grid-area:songs; }
-.cat-card-about     { grid-area:about; }
+/* 時間割カードは専用クラスで独立（events との grid-area 重複が食い込みの原因だった） */
+.cat-card-timetable{grid-column:auto}
+.cat-card-curriculum{grid-column:span 2}
+.cat-card-about{grid-column:1/-1}
 
 .cat-card{
   position:relative;border-radius:12px;overflow:hidden;
@@ -595,6 +591,7 @@ html.pwa-mode.kb-focus .main{padding-bottom:24px!important}
 
 /* Card backgrounds */
 .cat-card-rules     {background:linear-gradient(135deg,#1a2744 0%,#1e3568 100%)}
+.cat-card-timetable {background:linear-gradient(135deg,#14324a 0%,#1e5a7a 100%)}
 .cat-card-events    {background:linear-gradient(135deg,#1e3568 0%,#2a4a82 100%)}
 .cat-card-curriculum{background:linear-gradient(135deg,#0f1e3a 0%,#1a2f5a 100%)}
 .cat-card-council   {background:linear-gradient(135deg,#6b1222 0%,#8b1a2c 100%)}
@@ -840,6 +837,7 @@ html.pwa-mode.kb-focus .main{padding-bottom:24px!important}
   background:var(--surface);border:1.5px solid var(--border);
   border-radius:var(--r);overflow:hidden;
   max-height:calc(100vh - var(--header-h) - 40px);
+  max-height:calc(100dvh - var(--header-h) - 40px);
   overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent;
 }
 .toc-hdr{
@@ -937,7 +935,7 @@ tr:last-child td{border-bottom:none}
 /* ===========================
    COMING SOON
 =========================== */
-.coming-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:56vh;text-align:center;gap:18px}
+.coming-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:56vh;min-height:56dvh;text-align:center;gap:18px}
 .coming-icon-ring{
   width:72px;height:72px;border:2px solid var(--border);border-radius:50%;
   display:flex;align-items:center;justify-content:center;
@@ -957,7 +955,7 @@ tr:last-child td{border-bottom:none}
 /* ===========================
    AI FLOAT
 =========================== */
-.ai-float{position:fixed;right:18px;bottom:18px;z-index:350;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+.ai-float{position:fixed;right:calc(18px + var(--safe-r));bottom:18px;z-index:350;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
 .ai-toggle{
   width:50px;height:50px;background:var(--navy);border:none;border-radius:50%;
   cursor:pointer;display:flex;align-items:center;justify-content:center;
@@ -971,9 +969,11 @@ tr:last-child td{border-bottom:none}
   background:var(--enjii);border-radius:50%;border:2px solid var(--bg);
 }
 .ai-window{
-  width:330px;background:var(--surface);border:1.5px solid var(--border);
+  width:min(330px,calc(100vw - 24px));
+  background:var(--surface);border:1.5px solid var(--border);
   border-radius:var(--r-lg);box-shadow:var(--shadow-lg);
-  display:none;flex-direction:column;overflow:hidden;max-height:440px;
+  display:none;flex-direction:column;overflow:hidden;
+  max-height:440px;max-height:min(440px,62dvh);
 }
 .ai-window.open{display:flex;animation:slideUp .2s ease}
 @keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -1015,12 +1015,9 @@ tr:last-child td{border-bottom:none}
 @media(max-width:860px){
   .cat-grid{
     grid-template-columns:repeat(2,1fr);
-    grid-template-areas:
-      "rules    events"
-      "council  songs"
-      "curric   curric"
-      "about    about";
   }
+  .cat-card-curriculum{grid-column:span 2}
+  .cat-card-about{grid-column:span 2}
   /* タブレット以下では横レイアウトを維持しつつ縦でも可 */
   .cat-card-curriculum .cat-card-inner,
   .cat-card-about .cat-card-inner {
@@ -1033,21 +1030,45 @@ tr:last-child td{border-bottom:none}
   .sidebar-overlay.open{display:block}
   .menu-btn{display:flex}
   .main{margin-left:0;padding:24px 16px 100px}
+  .pg{max-width:100%;margin:0 auto}
   .rules-wrap{grid-template-columns:1fr}
   .rules-toc{position:static;max-height:none;display:none}
   .brand-names{display:none}
   .search-wrap{max-width:100%}
   .bottom-nav{display:block}
-  .ai-float{bottom:calc(var(--bn-h) + var(--safe-b) + 10px)}
+  .ai-float{right:calc(12px + var(--safe-r));bottom:calc(var(--bn-h) + var(--safe-b) + 10px)}
   /* ヘッダーの下にコンテンツが隠れないよう明示的に余白確保 */
-  .pg-header{scroll-margin-top:calc(var(--header-h) + 16px)}
+  .pg-header{scroll-margin-top:calc(var(--header-h) + 16px);padding-top:16px;margin-bottom:18px}
+  .pg-title{font-size:19px}
   .home-wrap{padding-top:48px}
+  .card{padding:18px 16px}
+  .song-verses{padding:18px 16px}
+  .history-item{flex-direction:column;gap:2px}
+  .history-year{min-width:0}
+  .principal-item{grid-template-columns:34px 1fr;grid-template-areas:"gen name" "gen term"}
+  .principal-gen{grid-area:gen}
+  .principal-name{grid-area:name}
+  .principal-term{grid-area:term}
+  .table-outer{-webkit-overflow-scrolling:touch}
+}
+/* iOS のフォーカス時自動ズーム防止: タッチ端末では入力文字を16px以上に */
+@media(pointer:coarse){
+  .search-input,.search-page-input,.cf-input,.ai-input{font-size:16px}
+}
+@media(max-width:560px){
+  .search-page-bar{flex-direction:column;align-items:stretch}
+  .search-bar-wrap{flex-basis:100%}
+  .search-toggle{align-self:flex-start}
+}
+@media(max-width:380px){
+  .bn-label{font-size:9px}
+  .bn-icon-wrap{width:40px}
 }
 @media(max-width:500px){
   .cat-grid{
     grid-template-columns:1fr;
-    grid-template-areas:"rules""events""council""curric""songs""about";
   }
+  .cat-card-curriculum,.cat-card-about{grid-column:auto}
   .cat-card-curriculum .cat-card-inner,
   .cat-card-about .cat-card-inner {
     flex-direction:column;align-items:flex-start;
@@ -1065,6 +1086,10 @@ tr:last-child td{border-bottom:none}
   .bottom-nav{display:block!important}
   .ai-float{bottom:calc(var(--bn-h) + var(--safe-b) + 10px)!important}
 }
+/* PWA: アプリ操作にするためピンチズームを無効化（ブラウザ表示では維持）。
+   touch-action: pan-x pan-y はスクロールを残しつつピンチを殺す。
+   iOS Safari 向けに gesturestart の抑止は JS 側で行う。 */
+html.pwa-mode,html.pwa-mode body{touch-action:pan-x pan-y}
 /* PWA: レイアウトがsafe-t分余分に下がるので、home-wrapは追加パディング不要 */
 .pwa-mode .home-wrap{padding-top:20px}
 .pwa-mode .menu-btn{display:none!important}
@@ -1575,7 +1600,7 @@ select.cf-input{cursor:pointer}
       </div>
 
       <div class="cat-grid">
-        <div class="cat-card cat-card-events" id="timetableHomeCard" onclick="nav('timetable')">
+        <div class="cat-card cat-card-timetable" id="timetableHomeCard" onclick="nav('timetable')">
           <div class="cat-card-inner">
             <div>
               <div class="cat-card-line"></div>
@@ -2269,17 +2294,14 @@ let currentPage='home';
 
 function nav(page, skipHash){
   currentPage=page;
-  // #59: ページ切替時はテキスト入力のフォーカスを外してキーボードを閉じる。
+  // ページ切替時はテキスト入力のフォーカスを外してキーボードを閉じる。
   // 閉じないまま別ページへ行くと、キーボードが残って下部ナビが
-  // 「浮き上がる」ように見えるため。
+  // 「浮き上がる」ように見えるため。復帰判定は __kbAfterNav に委譲。
   try{
     const ae=document.activeElement;
-    if(ae && (ae.tagName==='TEXTAREA' || ae.tagName==='SELECT' ||
-      (ae.tagName==='INPUT' && !['button','submit','reset','checkbox','radio','file','range','color','image'].includes((ae.type||'text').toLowerCase())) ||
-      ae.isContentEditable===true)){
-      ae.blur();
-    }
+    if(ae && window.__isTextInput && window.__isTextInput(ae)) ae.blur();
   }catch(e){/* ignore */}
+  if(window.__kbAfterNav) window.__kbAfterNav();
   PAGES.forEach(p=>{
     const el=document.getElementById('pg-'+p);
     if(el) el.classList.toggle('on',p===page);
@@ -2342,9 +2364,10 @@ function toggleSidebar(){
 }
 function openMore(){
   // 入力中ならキーボードを閉じてからシートを出す
-  if(document.activeElement && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)){
-    document.activeElement.blur();
-  }
+  try{
+    const ae=document.activeElement;
+    if(ae && window.__isTextInput && window.__isTextInput(ae)) ae.blur();
+  }catch(e){/* ignore */}
   document.getElementById('moreSheet').classList.add('open');
   document.getElementById('sheetOverlay').style.display='block';
   document.body.style.overflow='hidden';
@@ -2817,6 +2840,23 @@ function isStandalone(){
   if(isStandalone()){
     // クラスをhtmlに付与 → CSSで一元管理
     document.documentElement.classList.add('pwa-mode');
+    // PWA時はアプリ操作のためピンチズームを無効化する。
+    // （ブラウザ表示ではアクセシビリティのためズーム可能のまま）
+    try{
+      const vp=document.querySelector('meta[name="viewport"]');
+      if(vp && !/user-scalable=no/.test(vp.content)){
+        vp.content+=', maximum-scale=1.0, user-scalable=no';
+      }
+    }catch(e){/* ignore */}
+    // iOS Safari は viewport の user-scalable を無視するため gesture で抑止
+    document.addEventListener('gesturestart',e=>e.preventDefault());
+    // iOS のダブルタップズーム抑止
+    let _lastTouchEnd=0;
+    document.addEventListener('touchend',e=>{
+      const now=Date.now();
+      if(now-_lastTouchEnd<300) e.preventDefault();
+      _lastTouchEnd=now;
+    },{passive:false});
     document.querySelector('.bottom-nav').style.display='block';
     const sb=document.querySelector('.sidebar');
     if(sb)sb.style.display='none';
@@ -2826,21 +2866,24 @@ function isStandalone(){
 })();
 
 /* =====================================================
-   ソフトキーボード対応（#59 PWA の下部ナビ浮き上がり修正）
+   ソフトキーボード対応（再設計）
    -----------------------------------------------------
-   iOS/Android の PWA（standalone）では、ソフトキーボードが
-   出ると visualViewport の高さだけが縮み、`position:fixed;
-   bottom:0` の下部ナビがキーボードの上へ「浮き上がる」。
-   キーボード表示を検知して html.kb-open を付け、CSS 側で
-   ナビを画面外へ退避させる。
+   iOS/Android の PWA ではソフトキーボード表示時に
+   `position:fixed;bottom:0` の下部ナビがキーボードの上へ
+   「浮き上がる」。キーボード表示を検知して html.kb-open を
+   付け、CSS 側でナビを画面外へ退避させる。
 
-   #59 の反省:
-   - viewport の縮小量だけでは端末差（resizes-content 等）で
-     検知漏れがあり、マイページ等で「浮き上がり」が残った。
-   - フォーカス即退避だけでは検索を開いた瞬間にナビが
-     「消えた」ように見えた。
-   よって viewport 検知＋フォーカス検知を併用し、閉じる側は
-   アニメ終了までクラスを維持する。
+   再設計の原則:
+   - 退避条件は「viewportの実測縮小」かつ「テキスト入力に
+     フォーカス」のAND。フォーカスだけ・縮小だけでは退避
+     しない（回転・分割表示・物理キーボードでの誤作動防止）。
+   - 基準高さは「フォーカスが無いときの最大値」で更新する。
+     従来の単調増加 max 保持は回転後に縮小と誤判定して
+     kb-open が戻らない固着バグの原因だった。
+   - blur 直後はキーボード close アニメ中も退避を維持する
+     （grace 期間）。アニメ完了後の viewport 復帰で復帰。
+   - nav() によるページ切替時は blur＋遅延再評価で、
+     別ページ・ホームに戻っても消えたままにならない。
 ===================================================== */
 (function(){
   const vv = window.visualViewport;
@@ -2848,15 +2891,15 @@ function isStandalone(){
   // キーボードと判定する最小の縮み量(px)。アドレスバーの
   // 伸縮(数十px)を誤検知しないよう十分大きめに取る。
   const KB_MIN_SHRINK = 140;
-  // blur 後にクラスを維持する時間(ms)。iOS のキーボードが
-  // 閉じ切るまでのアニメをカバーし、一時的な「浮き上がり」を防ぐ。
-  const KB_CLOSE_GRACE_MS = 450;
+  // blur 後に退避を維持する時間(ms)。iOS のキーボードが
+  // 閉じ切るまでのアニメをカバーする。
+  const KB_CLOSE_GRACE_MS = 400;
   let kbOpen = false;
-  let closeTimer = 0;
-  // キーボード無し状態の基準高さ（見た最大値）。Android の
-  // resizes-content 等で window.innerHeight 自体が縮む端末でも
-  // 検知できるよう、innerHeight とは別に保持する。
-  let baseH = vv ? vv.height : window.innerHeight;
+  let graceTimer = 0;
+  // キーボード無し状態の基準高さ。フォーカス無し時の最大値で更新。
+  let baseInnerH = window.innerHeight;
+  let baseVvH = vv ? vv.height : window.innerHeight;
+  let lastWidth = window.innerWidth;
 
   function setKb(open){
     if(open === kbOpen) return;
@@ -2864,62 +2907,6 @@ function isStandalone(){
     root.classList.toggle('kb-open', open);
   }
 
-  function isCoarseOrPwa(){
-    return root.classList.contains('pwa-mode')
-      || window.matchMedia('(pointer:coarse)').matches;
-  }
-
-  function viewportShrunk(){
-    if(!vv) return false;
-    // 基準高さは縮む前の最大値を覚える（回転・リサイズの拡大には追従）
-    if(vv.height > baseH) baseH = vv.height;
-    // layout viewport と visual viewport の両方と比較する。
-    // iOS PWA: innerHeight は変わらず vv.height だけ縮む。
-    // Android(resizes-content): 両方縮むため baseH との差で見る。
-    const shrinkVsInner = window.innerHeight - (vv.height + vv.offsetTop);
-    const shrinkVsBase = baseH - vv.height;
-    return shrinkVsInner > KB_MIN_SHRINK || shrinkVsBase > KB_MIN_SHRINK;
-  }
-
-  function refreshByViewport(){
-    if(viewportShrunk()){
-      if(closeTimer){ clearTimeout(closeTimer); closeTimer = 0; }
-      setKb(true);
-    }else if(!isTextInput(document.activeElement)){
-      // フォーカスが残っている間は閉じない（入力移動時のちらつき防止）
-      setKb(false);
-    }
-  }
-
-  // --- visualViewport が使える環境（iOS 13+ / Chrome） ---
-  if(vv){
-    let raf = 0;
-    const onViewport = () => {
-      if(raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        refreshByViewport();
-      });
-    };
-    vv.addEventListener('resize', onViewport);
-    vv.addEventListener('scroll', onViewport);
-    onViewport();
-  }
-  window.addEventListener('resize', () => {
-    if(vv) return;
-    // vv 無し環境のフォールバック: 狭くなったら開いたとみなす
-    setKb(window.innerHeight < baseH - KB_MIN_SHRINK);
-  });
-  window.addEventListener('orientationchange', () => {
-    setTimeout(() => {
-      baseH = vv ? vv.height : window.innerHeight;
-      refreshByViewport();
-    }, 300);
-  });
-
-  // --- フォーカスの有無で判定 ---
-  // visualViewport が無い/効かない端末でも、テキスト入力に
-  // フォーカスが当たっている間はナビを退避させる。
   const isTextInput = (el) => {
     if(!el) return false;
     const tag = el.tagName;
@@ -2930,42 +2917,108 @@ function isStandalone(){
     }
     return el.isContentEditable === true;
   };
-  // nav() より前に定義されるため、先に公開しておく（hoisting 対策）
   window.__isTextInput = isTextInput;
+
+  function viewportShrunk(){
+    if(vv){
+      const shrinkVv = baseVvH - vv.height;
+      const shrinkInner = baseInnerH - window.innerHeight;
+      const shrinkVsInner = window.innerWidth === lastWidth
+        ? window.innerHeight - (vv.height + vv.offsetTop)
+        : -Infinity;
+      return shrinkVv > KB_MIN_SHRINK || shrinkInner > KB_MIN_SHRINK || shrinkVsInner > KB_MIN_SHRINK;
+    }
+    return (baseInnerH - window.innerHeight) > KB_MIN_SHRINK;
+  }
+
+  function refresh(){
+    const shrunk = viewportShrunk();
+    const focused = isTextInput(document.activeElement);
+    if(shrunk && focused){
+      if(graceTimer){ clearTimeout(graceTimer); graceTimer = 0; }
+      setKb(true);
+    }else if(!shrunk && !focused){
+      if(graceTimer){ clearTimeout(graceTimer); graceTimer = 0; }
+      setKb(false);
+    }else if(!shrunk && focused){
+      // デスクトップ物理キーボード等: 縮小なし＝退避不要
+      setKb(false);
+    }
+    // shrunk && !focused ＝ close アニメ中: grace に任せて維持
+  }
+  window.__kbRefresh = refresh;
+
+  function trackBaseline(){
+    // フォーカス中は基準を更新しない（キーボード分を基準にしない）
+    if(isTextInput(document.activeElement)) return;
+    if(vv && vv.height > baseVvH) baseVvH = vv.height;
+    if(window.innerHeight > baseInnerH) baseInnerH = window.innerHeight;
+    // 幅が変わった＝回転・分割とみなし、縮小判定をリセット
+    if(window.innerWidth !== lastWidth){
+      lastWidth = window.innerWidth;
+      baseInnerH = window.innerHeight;
+      if(vv) baseVvH = vv.height;
+      setKb(false);
+    }
+  }
+
+  if(vv){
+    let raf = 0;
+    const onViewport = () => {
+      if(raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        trackBaseline();
+        refresh();
+      });
+    };
+    vv.addEventListener('resize', onViewport);
+    vv.addEventListener('scroll', onViewport);
+    onViewport();
+  }
+  window.addEventListener('resize', () => {
+    trackBaseline();
+    refresh();
+  });
+  window.addEventListener('orientationchange', () => {
+    setTimeout(() => {
+      lastWidth = window.innerWidth;
+      baseInnerH = window.innerHeight;
+      baseVvH = vv ? vv.height : window.innerHeight;
+      refresh();
+    }, 350);
+  });
 
   document.addEventListener('focusin', e => {
     if(!isTextInput(e.target)) return;
-    if(closeTimer){ clearTimeout(closeTimer); closeTimer = 0; }
+    if(graceTimer){ clearTimeout(graceTimer); graceTimer = 0; }
     root.classList.add('kb-focus');
-    // タッチ/PWA ではフォーカス＝ほぼキーボードが出るため先に退避。
-    // デスクトップの物理キーボードでは viewport が縮まないので退避しない。
-    if(isCoarseOrPwa()) setKb(true);
+    // 縮小が来たら退避する。ここでは即退避しない
+    // （フォーカスだけで消えたに見える誤作動の修正）。
+    refresh();
   });
-  function scheduleFocusOut(){
-    if(closeTimer) clearTimeout(closeTimer);
-    closeTimer = setTimeout(() => {
-      closeTimer = 0;
+  document.addEventListener('focusout', () => {
+    if(graceTimer) clearTimeout(graceTimer);
+    graceTimer = setTimeout(() => {
+      graceTimer = 0;
       if(!isTextInput(document.activeElement)){
         root.classList.remove('kb-focus');
-        // viewport がまだ縮んでいたら（閉じアニメ中）は維持する
+        // viewport が復帰していれば表示に戻す。
+        // アニメ中（まだ縮小）なら維持し、次の resize で戻す。
         if(!viewportShrunk()) setKb(false);
-        else{
-          // 念のため再確認（アニメ完了後に外す）
-          closeTimer = setTimeout(() => {
-            closeTimer = 0;
-            if(!viewportShrunk() && !isTextInput(document.activeElement)){
-              root.classList.remove('kb-focus');
-              setKb(false);
-            }
-          }, KB_CLOSE_GRACE_MS);
-        }
       }
-    }, 60);
-  }
-  document.addEventListener('focusout', scheduleFocusOut);
+    }, KB_CLOSE_GRACE_MS);
+  });
 
-  // ナビ内のボタンを押した瞬間にフォーカスが外れて
-  // ナビが動くのを防ぐため、押下時はフォーカスを先に外す。
+  // ページ切替時はキーボードを閉じて再評価（消えたまま防止）
+  window.__kbAfterNav = () => {
+    root.classList.remove('kb-focus');
+    setTimeout(refresh, 120);
+    setTimeout(refresh, 550);
+  };
+
+  // ナビ内のボタンを押した瞬間にフォーカスを先に外す。
+  // （キーボード持ち越しによる別ページでの浮き上がり防止）
   document.querySelector('.bottom-nav')?.addEventListener('pointerdown', () => {
     if(isTextInput(document.activeElement)) document.activeElement.blur();
   });
