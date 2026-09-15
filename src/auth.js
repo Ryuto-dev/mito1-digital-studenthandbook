@@ -75,6 +75,20 @@ try {
 // 新規登録（生徒）
 // =============================================
 export async function registerStudent({ email, password, name, grade, classLabel, number }) {
+  // 学年・クラス・出席番号は必須。Authユーザー作成前に弾くことで孤児ユーザーを残さない
+  const num = Number(number)
+  const g = Number(grade)
+  const c = Number(classLabel)
+  if (!name || !Number.isInteger(num) || num < 1 || num > 50) {
+    const e = new Error('出席番号を入力してください（1〜50）')
+    e.code = 'auth/invalid-attendance-number'
+    throw e
+  }
+  if (!Number.isInteger(g) || g < 1 || g > 3 || !Number.isInteger(c) || c < 1 || c > 6) {
+    const e = new Error('学年・クラスが不正です')
+    e.code = 'auth/invalid-class-info'
+    throw e
+  }
   // メール形式チェック（学校ドメインは任意制限・今は全ドメイン許可）
   await ensureAuthPersistence()
   const cred = await createUserWithEmailAndPassword(auth, email, password)
@@ -84,9 +98,9 @@ export async function registerStudent({ email, password, name, grade, classLabel
     role:    'student',
     approved: false, // 生徒は登録直後は未承認。承認されるまで一部機能が制限される
     name,
-    grade:   Number(grade),
-    class:   classLabel,
-    number:  Number(number),
+    grade:   g,
+    class:   c,
+    number:  num,
     email,
     createdAt: serverTimestamp(),
   })
