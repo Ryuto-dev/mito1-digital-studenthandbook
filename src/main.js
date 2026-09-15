@@ -598,6 +598,7 @@ export async function loadAllData() {
     loadSongs(),
     loadEvents(),
     loadCurriculum(),
+    loadTimetable(),
     loadCouncilActivities(),
     loadArticles('rules',           'rulesContentFront',   'rulesTocFront'),
     loadArticles('special',         'specialContentFront', 'specialTocFront'),
@@ -712,6 +713,76 @@ function buildAIContext() {
   }
 
   window._aiContext = lines.join('\n')
+}
+
+// =============================================
+// 今日の時間割（Actionsが5分おきに同期する静的ファイル）
+// public/timetable/manifest.json + slot-*
+//   loadTimetable: マニフェスト取得＋文言＋NEWバッジ（軽量・無条件）
+//   renderTimetableImages: 画像バイトの取得・描画はβ通過時とページ表示時のみ。
+//     β対象外のユーザーに画像を取得させないための分離。
+// =============================================
+async function loadTimetable() {
+  let manifest = null
+  try {
+    const res = await fetch('timetable/manifest.json', { cache: 'no-store' })
+    if (res.ok) manifest = await res.json()
+  } catch {
+    // まだ初回同期前
+  }
+
+  const meta = document.getElementById('timetableMeta')
+  const cardSub = document.getElementById('timetableCardSub')
+
+  if (!manifest?.images?.length) {
+    if (meta) meta.textContent = '準備中'
+    if (cardSub) cardSub.textContent = '準備中'
+    return
+  }
+
+  window._timetableManifest = manifest
+  window._timetableUpdatedAt = manifest.updatedAt || ''
+  if (meta) meta.textContent = manifest.updatedAtLabel || ''
+  if (cardSub) cardSub.textContent = manifest.updatedAtLabel || '自動更新'
+
+  // NEWバッジ（開いたら既読になる。既読処理はnavラッパー側）
+  try {
+    const seen = localStorage.getItem('timetableSeenAt')
+    const isNew = !!manifest.updatedAt && seen !== manifest.updatedAt
+    const badge = document.getElementById('sbBadgeTimetable')
+    if (badge) {
+      badge.textContent = isNew ? 'NEW' : ''
+      badge.style.display = isNew ? '' : 'none'
+    }
+  } catch { /* ignore */ }
+}
+
+/**
+ * 時間割画像の描画（冪等。同一updatedAtでは再描画しない）。
+ * manifest.json は外部同期由来なので、file名はエンコードして埋め込む。
+ */
+window.renderTimetableImages = async function() {
+  const el = document.getElementById('timetableImagesFront')
+  if (!el) return
+  if (!window._timetableManifest) {
+    await loadTimetable()
+  }
+  const manifest = window._timetableManifest
+  if (!manifest?.images?.length) {
+    el.innerHTML = '<p style="padding:40px;text-align:center;color:var(--text-3);font-size:13px">時間割はまだ登録されていません</p>'
+    return
+  }
+  if (el.dataset.renderedAt === manifest.updatedAt) return
+  const v = encodeURIComponent(manifest.updatedAt || '')
+  el.innerHTML = manifest.images.map((im, i) => `
+    <div style="margin-bottom:12px">
+      <img src="timetable/${encodeURIComponent(im.file)}?v=${v}" alt="今日の時間割${i + 1}" loading="lazy"
+        style="width:100%;border-radius:var(--r);display:block"
+        onerror="this.style.display='none';document.getElementById('ttImgErr${i}').style.display=''">
+      <p id="ttImgErr${i}" style="display:none;padding:24px;text-align:center;color:var(--text-3);font-size:13px">画像を読み込めませんでした</p>
+    </div>
+  `).join('')
+  el.dataset.renderedAt = manifest.updatedAt
 }
 
 // =============================================
