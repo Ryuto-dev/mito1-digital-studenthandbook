@@ -2479,8 +2479,9 @@ function goToSearchWithQuery(q){
   closeSD();
   nav('search');
   document.getElementById('spInput').value=q;
+  // setSearchMode 内で runSearchPage が呼ばれるため、ここでの二重呼び出しはしない
+  // （二重呼び出しはリクエストを2発消費するため）
   setSearchMode('ai');
-  runSearchPage(q);
 }
 
 /* =================================
@@ -2556,9 +2557,13 @@ function runSearchPage(q){
         </div>`;
     }
   } else {
-    // AI検索
+    // AI検索（旧リクエストが残っていたら中断し、無駄な課金・描画の競合を防ぐ）
+    if(window._aiAbort) window._aiAbort.abort();
+    window._aiAbort=new AbortController();
+    const sig=window._aiAbort.signal;
     box.innerHTML=`<div class="ai-answer-box"><div class="ai-answer-label"><div class="ai-dot-spin"></div>AI が回答を生成しています...</div><div class="ai-answer-text"><div class="typing-dots"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div></div></div>`;
-    callGemini(q).then(ans=>{
+    callGemini(q,{signal:sig}).then(ans=>{
+      if(sig.aborted||ans==='__ABORTED__') return;
       box.innerHTML=`
         <div class="ai-answer-box">
           <div class="ai-answer-label"><div class="ai-dot-spin"></div>AI の回答</div>
@@ -2575,23 +2580,44 @@ function runSearchPage(q){
 }
 
 /* =================================
-   AI 検索（Gemini API経由）
-   
+   AI 検索（Gemini API経由・単発呼び出し）
+
    【プロンプト構成】
    1. システム指示（役割・回答形式）
    2. 全条文データ（_aiContext: ページ読み込み時にキャッシュした全文テキスト）
-   3. 質問にヒットした条文のスニペット（doSearchで上位8件）
+   3. 質問にヒットした箇所の見出しのみ（本文は全データと重複するため送らない）
    4. ユーザーの質問
+
+   最適化メモ:
+   - hitsの本文スニペットは全データと重複するため見出しのみ送る
+   - 同一質問は10分間メモリキャッシュして再送しない
+   - 連打時は runSearchPage 側で AbortController により旧リクエストを中断する
 ================================= */
 // NOTE: "hundbook" might be a typo for "handbook". Please verify against the Worker deployment.
 const AI_WORKERS_URL = 'https://mito1-hundbook.asanuma-ryuto.workers.dev';
 window._aiContext = '';
 
-async function callGemini(q){
-  // 検索ヒットした条文の本文を取得（最大8件）
-  const hits = doSearch(q).slice(0,8)
-    .map(r=>`■${r.path}「${r.title}」\n${r.snip}`)
-    .join('\n\n');
+// 同一質問の再送を避ける簡易キャッシュ（最大50件・10分TTL）
+const _aiCache = new Map();
+function _aiCacheGet(q){
+  const e=_aiCache.get(q);
+  if(!e) return null;
+  if(Date.now()-e.t>10*60*1000){_aiCache.delete(q);return null;}
+  return e.a;
+}
+function _aiCacheSet(q,a){
+  _aiCache.set(q,{a,t:Date.now()});
+  if(_aiCache.size>50) _aiCache.delete(_aiCache.keys().next().value);
+}
+
+async function callGemini(q,opts){
+  const key=q.trim();
+  const cached=_aiCacheGet(key);
+  if(cached) return cached;
+  // 検索ヒット箇所は見出しのみ（本文は全データ内に含まれるため重複送信しない）
+  const refs = doSearch(key).slice(0,8)
+    .map(r=>`・${r.path}「${r.title}」`)
+    .join('\n');
 
   // 全条文データ（_aiContext に全文をキャッシュ済み）
   const fullContext = window._aiContext || '（読み込み中）';
@@ -2606,17 +2632,18 @@ async function callGemini(q){
 【手帳の全データ】
 ${fullContext}
 
-【質問に特に関連するデータ】
-${hits || '（該当なし）'}
+【質問に関連しそうな箇所（本文は全データ内にあり）】
+${refs || '（該当なし）'}
 
 【質問】
-${q}`;
+${key}`;
 
-  try{
+  const fetchAI = async ()=>{
     const res = await fetch(AI_WORKERS_URL, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ contents:[{ parts:[{ text: prompt }] }] })
+      body: JSON.stringify({ contents:[{ parts:[{ text: prompt }] }] }),
+      signal: opts?.signal,
     });
     const text = await res.text();
     if(!res.ok){
@@ -2650,7 +2677,16 @@ ${q}`;
     }
     console.error('[AI] Unknown shape:',JSON.stringify(d).slice(0,300));
     return '回答を生成できませんでした。';
+  };
+
+  try{
+    const ans = await fetchAI();
+    // エラー文はキャッシュしない（再試行できるように）
+    if(!/^(AIサーバーエラー|AIエラー|AIに接続できません|AIモデルを利用できません|回答を生成できません)/.test(ans)) _aiCacheSet(key,ans);
+    return ans;
   }catch(e){
+    // 連打時の中断はエラー表示しない（呼び出し側で描画スキップする）
+    if(e?.name==='AbortError'||opts?.signal?.aborted) return '__ABORTED__';
     console.error('[AI] fetch error:',e);
     return `AIに接続できません: ${e.message}`;
   }
