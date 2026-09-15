@@ -29,6 +29,14 @@
  */
 
 function pollTimetable() {
+  // 夜間休止（JST 18:00〜10:00）。GASの実行コストとレート制限を避ける。
+  const now = new Date();
+  const hour = now.getHours();
+  if (hour < 10 || hour >= 18) {
+    Logger.log('休暇時間のためスキップ: ' + hour + '時');
+    return;
+  }
+
   const props = PropertiesService.getScriptProperties();
   const pat = props.getProperty('GH_PAT');
   if (!pat) throw new Error('GH_PAT未設定');
