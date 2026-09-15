@@ -41,6 +41,38 @@
 - **アクセス解析**: Google Analytics (gtag.js)
 - **ホスティング**: GitHub Pages / ホスティングサービス (Frontend), Cloudflare Workers (Backend)
 
+## 時間割の自動同期（構成メモ）
+
+生徒用時間割（スプレッドシートの画像）を10分おきに確認し、差分があれば
+`public/timetable/` に保存→Pages再デプロイ→購読者へWeb Push通知する。
+関連ファイル: `gas/timetable-poll.js`、`.github/scripts/timetable_sync.py`、
+`.github/workflows/timetable.yml`、`index.html` の時間割ページ・`src/main.js`。
+
+```
+GAS(10分おき・変化検知) → repository_dispatch → Actionsで画像同期・通知
+```
+
+起動方式が二転三転した経緯を残す:
+
+1. **GitHub Actionsのschedule**（当初案）: `schedule` イベントが5時間以上まったく
+   発生せず（キューにも積まれない）、cron式の簡素化（時間帯指定の削除・
+   `*/5`→`*/10`→`*/15`）でも改善しなかったため断念。
+2. **Cloudflare Workers Cron**（迂回路案）: `scheduled` ハンドラ＋Cron Triggerで
+   dispatchを送る実装（`workers/index.js` の `githubDispatch`）までしたが、
+   トリガーが発火せずログにも残らなかった。Worker自動デプロイ自体も
+   依存関係の競合で失敗していた（別途対応が必要）。コードは残してある。
+3. **GASの時間トリガー**（現行）: 正常に発火することを確認。ついでにGAS側で
+   画像ハッシュの変化検知を行い、更新時のみdispatchする方式にした。
+   ソースは `gas/timetable-poll.js`（本番GASと一致させること）。
+
+運用メモ:
+
+- dispatchにはPATが必要（Fine-grained: 対象リポジトリのみ・Actions読み書き。
+  不可ならclassicの `public_repo`）。GAS側はスクリプトプロパティ `GH_PAT`、
+  Push送信用にActions secret `FIREBASE_SERVICE_ACCOUNT_JSON` も別途必要。
+- `sheets-images-rt` のトークンは取得ごとに変わるため、差分判定は
+  必ず画像バイトのハッシュ比較で行うこと（URL文字列比較は不可）。
+
 ## セットアップと開発
 
 ### ローカル開発環境の構築
