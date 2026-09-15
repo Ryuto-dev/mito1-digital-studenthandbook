@@ -14,6 +14,12 @@ on:
     # UTC 19-23,0-15 = JST 4:00-24:00。GitHub cronはUTC指定。
     - cron: "*/5 19-23,0-15 * * *"
   workflow_dispatch:
+    inputs:
+      force_notify:
+        description: "差分がなくてもPush送信をテストする"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -46,6 +52,7 @@ jobs:
         run: python .github/scripts/timetable_sync.py
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FORCE_NOTIFY: ${{ inputs.force_notify }}
 
       - name: Commit on change
         if: steps.sync.outputs.changed == 'true'
