@@ -713,6 +713,10 @@ function buildAIContext() {
   }
 
   window._aiContext = lines.join('\n')
+    // トークン節約: 行末空白の除去・3連以上の改行を2つに圧縮（内容は不変）
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }
 
 // =============================================
