@@ -313,7 +313,7 @@ def main():
         log("通知なし更新のためPush送信をスキップ")
     elif force:
         log("force_notify のためテスト送信する")
-        result["push"] = broadcast_push({})
+        result["push"] = broadcast_push()
         result["push"]["test"] = True
     emit_output(result)
     return 0
