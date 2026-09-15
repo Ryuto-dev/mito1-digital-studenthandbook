@@ -11,10 +11,10 @@ name: Timetable sync
 
 on:
   schedule:
-    # 15分おき（時間帯の絞り込みなし）。
+    # 10分おき（時間帯の絞り込みなし）。
     # 時間帯付きの複雑な指定だと定期実行が起動しない事例があったため、
     # 切り分けとして最も単純な形式にする。Publicなので分数は無料。
-    - cron: "*/15 * * * *"
+    - cron: "*/10 * * * *"
   workflow_dispatch:
     inputs:
       force_notify:
