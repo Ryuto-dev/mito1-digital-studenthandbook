@@ -121,6 +121,10 @@ export default {
       return json({ error: 'Method not allowed' }, 405)
     }
 
+    // LINE Webhook は署名検証に生ボディが必要なため、JSONパースより先に処理する
+    // （パース→再シリアライズでは署名が一致しなくなる）
+    if (url.pathname === '/line/webhook') return lineWebhook(request, env)
+
     let body
     try { body = await request.json() }
     catch { return json({ error: 'Invalid JSON' }, 400) }
@@ -884,6 +888,149 @@ async function lineNotifyComplete(body, env) {
       return json({ error: 'line_push_failed', detail: e.message }, 500)
     }
   }
+}
+
+// =======================================================================
+// LINE Webhook（Reply API による時間割の問い合わせ応答）
+// =======================================================================
+//
+// フロー:
+//   1. ユーザーが公式アカウントに「時間割」と送る
+//   2. LINEプラットフォームが POST /line/webhook にイベントを送る
+//   3. x-line-signature をチャネルシークレットで検証（改ざん・なりすまし対策）
+//   4. 公開マニフェスト（APP_BASE_URL/timetable/manifest.json）を読んで
+//      画像メッセージを Reply API で返す（replyToken消費＝Push通数を使わない）
+//
+// LINE Developers Console での手動設定（コードではできない部分）:
+//   Messaging APIチャネル → Webhook設定 → Webhook URL に
+//     https://<worker>.workers.dev/line/webhook
+//   を登録し、「Webhookの利用」をON、「応答メッセージ」はOFFにすること。
+
+const LINE_REPLY_URL = 'https://api.line.me/v2/bot/message/reply'
+
+// 時間割の問い合わせとみなすキーワード
+function isTimetableQuery(text) {
+  if (typeof text !== 'string' || !text) return false
+  return /時間割|じかんわり|ジカンワリ|timetable/i.test(text)
+}
+
+/**
+ * x-line-signature（bodyのHMAC-SHA256、Base64）を検証する。
+ * 比較は定数時間で行う。
+ */
+async function verifyLineSignature(bodyText, signatureB64, channelSecret) {
+  try {
+    if (!signatureB64 || !channelSecret) return false
+    const key = await crypto.subtle.importKey(
+      'raw', new TextEncoder().encode(channelSecret),
+      { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+    )
+    const mac = new Uint8Array(await crypto.subtle.sign(
+      'HMAC', key, new TextEncoder().encode(bodyText)
+    ))
+    const bin = atob(signatureB64)
+    if (bin.length !== mac.length) return false
+    const sig = Uint8Array.from(bin, c => c.charCodeAt(0))
+    let diff = 0
+    for (let i = 0; i < mac.length; i++) diff |= mac[i] ^ sig[i]
+    return diff === 0
+  } catch {
+    return false
+  }
+}
+
+/**
+ * マニフェストからReply API用の画像メッセージを組み立てる（純粋関数）。
+ * Replyは最大5件/回のため、画像4枚＋案内テキスト1件に収める。
+ */
+function buildTimetableReplyMessages(manifest, base) {
+  const images = manifest && Array.isArray(manifest.images) ? manifest.images : []
+  if (!images.length) {
+    return [{
+      type: 'text',
+      text: '時間割はまだ登録されていません。しばらくしてからもう一度「時間割」と送ってください。',
+    }]
+  }
+  const label = manifest.updatedAtLabel ? `（${manifest.updatedAtLabel}）` : ''
+  // 画像は最大4枚＋案内テキスト1件＝Reply上限5件に収める
+  const msgs = images.slice(0, 4).map(im => {
+    const url = `${base}/timetable/${encodeURIComponent(im.file)}`
+    return { type: 'image', originalContentUrl: url, previewImageUrl: url }
+  })
+  msgs.push({ type: 'text', text: `今日の時間割です${label}\n詳しくは手帳アプリでも確認できます：${base}/#timetable` })
+  return msgs
+}
+
+/** Reply API 呼び出し（アクセストークンはMessaging APIチャネルのもの） */
+async function lineReply(env, replyToken, messages) {
+  let accessToken = env.LINE_CHANNEL_ACCESS_TOKEN || env.LINE_CHANNEL_TOKEN
+    || env.LINE_MESSAGING_ACCESS_TOKEN || env.LINE_ACCESS_TOKEN
+  if (!accessToken) {
+    accessToken = await issueMessagingToken(env)
+  }
+  const res = await fetch(LINE_REPLY_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ replyToken, messages }),
+  })
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    throw new Error(`reply failed (${res.status}): ${detail.slice(0, 200)}`)
+  }
+  return true
+}
+
+/** POST /line/webhook */
+async function lineWebhook(request, env) {
+  const channelSecret = env.LINE_Channel_secret || env.LINE_CHANNEL_SECRET
+  if (!channelSecret) {
+    return json({ error: 'LINE_Channel_secret not set in Workers secrets' }, 500)
+  }
+
+  const bodyText = await request.text()
+  const signature = request.headers.get('x-line-signature') || ''
+  if (!await verifyLineSignature(bodyText, signature, channelSecret)) {
+    return json({ error: 'invalid signature' }, 403)
+  }
+
+  let body
+  try { body = JSON.parse(bodyText) }
+  catch { return json({ error: 'Invalid JSON' }, 400) }
+
+  const events = Array.isArray(body.events) ? body.events : []
+  const base = env.APP_BASE_URL || 'https://mito1-tetyo.tech'
+  let replied = 0
+
+  for (const ev of events) {
+    try {
+      // 時間割の問い合わせ（テキストメッセージ）にのみ応答する
+      if (ev.type !== 'message' || ev.message?.type !== 'text') continue
+      if (!isTimetableQuery(ev.message.text)) continue
+      if (!ev.replyToken) continue
+
+      // 公開マニフェストから最新の画像一覧を取得する
+      let manifest = null
+      try {
+        const mres = await fetch(`${base}/timetable/manifest.json?webhook=1`)
+        if (mres.ok) manifest = await mres.json()
+      } catch (e) {
+        console.error('[line/webhook] manifest fetch failed:', e)
+      }
+
+      const messages = buildTimetableReplyMessages(manifest, base)
+      await lineReply(env, ev.replyToken, messages)
+      replied++
+    } catch (e) {
+      // 1イベントの失敗で全体を道連れにしない。
+      // LINEは非2xxでリトライしてくるため、処理済み分は200で返す。
+      console.error('[line/webhook] event handling failed:', e)
+    }
+  }
+
+  return json({ ok: true, replied })
 }
 
 // =======================================================================
