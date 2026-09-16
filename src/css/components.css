@@ -653,3 +653,85 @@ select.cf-input{cursor:pointer}
   .install-banner{flex-wrap:wrap}
   .install-b-btn{width:100%;text-align:center}
 }
+
+/* ===========================
+   マイページ: 設定ボタン／設定シート（Issue #67）
+   ・LINE/Google連携・プッシュ通知・βテスト一覧・テーマ・ログアウトを
+     プロフィールカードから切り離し、「設定」ボタン1つに集約する。
+   =========================== */
+.mp-settings-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 14px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:7px;font-size:12px;font-weight:600;color:var(--text-2);
+  cursor:pointer;font-family:inherit;transition:background .12s,color .12s;
+  -webkit-tap-highlight-color:transparent;flex-shrink:0;
+}
+.mp-settings-btn:hover{background:var(--surface);color:var(--text);border-color:var(--navy)}
+.mp-settings-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8}
+
+.settings-overlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.42);
+  z-index:600;
+}
+.settings-overlay.open{display:block;animation:pgIn .18s ease}
+.settings-sheet{
+  position:fixed;left:0;right:0;bottom:0;
+  background:var(--surface);
+  border-radius:var(--r-lg) var(--r-lg) 0 0;
+  box-shadow:0 -8px 32px rgba(0,0,0,.18);
+  z-index:610;transform:translateY(110%);
+  transition:transform .3s cubic-bezier(.4,0,.2,1);
+  padding-bottom:var(--safe-b);
+  padding-left:var(--safe-l);padding-right:var(--safe-r);
+  max-height:min(86vh,680px);max-height:min(86dvh,680px);
+  display:flex;flex-direction:column;
+  margin-left:auto;margin-right:auto;max-width:520px;
+}
+.settings-sheet.open{transform:translateY(0)}
+.settings-handle{
+  width:40px;height:4px;background:var(--border);border-radius:2px;
+  margin:10px auto 0;flex-shrink:0;
+}
+.settings-sheet-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 18px 10px;flex-shrink:0;border-bottom:1px solid var(--border);
+}
+.settings-sheet-title{font-size:14px;font-weight:700;letter-spacing:.02em;color:var(--text)}
+.settings-sheet-close{
+  width:32px;height:32px;border:none;background:var(--surface2);
+  border-radius:50%;cursor:pointer;color:var(--text-2);
+  display:flex;align-items:center;justify-content:center;
+  -webkit-tap-highlight-color:transparent;
+}
+.settings-sheet-close svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2.2}
+.settings-sheet-scroll{
+  overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  padding:4px 18px 18px;
+}
+.settings-sec-label{
+  font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--text-3);
+  text-transform:uppercase;padding:16px 2px 8px;
+}
+.settings-sec-label:first-child{padding-top:14px}
+.settings-row{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:13px 10px;border:none;background:none;border-radius:9px;
+  font-family:inherit;font-size:13.5px;font-weight:500;color:var(--text);
+  cursor:pointer;text-align:left;transition:background .12s;
+  -webkit-tap-highlight-color:transparent;
+}
+.settings-row:hover{background:var(--surface2)}
+.settings-row + .settings-row{border-top:1px solid var(--border)}
+.settings-row-icon{
+  width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--text-2);
+}
+.settings-row-icon svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7}
+.settings-row-lbl{flex:1;min-width:0}
+.settings-row-chev{flex-shrink:0;color:var(--text-3)}
+.settings-row-chev svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+.settings-row-danger{color:var(--enjii)}
+.settings-row-danger .settings-row-icon{color:var(--enjii)}
+.settings-row-danger:hover{background:var(--enjii-bg)}
+/* 設定シート内に移設したカード群は上下の余白のみ調整（見た目はそのまま） */
+.settings-sheet-scroll .line-banner,
+.settings-sheet-scroll .line-linked{margin-bottom:12px}
