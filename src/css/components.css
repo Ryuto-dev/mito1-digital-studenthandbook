@@ -257,6 +257,46 @@
 .coming-card-desc{font-size:11.5px;color:var(--text-3);line-height:1.6}
 
 /* ===========================
+   時間割 フローティングウィジェット（Issue #85）
+   ヘッダー直下・画面右上に固定。AI FLOAT（右下）や生徒手帳の浮遊画像
+   （.home-book、ホーム中央）とは領域が重ならない位置に配置している。
+=========================== */
+.tt-widget{
+  position:fixed;top:calc(var(--header-h) + 12px);right:calc(14px + var(--safe-r));
+  z-index:190;display:flex;align-items:center;gap:8px;
+  background:linear-gradient(135deg,#14324a 0%,#1e5a7a 100%);
+  color:#fff;border:none;border-radius:12px;cursor:pointer;
+  padding:8px 12px 8px 10px;box-shadow:var(--shadow-md);
+  transition:transform .18s,box-shadow .18s;
+  max-width:min(160px,38vw);
+}
+.tt-widget:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.tt-widget:active{transform:translateY(0)}
+.tt-widget-icon{
+  flex-shrink:0;width:28px;height:28px;border-radius:8px;
+  background:rgba(255,255,255,.16);
+  display:flex;align-items:center;justify-content:center;
+}
+.tt-widget-icon svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:1.9}
+.tt-widget-txt{display:flex;flex-direction:column;align-items:flex-start;min-width:0;text-align:left}
+.tt-widget-ttl{font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px;letter-spacing:.02em}
+.tt-widget-badge{
+  font-size:8.5px;font-weight:700;letter-spacing:.04em;
+  background:var(--enjii);color:#fff;padding:1px 5px;border-radius:8px;line-height:1.4;
+}
+.tt-widget-sub{
+  font-size:9.5px;color:rgba(255,255,255,.7);margin-top:1px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
+}
+/* PWA standalone / タブレット以下では下部ナビ・AI FLOATと縦位置が近くなるため
+   ウィジェットはヘッダー直下に留める（左右は safe-area 分だけ調整）。 */
+@media(max-width:768px){
+  .tt-widget{top:calc(var(--header-h) + 8px);right:calc(10px + var(--safe-r));padding:7px 10px 7px 8px}
+  .tt-widget-sub{max-width:84px}
+}
+.pwa-mode .tt-widget{top:calc(var(--header-h) + var(--safe-t) + 8px)}
+
+/* ===========================
    AI FLOAT
 =========================== */
 .ai-float{position:fixed;right:calc(18px + var(--safe-r));bottom:18px;z-index:350;display:flex;flex-direction:column;align-items:flex-end;gap:10px}

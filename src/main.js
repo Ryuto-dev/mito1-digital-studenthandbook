@@ -720,73 +720,105 @@ function buildAIContext() {
 }
 
 // =============================================
-// 今日の時間割（Actionsが5分おきに同期する静的ファイル）
+// 時間割（Actionsが5分おきに同期する静的ファイル）
 // public/timetable/manifest.json + slot-*
 //   loadTimetable: マニフェスト取得＋文言＋NEWバッジ（軽量・無条件）
 //   renderTimetableImages: 画像バイトの取得・描画はβ通過時とページ表示時のみ。
 //     β対象外のユーザーに画像を取得させないための分離。
+//
+// PWAのService WorkerがGETをネットワーク優先→失敗時キャッシュで扱うため、
+// 通常は古い画像が出続けることはない。ただし前日14時ごろの更新直後に
+// 端末側の一時的なキャッシュ/オフラインで古い表示が残るケースに備え、
+// manifest.json は常に cache:'no-store' で取得し、更新ボタン・通知経由の
+// 遷移時は window._timetableManifest のキャッシュを使わず強制再取得する。
 // =============================================
-async function loadTimetable() {
+async function loadTimetable(force) {
   let manifest = null
   try {
-    const res = await fetch('timetable/manifest.json', { cache: 'no-store' })
+    const res = await fetch(`timetable/manifest.json?_=${Date.now()}`, { cache: 'no-store' })
     if (res.ok) manifest = await res.json()
   } catch {
     // まだ初回同期前
   }
 
   const meta = document.getElementById('timetableMeta')
-  const cardSub = document.getElementById('timetableCardSub')
+  const widgetSub = document.getElementById('ttWidgetSub')
 
   if (!manifest?.images?.length) {
     if (meta) meta.textContent = '準備中'
-    if (cardSub) cardSub.textContent = '準備中'
-    return
+    if (widgetSub) widgetSub.textContent = '準備中'
+    return null
   }
 
   window._timetableManifest = manifest
   window._timetableUpdatedAt = manifest.updatedAt || ''
   if (meta) meta.textContent = manifest.updatedAtLabel || ''
-  if (cardSub) cardSub.textContent = manifest.updatedAtLabel || '自動更新'
+  if (widgetSub) widgetSub.textContent = manifest.updatedAtLabel || '自動更新'
 
   // NEWバッジ（開いたら既読になる。既読処理はnavラッパー側）
   try {
     const seen = localStorage.getItem('timetableSeenAt')
     const isNew = !!manifest.updatedAt && seen !== manifest.updatedAt
-    const badge = document.getElementById('sbBadgeTimetable')
-    if (badge) {
-      badge.textContent = isNew ? 'NEW' : ''
-      badge.style.display = isNew ? '' : 'none'
-    }
+    ;['sbBadgeTimetable', 'ttWidgetBadge'].forEach(id => {
+      const badge = document.getElementById(id)
+      if (badge) {
+        badge.textContent = isNew ? 'NEW' : ''
+        badge.style.display = isNew ? '' : 'none'
+      }
+    })
   } catch { /* ignore */ }
+  return manifest
 }
 
 /**
- * 時間割画像の描画（冪等。同一updatedAtでは再描画しない）。
+ * 時間割画像の描画。
+ * force=true のときは同一updatedAtでも再取得・再描画する
+ * （更新ボタン・通知からの遷移時に古いDOMが残らないようにするため）。
  * manifest.json は外部同期由来なので、file名はエンコードして埋め込む。
  */
-window.renderTimetableImages = async function() {
+window.renderTimetableImages = async function(force) {
   const el = document.getElementById('timetableImagesFront')
   if (!el) return
-  if (!window._timetableManifest) {
-    await loadTimetable()
+  if (!window._timetableManifest || force) {
+    await loadTimetable(force)
   }
   const manifest = window._timetableManifest
   if (!manifest?.images?.length) {
     el.innerHTML = '<p style="padding:40px;text-align:center;color:var(--text-3);font-size:13px">時間割はまだ登録されていません</p>'
+    el.dataset.renderedAt = ''
     return
   }
-  if (el.dataset.renderedAt === manifest.updatedAt) return
-  const v = encodeURIComponent(manifest.updatedAt || '')
+  if (!force && el.dataset.renderedAt === manifest.updatedAt) return
+  const v = encodeURIComponent(`${manifest.updatedAt || ''}-${Date.now()}`)
   el.innerHTML = manifest.images.map((im, i) => `
     <div style="margin-bottom:12px">
-      <img src="timetable/${encodeURIComponent(im.file)}?v=${v}" alt="今日の時間割${i + 1}" loading="lazy"
+      <img src="timetable/${encodeURIComponent(im.file)}?v=${v}" alt="時間割${i + 1}" loading="lazy"
         style="width:100%;border-radius:var(--r);display:block"
         onerror="this.style.display='none';document.getElementById('ttImgErr${i}').style.display=''">
       <p id="ttImgErr${i}" style="display:none;padding:24px;text-align:center;color:var(--text-3);font-size:13px">画像を読み込めませんでした</p>
     </div>
   `).join('')
   el.dataset.renderedAt = manifest.updatedAt
+}
+
+/**
+ * 「更新」ボタン・通知経由の遷移から呼ばれる強制再取得。
+ * PWAキャッシュ問題（Issue #85）対策: manifest.jsonをキャッシュ無視で
+ * 取り直し、画像タグのクエリ文字列も毎回変えてブラウザ内キャッシュを回避する。
+ */
+window.refreshTimetable = async function() {
+  const btn = document.getElementById('timetableRefreshBtn')
+  const meta = document.getElementById('timetableMeta')
+  if (btn) btn.disabled = true
+  if (meta) meta.textContent = '更新中...'
+  try {
+    await window.renderTimetableImages(true)
+    if (window._timetableUpdatedAt) {
+      try { localStorage.setItem('timetableSeenAt', window._timetableUpdatedAt) } catch { /* ignore */ }
+    }
+  } finally {
+    if (btn) btn.disabled = false
+  }
 }
 
 // =============================================

@@ -61,7 +61,7 @@ export const KNOWN_FLAGS = {
     defaultStatus: 'beta',
   },
   'timetable': {
-    name: '今日の時間割',
+    name: '時間割',
     description: 'スプレッドシートの時間割画像を5分おきに自動同期して表示する機能',
     defaultStatus: 'beta',
   },
