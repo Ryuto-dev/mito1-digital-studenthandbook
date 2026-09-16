@@ -490,3 +490,166 @@ select.cf-input{cursor:pointer}
 }
 .line-unlink-btn:hover{border-color:var(--enjii);color:var(--enjii);background:var(--enjii-bg)}
 .line-unlink-btn:disabled{opacity:.5;cursor:progress}
+/* ===========================
+   PWA: ホーム画面に追加（インストール導線）
+   =========================== */
+.install-banner{
+  display:none;
+  align-items:center;gap:14px;
+  background:linear-gradient(135deg,var(--navy-mid),var(--navy));
+  color:#fff;
+  border-radius:var(--r-lg);
+  padding:14px 16px;margin-bottom:22px;
+  box-shadow:var(--shadow-md);
+  position:relative;overflow:hidden;
+}
+.install-banner.show{display:flex}
+.install-banner::before{
+  content:'';position:absolute;top:-55px;right:-40px;
+  width:170px;height:170px;border-radius:50%;
+  background:radial-gradient(circle,rgba(139,26,44,.4),transparent 70%);
+  pointer-events:none;
+}
+.install-b-icon{
+  flex-shrink:0;width:42px;height:42px;border-radius:12px;
+  background:rgba(255,255,255,.14);
+  display:flex;align-items:center;justify-content:center;
+}
+.install-b-icon svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:1.8}
+.install-b-txt{flex:1;min-width:0}
+.install-b-ttl{font-size:13.5px;font-weight:700;letter-spacing:.01em;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.install-b-new{
+  font-size:9px;font-weight:700;letter-spacing:.08em;
+  background:var(--enjii);color:#fff;padding:1px 7px;border-radius:9px;
+}
+.install-b-sub{font-size:11px;opacity:.78;margin-top:2px;line-height:1.6}
+.install-b-btn{
+  flex-shrink:0;border:none;cursor:pointer;
+  background:#fff;color:var(--navy);
+  font-family:inherit;font-size:12px;font-weight:700;
+  padding:9px 16px;border-radius:10px;
+  transition:transform .12s,box-shadow .12s;
+  box-shadow:0 2px 8px rgba(0,0,0,.18);
+  -webkit-tap-highlight-color:transparent;
+}
+.install-b-btn:active{transform:scale(.96)}
+.install-b-close{
+  flex-shrink:0;border:none;background:none;color:rgba(255,255,255,.65);
+  width:28px;height:28px;border-radius:50%;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  -webkit-tap-highlight-color:transparent;
+}
+.install-b-close svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2.2}
+
+/* インストール方法シート */
+.install-overlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.42);
+  z-index:600;
+}
+.install-overlay.open{display:block;animation:pgIn .18s ease}
+.install-sheet{
+  position:fixed;left:0;right:0;bottom:0;
+  background:var(--surface);
+  border-radius:var(--r-lg) var(--r-lg) 0 0;
+  box-shadow:0 -8px 32px rgba(0,0,0,.18);
+  z-index:610;transform:translateY(110%);
+  transition:transform .3s cubic-bezier(.4,0,.2,1);
+  padding-bottom:var(--safe-b);
+  padding-left:var(--safe-l);padding-right:var(--safe-r);
+  max-height:min(88vh,680px);max-height:min(88dvh,680px);
+  display:flex;flex-direction:column;
+}
+.install-sheet.open{transform:translateY(0)}
+.install-handle{
+  width:40px;height:4px;background:var(--border);border-radius:2px;
+  margin:10px auto 0;flex-shrink:0;
+}
+.install-sheet-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 18px 10px;flex-shrink:0;
+}
+.install-sheet-title{font-size:14px;font-weight:700;letter-spacing:.02em}
+.install-sheet-close{
+  width:32px;height:32px;border:none;background:var(--surface2);
+  border-radius:50%;cursor:pointer;color:var(--text-2);
+  display:flex;align-items:center;justify-content:center;
+  -webkit-tap-highlight-color:transparent;
+}
+.install-sheet-close svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2.2}
+.install-sheet-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:0 18px 18px}
+.install-hero{
+  display:flex;align-items:center;gap:14px;
+  background:linear-gradient(135deg,var(--navy-dim),transparent);
+  border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:16px;
+}
+.install-hero-icon{
+  flex-shrink:0;width:56px;height:56px;border-radius:14px;
+  background:linear-gradient(135deg,var(--navy-mid),var(--navy));
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:var(--shadow-md);
+}
+.install-hero-icon svg{width:30px;height:30px;stroke:#fff;fill:none;stroke-width:1.6}
+.install-hero-ttl{font-size:15px;font-weight:700;color:var(--text)}
+.install-hero-sub{font-size:11.5px;color:var(--text-2);line-height:1.7;margin-top:3px}
+.install-hero-note{font-size:10.5px;color:var(--text-3);line-height:1.6;margin-top:6px}
+.install-push-notice{
+  display:flex;gap:9px;align-items:flex-start;
+  background:var(--enjii-bg);border:1.5px solid rgba(139,26,44,.4);
+  color:var(--enjii);border-radius:var(--r);padding:11px 13px;
+  font-size:11.5px;line-height:1.7;margin-top:12px;
+}
+[data-theme="dark"] .install-push-notice{color:#e28a92;border-color:rgba(139,26,44,.5)}
+.install-push-notice svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0;margin-top:3px}
+.install-push-notice b{font-weight:700}
+.install-benefits{display:flex;gap:8px;margin:14px 0 4px}
+.install-benefit{
+  flex:1;text-align:center;
+  border:1px solid var(--border);border-radius:var(--r);
+  padding:10px 6px;background:var(--surface2);
+}
+.install-benefit svg{width:18px;height:18px;stroke:var(--navy);fill:none;stroke-width:1.8}
+[data-theme="dark"] .install-benefit svg{stroke:#8fb4ff}
+.install-benefit-t{font-size:10.5px;font-weight:700;color:var(--text);margin-top:5px}
+.install-benefit-s{font-size:9.5px;color:var(--text-3);margin-top:2px;line-height:1.5}
+.install-steps{margin-top:18px}
+.install-step-title{font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:12px}
+.install-step{display:flex;gap:12px;margin-bottom:14px;align-items:flex-start}
+.install-step-num{
+  flex-shrink:0;width:22px;height:22px;border-radius:50%;
+  background:var(--enjii);color:#fff;font-size:11.5px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  margin-top:2px;
+}
+.install-step-body{flex:1;min-width:0}
+.install-step-name{
+  font-size:13px;font-weight:600;color:var(--text);
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+}
+.install-step-name svg{width:15px;height:15px;stroke:var(--navy);fill:none;stroke-width:1.9;vertical-align:-2px}
+[data-theme="dark"] .install-step-name svg{stroke:#8fb4ff}
+.install-step-desc{font-size:11.5px;color:var(--text-2);line-height:1.8;margin-top:3px}
+.install-note{
+  display:flex;gap:8px;align-items:flex-start;
+  background:rgba(242,223,168,.14);border:1px solid rgba(242,223,168,.35);
+  color:#8a6d1a;border-radius:var(--r);padding:10px 12px;
+  font-size:11px;line-height:1.7;margin-top:16px;
+}
+[data-theme="dark"] .install-note{color:#e0c877}
+.install-note svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0;margin-top:3px}
+.install-sheet-foot{
+  display:flex;gap:10px;padding:12px 18px calc(12px + var(--safe-b));
+  flex-shrink:0;border-top:1px solid var(--border-2);
+}
+.install-btn-ghost{
+  flex:1;height:44px;border:1.5px solid var(--border);
+  background:var(--surface);color:var(--text-2);
+  border-radius:10px;font-size:12.5px;font-weight:600;cursor:pointer;
+  font-family:inherit;transition:background .12s;
+  -webkit-tap-highlight-color:transparent;
+}
+.install-btn-ghost:hover{background:var(--surface2);color:var(--text)}
+@media(max-width:560px){
+  .install-banner{flex-wrap:wrap}
+  .install-b-btn{width:100%;text-align:center}
+}

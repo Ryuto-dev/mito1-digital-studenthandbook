@@ -65,7 +65,7 @@
   </button>
 
   <div class="header-brand" onclick="nav('home')">
-    <img class="brand-crest" src="/crest.png" alt="校章">
+    <img class="brand-crest" src="/icons/icon-512.png" alt="校章">
     <div class="brand-names">
       <span class="brand-main">デジタル生徒手帳</span>
       <span class="brand-sub">水戸第一高等学校</span>
@@ -278,6 +278,10 @@
         <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         <div class="more-lbl">お問い合わせ</div>
       </button>
+      <button class="more-item" data-mp="install" onclick="closeMore();openInstallSheet()">
+        <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><path d="M12 8.5v7"/><path d="M8.5 12h7"/></svg>
+        <div class="more-lbl">ホーム画面に追加</div>
+      </button>
     </div>
 
     <div class="more-sec-label">諸規定・生徒会</div>
@@ -335,16 +339,166 @@
         <div class="more-lbl">身分証</div>
       </button>
     </div>
-    <div class="more-sheet-foot">茨城県立水戸第一高等学校・附属中学校 デジタル生徒手帳</div>
+<div class="more-sheet-foot">茨城県立水戸第一高等学校・附属中学校 デジタル生徒手帳</div>
   </div>
 </div>
 
-<!-- MAIN -->
+<!-- PWA インストールシート（ホーム画面に追加） -->
+<div class="install-overlay" id="installOverlay" onclick="closeInstallSheet()"></div>
+<div class="install-sheet" id="installSheet" role="dialog" aria-modal="true" aria-label="ホーム画面に追加の方法">
+  <div class="install-handle"></div>
+  <div class="install-sheet-head">
+    <span class="install-sheet-title">ホーム画面に追加</span>
+    <button class="install-sheet-close" onclick="closeInstallSheet()" aria-label="閉じる">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="install-sheet-scroll">
+    <div class="install-hero">
+      <div class="install-hero-icon">
+        <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><path d="M12 8.5v7"/><path d="M8.5 12h7"/></svg>
+      </div>
+      <div>
+        <div class="install-hero-ttl">デジタル生徒手帳</div>
+        <div class="install-hero-sub">iPhone のホーム画面に追加すると、アプリのようにすばやく開けてオフラインでも閲覧できます。</div>
+        <div class="install-hero-note">※ 追加しなくても、このままブラウザですぐ利用できます。</div>
+      </div>
+    </div>
+
+    <div class="install-push-notice" id="installPushNotice" style="display:none">
+      <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <div><b>通知を受け取るには、ホーム画面への追加が必要です。</b>追加したアプリアイコンから開くと「通知をONにする」を押せます。</div>
+    </div>
+
+    <div class="install-benefits">
+      <div class="install-benefit">
+        <svg viewBox="0 0 24 24"><path d="M13 2L4.5 13H11l-1.5 9L19 10h-6.5z"/></svg>
+        <div class="install-benefit-t">すぐ開ける</div>
+        <div class="install-benefit-s">ホーム画面からワンタップ</div>
+      </div>
+      <div class="install-benefit">
+        <svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        <div class="install-benefit-t">フル画面</div>
+        <div class="install-benefit-s">ブラウザの枠が消えて見やすく</div>
+      </div>
+      <div class="install-benefit">
+        <svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><polyline points="9 12 11 14 15 10"/></svg>
+        <div class="install-benefit-t">オフライン</div>
+        <div class="install-benefit-s">通信が不安定でも閲覧可能</div>
+      </div>
+    </div>
+
+    <div class="install-steps">
+      <div class="install-step-title" id="installStepsTitle">iPhone での追加方法（約30秒）</div>
+
+      <!-- Safari 手順 -->
+      <div id="installStepsSafari">
+        <div class="install-step">
+          <div class="install-step-num">1</div>
+          <div class="install-step-body">
+            <div class="install-step-name">
+              <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
+              「URLバー」横の「三本線」アイコンをタップ
+            </div>
+            <div class="install-step-desc">URLバーの左側に表示されています。</div>
+          </div>
+        </div>
+        <div class="install-step">
+          <div class="install-step-num">2</div>
+          <div class="install-step-body">
+            <div class="install-step-name">
+              <svg viewBox="0 0 24 24"><rect x="4" y="12" width="16" height="8" rx="2"/><path d="M12 12V4"/><path d="M8 8l4-4 4 4"/></svg>
+              メニューから「共有」をタップ
+            </div>
+            <div class="install-step-desc">展開されたメニューの中から「共有」を選択します。</div>
+          </div>
+        </div>
+        <div class="install-step">
+          <div class="install-step-num">3</div>
+          <div class="install-step-body">
+            <div class="install-step-name">
+              <svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 9.5V20h12V9.5"/><path d="M12 13.5v4"/><path d="M10 15.5h4"/></svg>
+              「ホーム画面に追加」をタップ
+            </div>
+            <div class="install-step-desc">共有メニューの中に表示されます。見つからない場合は下へスクロールしてください。</div>
+          </div>
+        </div>
+        <div class="install-step">
+          <div class="install-step-num">4</div>
+          <div class="install-step-body">
+            <div class="install-step-name">
+              <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+              右上の「追加」をタップ
+            </div>
+            <div class="install-step-desc">名前を確認して「追加」を押すと、ホーム画面にアイコンが追加されます。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chrome 手順 -->
+      <div id="installStepsChrome" style="display:none">
+        <div class="install-step">
+          <div class="install-step-num">1</div>
+          <div class="install-step-body">
+            <div class="install-step-name">
+              <svg viewBox="0 0 24 24"><rect x="4" y="12" width="16" height="8" rx="2"/><path d="M12 12V4"/><path d="M8 8l4-4 4 4"/></svg>
+              「アドレスバー」横の「共有」アイコンをタップ
+            </div>
+            <div class="install-step-desc">アドレスバーの右端に表示されています。</div>
+          </div>
+        </div>
+        <div class="install-step">
+          <div class="install-step-num">2</div>
+          <div class="install-step-body">
+            <div class="install-step-name">
+              <svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 9.5V20h12V9.5"/><path d="M12 13.5v4"/><path d="M10 15.5h4"/></svg>
+              「ホーム画面に追加」をタップ
+            </div>
+            <div class="install-step-desc">共有メニューの中に表示されます。見つからない場合は下へスクロールしてください。</div>
+          </div>
+        </div>
+        <div class="install-step">
+          <div class="install-step-num">3</div>
+          <div class="install-step-body">
+            <div class="install-step-name">
+              <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+              右上の「追加」をタップ
+            </div>
+            <div class="install-step-desc">名前を確認して「追加」を押すと、ホーム画面にアイコンが追加されます。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="install-note">
+      <svg viewBox="0 0 24 24"><path d="M12 4l10 17H2z"/><path d="M12 10.5v4.5"/><path d="M12 18.5h.01"/></svg>
+      <div>追加後は、ブラウザではなくホーム画面のアイコンから開いてください。追加は何度でも取り消せます。</div>
+    </div>
+  </div>
+  <div class="install-sheet-foot">
+    <button class="install-btn-ghost" onclick="closeInstallSheet()">今は閉じる</button>
+    <button class="install-btn-ghost" onclick="neverShowInstall()">今後表示しない</button>
+  </div>
+</div>
+
 <main class="main" id="main">
 
   <!-- HOME -->
   <section class="pg on" id="pg-home">
     <div class="home-wrap">
+      <div class="install-banner" id="installBanner" role="status">
+        <div class="install-b-icon">
+          <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><path d="M12 8.5v7"/><path d="M8.5 12h7"/></svg>
+        </div>
+        <div class="install-b-txt">
+          <div class="install-b-ttl">ホーム画面に追加<span class="install-b-new">NEW</span></div>
+          <div class="install-b-sub">アプリのように素早く開けるようになります</div>
+        </div>
+        <button class="install-b-btn" onclick="openInstallSheet()">追加方法</button>
+        <button class="install-b-close" onclick="dismissInstallBanner()" aria-label="閉じる">
+          <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
       <div class="home-brand">
         <div class="home-book">
           <img class="hb-crest" src="/crest_touka.png" alt="校章">
@@ -1622,6 +1776,91 @@ function isStandalone(){
   }
 })();
 
+/* =================================
+   PWA: ホーム画面に追加ガイド（iPhone）
+   ---------------------------------------------------
+   iOS は beforeinstallprompt が無いため、
+   手順（共有 → ホーム画面に追加）を案内する。
+   対象: iOS（Safari/Chrome）でブラウザ表示中（standalone でない）
+  ・ブラウザに合わせて手順を出し分ける（Safari / Chrome）
+  ・シートはリロードのたびに自動表示（「今後表示しない」で抑止）
+  ・ホームにバナー表示（閉じたら7日間非表示）
+================================= */
+function isIOS(){
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS 13+
+}
+/* iOS 上のブラウザ判定（CriOS 以外は Safari 手順を案内） */
+function iosBrowser(){
+  if(/CriOS|FxiOS|EdgiOS/i.test(navigator.userAgent)) return 'chrome';
+  return 'safari';
+}
+function shouldShowInstall(){
+  if(isStandalone()) return false;              // すでにPWAで起動済み
+  if(!isIOS()) return false;                    // iPhone/iPad のみ
+  if(navigator.standalone === true) return false;
+  // 「今後表示しない」を選択済みなら表示しない
+  try{ if(localStorage.getItem('installPromptHidden')) return false; }catch(e){}
+  // ナレッジバー等の埋め込み iframe では表示しない
+  try{ if(window.self !== window.top) return false; }catch(e){ return false }
+  return true;
+}
+function dismissInstallBanner(){
+  const b=document.getElementById('installBanner');
+  if(b)b.classList.remove('show');
+  try{ localStorage.setItem('installBannerDismissedAt', String(Date.now())) }catch(e){}
+}
+/* ブラウザに合わせてシートの手順を出し分ける */
+function applyInstallSteps(){
+  const isChrome = iosBrowser() === 'chrome';
+  const safariEl=document.getElementById('installStepsSafari');
+  const chromeEl=document.getElementById('installStepsChrome');
+  const title=document.getElementById('installStepsTitle');
+  if(!safariEl||!chromeEl||!title) return;
+  safariEl.style.display=isChrome?'none':'';
+  chromeEl.style.display=isChrome?'':'none';
+  title.textContent=(isChrome?'Chrome':'Safari')+' での追加方法（約30秒）';
+}
+function openInstallSheet(mode){
+  applyInstallSteps();
+  const notice=document.getElementById('installPushNotice');
+  if(notice) notice.style.display = (mode==='push') ? '' : 'none';
+  const s=document.getElementById('installSheet');
+  const o=document.getElementById('installOverlay');
+  if(!s||!o) return;
+  s.classList.add('open');
+  o.classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeInstallSheet(){
+  const s=document.getElementById('installSheet');
+  const o=document.getElementById('installOverlay');
+  if(!s||!o) return;
+  s.classList.remove('open');
+  o.classList.remove('open');
+  document.body.style.overflow='';
+}
+/* 「今後表示しない」を選択したら閉じて、以後は表示しない */
+function neverShowInstall(){
+  closeInstallSheet();
+  const b=document.getElementById('installBanner');
+  if(b)b.classList.remove('show');
+  try{ localStorage.setItem('installPromptHidden','1') }catch(e){}
+}
+(function(){
+  if(!shouldShowInstall()) return;
+  // ホームバナー表示（7日間以内に閉じた場合は出さない）
+  try{
+    const d=localStorage.getItem('installBannerDismissedAt');
+    const banner=document.getElementById('installBanner');
+    if(banner && (!d || Date.now()-Number(d) > 7*24*60*60*1000)){
+      banner.classList.add('show');
+    }
+  }catch(e){}
+  // リロードのたびに、ローディング演出（約3.2秒）後にシートを自動表示
+  setTimeout(openInstallSheet, 4200);
+})();
+
 /* =====================================================
    ソフトキーボード対応（再設計）
    -----------------------------------------------------
@@ -2659,12 +2898,15 @@ async function renderPushUI() {
   if (!avail.supported) {
     if (avail.reason === 'ios-browser') {
       badge.textContent = 'プッシュ通知: 設定が必要'
-      text.innerHTML = 'iPhoneではSafariから「共有 → ホーム画面に追加」し、追加したアプリアイコンから開くと通知を受け取れます。'
+      text.innerHTML = 'iPhoneではホーム画面に追加して、追加したアプリアイコンから開くと通知を受け取れます。'
+      btn.textContent = '通知をオンにする'
+      btn.style.display = ''
+      btn.disabled = false
     } else {
       badge.textContent = 'プッシュ通知: 非対応'
       text.textContent = 'このブラウザはプッシュ通知に対応していません。'
+      btn.style.display = 'none'
     }
-    btn.style.display = 'none'
     if (testRow) testRow.style.display = 'none'
     return
   }
@@ -2696,6 +2938,12 @@ async function renderPushUI() {
 
 window.togglePushFront = async function() {
   if (!_currentUser || _pushBusy) return
+  // iPhone のブラウザ（非PWA）では購読不可 → ホーム画面追加の案内を表示
+  const avail = pushAvailability()
+  if (!avail.supported && avail.reason === 'ios-browser') {
+    openInstallSheet('push')
+    return
+  }
   _pushBusy = true
   const btn = document.getElementById('pushToggleBtn')
   const prev = btn ? btn.textContent : ''
