@@ -56,14 +56,16 @@ export function isStandalone() {
  *   reason: 'ok' | 'unsupported' | 'ios-browser'
  */
 export function pushAvailability() {
-  if (!isPushSupported()) {
-    return { supported: false, reason: 'unsupported' }
-  }
   const ios = isIos()
   const standalone = isStandalone()
-  // iPhoneはPWA（ホーム画面追加）でのみWeb Push可
+  // iPhoneはPWA（ホーム画面追加）でのみWeb Push可。
+  // 非PWAのSafariでは PushManager 自体が存在しないことがあるため、
+  // iOS判定を先に行い、ブラウザ表示時は必ず案内を出す。
   if (ios && !standalone) {
     return { supported: false, isIos: true, standalone, reason: 'ios-browser' }
+  }
+  if (!isPushSupported()) {
+    return { supported: false, reason: 'unsupported' }
   }
   return { supported: true, isIos: ios, standalone, reason: 'ok' }
 }
