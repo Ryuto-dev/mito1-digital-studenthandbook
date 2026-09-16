@@ -732,6 +732,17 @@ function buildAIContext() {
 // manifest.json は常に cache:'no-store' で取得し、更新ボタン・通知経由の
 // 遷移時は window._timetableManifest のキャッシュを使わず強制再取得する。
 // =============================================
+// フローティングウィジェット用の短い更新日時「M月D日 H時更新」
+function shortTimetableLabel(updatedAt) {
+  if (!updatedAt) return ''
+  const m = String(updatedAt).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/)
+  if (!m) return ''
+  const month = Number(m[2])
+  const day = Number(m[3])
+  const hour = Number(m[4])
+  return `${month}月${day}日 ${hour}時更新`
+}
+
 async function loadTimetable(force) {
   let manifest = null
   try {
@@ -753,7 +764,8 @@ async function loadTimetable(force) {
   window._timetableManifest = manifest
   window._timetableUpdatedAt = manifest.updatedAt || ''
   if (meta) meta.textContent = manifest.updatedAtLabel || ''
-  if (widgetSub) widgetSub.textContent = manifest.updatedAtLabel || '自動更新'
+  // ウィジェットは横幅が限られるため「M月D日 H時更新」の短い表記にする
+  if (widgetSub) widgetSub.textContent = shortTimetableLabel(manifest.updatedAt) || '自動更新'
 
   // NEWバッジ（開いたら既読になる。既読処理はnavラッパー側）
   try {
