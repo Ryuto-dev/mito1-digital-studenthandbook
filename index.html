@@ -106,8 +106,8 @@
 </header>
 
 <!-- 時間割フローティングウィジェット（Issue #85）
+     ホーム画面のみに表示（nav() がホーム以外では .tt-hidden を付与）。
      ヘッダー直下・画面右上。AI FLOATとは別位置（右下）なので衝突しない。
-     生徒手帳の浮遊画像（.home-book）はホーム中央固定なのでこちらとも重ならない。
      機能フラグ非対象のときはJS側(applyFeatureGates)で非表示にする。 -->
 <button class="tt-widget" id="ttWidget" data-p="timetable" onclick="nav('timetable')" title="時間割を開く" aria-label="時間割を開く">
   <span class="tt-widget-icon">
@@ -117,6 +117,7 @@
     <span class="tt-widget-ttl">時間割<span class="tt-widget-badge" id="ttWidgetBadge" style="display:none">NEW</span></span>
     <span class="tt-widget-sub" id="ttWidgetSub">読み込み中...</span>
   </span>
+  <span class="tt-widget-chev"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></span>
 </button>
 
 <div class="sidebar-overlay" id="sbOverlay" onclick="toggleSidebar()"></div>
@@ -1857,6 +1858,17 @@ function dismissInstallBanner(){
   const b=document.getElementById('installBanner');
   if(b)b.classList.remove('show');
   try{ localStorage.setItem('installBannerDismissedAt', String(Date.now())) }catch(e){}
+  updateTtWidgetVisibility();
+}
+/* 時間割フローティングウィジェットの表示制御:
+   ホーム画面かつインストールバナー非表示のときだけ表示する。
+   （バナー表示中に重なると右上の「閉じる」を覆ってしまうため） */
+function updateTtWidgetVisibility(){
+  const tt=document.getElementById('ttWidget');
+  if(!tt) return;
+  const onHome=currentPage==='home';
+  const bannerOn=!!(document.getElementById('installBanner')?.classList.contains('show'));
+  tt.classList.toggle('tt-hidden', !onHome || bannerOn);
 }
 /* ブラウザに合わせてシートの手順を出し分ける */
 function applyInstallSteps(){
@@ -1894,6 +1906,7 @@ function neverShowInstall(){
   const b=document.getElementById('installBanner');
   if(b)b.classList.remove('show');
   try{ localStorage.setItem('installPromptHidden','1') }catch(e){}
+  updateTtWidgetVisibility();
 }
 (function(){
   if(!shouldShowInstall()) return;
@@ -1903,6 +1916,7 @@ function neverShowInstall(){
     const banner=document.getElementById('installBanner');
     if(banner && (!d || Date.now()-Number(d) > 7*24*60*60*1000)){
       banner.classList.add('show');
+      updateTtWidgetVisibility();
     }
   }catch(e){}
   // リロードのたびに、ローディング演出（約3.2秒）後にシートを自動表示
@@ -2939,6 +2953,8 @@ window.updateMypageDot = updateMypageDot
 const origNav = window.nav
 window.nav = function(page, skipHash) {
   origNav(page, skipHash)
+  // 時間割フローティングウィジェットはホーム画面のみに表示
+  updateTtWidgetVisibility()
   if (page === 'mypage') window.loadMyCases()
   if (page === 'notices') window.loadNotices()
   // 時間割を開いたら画像を描画＋既読にする（サイドバー・ウィジェットのNEWバッジ消去用）。

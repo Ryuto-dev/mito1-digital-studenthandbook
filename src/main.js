@@ -809,7 +809,7 @@ window.renderTimetableImages = async function(force) {
 window.refreshTimetable = async function() {
   const btn = document.getElementById('timetableRefreshBtn')
   const meta = document.getElementById('timetableMeta')
-  if (btn) btn.disabled = true
+  if (btn) { btn.disabled = true; btn.classList.add('loading') }
   if (meta) meta.textContent = '更新中...'
   try {
     await window.renderTimetableImages(true)
@@ -817,7 +817,7 @@ window.refreshTimetable = async function() {
       try { localStorage.setItem('timetableSeenAt', window._timetableUpdatedAt) } catch { /* ignore */ }
     }
   } finally {
-    if (btn) btn.disabled = false
+    if (btn) { btn.disabled = false; btn.classList.remove('loading') }
   }
 }
 
