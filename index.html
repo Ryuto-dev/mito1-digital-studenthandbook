@@ -105,6 +105,20 @@
   </div>
 </header>
 
+<!-- 時間割フローティングウィジェット（Issue #85）
+     ヘッダー直下・画面右上。AI FLOATとは別位置（右下）なので衝突しない。
+     生徒手帳の浮遊画像（.home-book）はホーム中央固定なのでこちらとも重ならない。
+     機能フラグ非対象のときはJS側(applyFeatureGates)で非表示にする。 -->
+<button class="tt-widget" id="ttWidget" data-p="timetable" onclick="nav('timetable')" title="時間割を開く" aria-label="時間割を開く">
+  <span class="tt-widget-icon">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+  </span>
+  <span class="tt-widget-txt">
+    <span class="tt-widget-ttl">時間割<span class="tt-widget-badge" id="ttWidgetBadge" style="display:none">NEW</span></span>
+    <span class="tt-widget-sub" id="ttWidgetSub">読み込み中...</span>
+  </span>
+</button>
+
 <div class="sidebar-overlay" id="sbOverlay" onclick="toggleSidebar()"></div>
 
 <!-- SIDEBAR -->
@@ -161,7 +175,7 @@
     <div class="sb-label">学校生活</div>
     <button class="sb-item" data-p="timetable" onclick="nav('timetable')">
       <span class="sb-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
-      今日の時間割
+      時間割
       <span class="sb-badge" id="sbBadgeTimetable" style="display:none;background:#c0392b;color:#fff"></span>
     </button>
     <button class="sb-item" data-p="curriculum" onclick="nav('curriculum')">
@@ -264,7 +278,7 @@
       </button>
       <button class="more-item" data-mp="timetable" onclick="nav('timetable');closeMore()">
         <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        <div class="more-lbl">今日の時間割</div>
+        <div class="more-lbl">時間割</div>
       </button>
       <button class="more-item" data-mp="curriculum" onclick="nav('curriculum');closeMore()">
         <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
@@ -616,17 +630,6 @@
       </div>
 
       <div class="cat-grid">
-        <div class="cat-card cat-card-timetable" id="timetableHomeCard" onclick="nav('timetable')">
-          <div class="cat-card-inner">
-            <div>
-              <div class="cat-card-line"></div>
-              <div class="cat-card-title">今日の<br>時間割</div>
-              <div class="cat-card-sub" id="timetableCardSub">自動更新</div>
-            </div>
-            <div class="cat-card-arrow">開く<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
-          </div>
-        </div>
-
         <div class="cat-card cat-card-rules" onclick="nav('rules')">
           <div class="cat-card-inner">
             <div>
@@ -887,8 +890,14 @@
   <section class="pg" id="pg-timetable">
     <div class="pg-header">
       <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>時間割</span></div>
-      <h1 class="pg-title">今日の時間割</h1>
-      <div class="pg-meta"><span id="timetableMeta">読み込み中...</span></div>
+      <h1 class="pg-title">時間割</h1>
+      <div class="pg-meta">
+        <span id="timetableMeta">読み込み中...</span>
+        <button type="button" class="tt-refresh-btn" id="timetableRefreshBtn" onclick="window.refreshTimetable && window.refreshTimetable()">
+          <svg viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>
+          更新
+        </button>
+      </div>
     </div>
     <div id="timetableBetaNotice" style="display:none;padding:40px 20px;text-align:center;color:var(--text-3);font-size:13px">
       時間割は現在βテスト中です。<br>公開までお待ちください。
@@ -896,7 +905,7 @@
     <div id="timetableImagesFront">
       <div style="padding:40px;text-align:center;color:var(--text-3);font-size:13px">読み込み中...</div>
     </div>
-    <p style="font-size:12px;color:var(--text-3);text-align:center;margin-top:8px">生徒用時間割を5分おきに自動確認しています</p>
+    <p style="font-size:12px;color:var(--text-3);text-align:center;margin-top:8px">前日14時ごろに次の時間割へ自動更新されます。表示が古い場合は上の「更新」を押してください</p>
   </section>
 
   <!-- 生徒会活動 -->
@@ -2310,12 +2319,10 @@ async function applyFeatureGates(profile, { loggedIn } = {}) {
   const newApplyBtn = document.getElementById('mypageNewApplyBtn')
   if (newApplyBtn) newApplyBtn.style.display = applyVisible ? '' : 'none'
 
-  // 時間割（β）: ナビ・ホームカード・ページ本体をゲート
+  // 時間割（β）: ナビ・フローティングウィジェット・ページ本体をゲート
   document.querySelectorAll('[data-p="timetable"],[data-mp="timetable"]').forEach(el => {
     el.style.display = timetableVisible ? '' : 'none'
   })
-  const timetableCard = document.getElementById('timetableHomeCard')
-  if (timetableCard) timetableCard.style.display = timetableVisible ? '' : 'none'
   const ttNotice = document.getElementById('timetableBetaNotice')
   const ttImages = document.getElementById('timetableImagesFront')
   if (ttNotice) ttNotice.style.display = timetableVisible ? 'none' : ''
@@ -2934,14 +2941,18 @@ window.nav = function(page, skipHash) {
   origNav(page, skipHash)
   if (page === 'mypage') window.loadMyCases()
   if (page === 'notices') window.loadNotices()
-  // 時間割を開いたら画像を描画＋既読にする（サイドバーのNEWバッジ消去用）
+  // 時間割を開いたら画像を描画＋既読にする（サイドバー・ウィジェットのNEWバッジ消去用）。
+  // Issue #85: PWAキャッシュで古い画像が残る事故を防ぐため、ページ訪問時は
+  // 常に強制再取得（force=true）してから描画する。
   if (page === 'timetable') {
-    if (window.renderTimetableImages) window.renderTimetableImages()
+    if (window.renderTimetableImages) window.renderTimetableImages(true)
     if (window._timetableUpdatedAt) {
       try { localStorage.setItem('timetableSeenAt', window._timetableUpdatedAt) } catch {}
     }
-    const badge = document.getElementById('sbBadgeTimetable')
-    if (badge) badge.style.display = 'none'
+    ;['sbBadgeTimetable', 'ttWidgetBadge'].forEach(id => {
+      const badge = document.getElementById(id)
+      if (badge) badge.style.display = 'none'
+    })
   }
 }
 

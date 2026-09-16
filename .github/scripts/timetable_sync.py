@@ -249,7 +249,7 @@ def broadcast_push():
 
     payload = {
         "title": "時間割が更新されました",
-        "body": "今日の時間割が更新されました。手帳で確認してください。",
+        "body": "時間割が更新されました。手帳で確認してください。",
         "url": "/#timetable",
         "tag": "timetable-update",
     }

@@ -1,6 +1,6 @@
 /**
  * gas/timetable-poll.js
- * 今日の時間割のポーリング用 GAS（Google Apps Script）
+ * 時間割のポーリング用 GAS（Google Apps Script）
  *
  * ■ 役割
  *   10分おきにシートの htmlview から時間割画像を落としてハッシュ化し、
