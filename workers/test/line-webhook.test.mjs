@@ -257,6 +257,31 @@ test('buildStatusFlex: マイページへの導線が含まれる', () => {
   assert.match(JSON.stringify(flex.contents.footer), new RegExp(`${BASE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/#mypage`))
 })
 
+// LINEのReply APIは Box の contents（空配列可）を必須とする。
+// 省略すると 400 "A message in the request body is invalid" になり、
+// Webhook側はエラーを握りつぶすため「既読だけ付いて何も返らない」症状になる（#31回帰防止）。
+test('buildStatusFlex: 全ての Box に contents が指定されている', () => {
+  const checkBoxes = (node, path) => {
+    if (Array.isArray(node)) {
+      node.forEach((c, i) => checkBoxes(c, `${path}/${i}`))
+      return
+    }
+    if (!node || typeof node !== 'object') return
+    if (node.type === 'box') {
+      assert.ok(
+        Object.prototype.hasOwnProperty.call(node, 'contents'),
+        `Box に contents が必須: ${path}`
+      )
+      assert.ok(Array.isArray(node.contents), `Box.contents は配列: ${path}`)
+    }
+    for (const [k, v] of Object.entries(node)) checkBoxes(v, `${path}/${k}`)
+  }
+  for (const status of ['pending_supervisor', 'pending_homeroom', 'approved', 'rejected']) {
+    const flex = buildStatusFlex({ caseData: { ...caseBase, status }, studentName: '山田 太郎', base: BASE })
+    checkBoxes(flex.contents, 'contents')
+  }
+})
+
 // --------------------------------------------------------------------------
 // Firestore 管理者アクセス（サービスアカウント OAuth2）
 // 未認証のままだと users の list/get が 403 になり「未連携」扱いになる（#31）

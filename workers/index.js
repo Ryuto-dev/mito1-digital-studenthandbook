@@ -880,6 +880,7 @@ function buildStatusFlex({ caseData, studentName, base }) {
           height: '4px',
           cornerRadius: '2px',
           backgroundColor: s.done ? '#1A2744' : (s.active ? '#E8A33D' : '#EEEEE9'),
+          contents: [],
         },
         {
           type: 'text',
