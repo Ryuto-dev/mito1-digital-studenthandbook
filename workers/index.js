@@ -178,7 +178,7 @@ async function resolveToken(token, env) {
         }
       }
 
-      const res = await fetch(firestoreUrl, {
+      const res = await firestoreFetch(env, firestoreUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(queryBody)
@@ -1024,6 +1024,108 @@ function buildStatusFlex({ caseData, studentName, base }) {
   }
 }
 
+// =======================================================================
+// Firestore 管理者アクセス（サービスアカウント OAuth2）
+// =======================================================================
+//
+// Worker から Firestore REST API を呼ぶには認証が必要。
+// （firestore.rules では users の get/list は認証必須のため、
+//   未認証のままでは 403 で拒否され「未連携」扱いになる — #31）
+// ここではサービスアカウントの秘密鍵で JWT(RS256) を組み立て、
+// OAuth2 トークンに交換して Firestore REST の Authorization ヘッダに付与する。
+//
+// 必要なシークレット: FIREBASE_SERVICE_ACCOUNT_JSON
+//   - サービスアカウントの JSON をそのまま登録する（GitHub Actions の
+//     FIREBASE_SERVICE_ACCOUNT_JSON と同じ形式・同じ鍵）
+//   - npx wrangler secret put FIREBASE_SERVICE_ACCOUNT_JSON --config workers/wrangler.toml
+//   未設定の場合は従来どおり認証なしで呼ぶ（＝ルールに許容される範囲のみ）
+
+const FIRESTORE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+const FIRESTORE_SCOPE     = 'https://www.googleapis.com/auth/datastore'
+
+let _firestoreToken = { token: '', expiresAt: 0 }
+
+/** PEM (PKCS#8) の秘密鍵を DER バイト列へ変換する */
+function pemToDer(pem) {
+  const b64 = pem
+    .replace(/-----BEGIN [^-]+-----/, '')
+    .replace(/-----END [^-]+-----/, '')
+    .replace(/\s+/g, '')
+  const bin = atob(b64)
+  const der = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) der[i] = bin.charCodeAt(i)
+  return der
+}
+
+/** サービスアカウント秘密鍵で RS256 署名した JWT を生成する */
+async function buildServiceAccountJwt(sa, nowSec) {
+  const header = bytesToB64url(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })))
+  const claims = bytesToB64url(new TextEncoder().encode(JSON.stringify({
+    iss:   sa.client_email,
+    scope: FIRESTORE_SCOPE,
+    aud:   FIRESTORE_TOKEN_URL,
+    iat:   nowSec,
+    exp:   nowSec + 3600,
+  })))
+  const signingInput = `${header}.${claims}`
+
+  const key = await crypto.subtle.importKey(
+    'pkcs8', pemToDer(sa.private_key).buffer,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false, ['sign']
+  )
+  const sig = new Uint8Array(await crypto.subtle.sign(
+    { name: 'RSASSA-PKCS1-v1_5' }, key, new TextEncoder().encode(signingInput)
+  ))
+  return `${signingInput}.${bytesToB64url(sig)}`
+}
+
+/** OAuth2 アクセストークンを取得（isolate 内キャッシュ付き） */
+async function getFirestoreAccessToken(env) {
+  const now = Date.now()
+  if (_firestoreToken.token && _firestoreToken.expiresAt > now + 60_000) {
+    return _firestoreToken.token
+  }
+  const raw = env.FIREBASE_SERVICE_ACCOUNT_JSON
+  if (!raw) return ''
+  let sa
+  try { sa = JSON.parse(raw) } catch (e) {
+    console.error('[firestore-auth] FIREBASE_SERVICE_ACCOUNT_JSON をパースできません:', e)
+    return ''
+  }
+  if (!sa.client_email || !sa.private_key) return ''
+
+  try {
+    const assertion = await buildServiceAccountJwt(sa, Math.floor(now / 1000))
+    const res = await fetch(FIRESTORE_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok || !data.access_token) {
+      console.error('[firestore-auth] token exchange failed:', res.status, data.error_description || data.error)
+      return ''
+    }
+    _firestoreToken = { token: data.access_token, expiresAt: now + (data.expires_in || 3600) * 1000 }
+    return data.access_token
+  } catch (e) {
+    console.error('[firestore-auth] token exchange error:', e)
+    return ''
+  }
+}
+
+/** Firestore REST API を認証付きで呼ぶ（トークン未設定時は従来どおり） */
+async function firestoreFetch(env, url, init = {}) {
+  const token = await getFirestoreAccessToken(env)
+  const headers = { ...(init.headers || {}) }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  return fetch(url, { ...init, headers })
+}
+
 /**
  * Firestore REST API 経由で生徒の lineUserId を取得する
  */
@@ -1034,7 +1136,7 @@ async function getLineUserIdByStudentId(studentId, env) {
 
   try {
     const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${studentId}`
-    const res = await fetch(url)
+    const res = await firestoreFetch(env, url)
     if (res.ok) {
       const docData = await res.json()
       const lineUserId = docData.fields?.lineUserId?.stringValue
@@ -1073,7 +1175,7 @@ async function findUserByLineUserId(lineUserId, env) {
         limit: 1
       }
     }
-    const res = await fetch(firestoreUrl, {
+    const res = await firestoreFetch(env, firestoreUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(queryBody)
@@ -1119,7 +1221,7 @@ async function getCasesByStudentId(studentId, env) {
         }
       }
     }
-    const res = await fetch(firestoreUrl, {
+    const res = await firestoreFetch(env, firestoreUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(queryBody)

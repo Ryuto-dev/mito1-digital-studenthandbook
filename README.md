@@ -124,6 +124,7 @@ npm run typecheck   # workers/index.js を Cloudflare Workers の型で検査
 - `LINE_Channel_ID`: LINE Messaging API チャネル ID（Secret）。
 - `LINE_Channel_secret`: LINE Messaging API チャネルシークレット（Secret）。
 - `LINE_CHANNEL_ACCESS_TOKEN`: LINE Messaging API チャネルアクセストークン（Secret、任意）。
+- `FIREBASE_SERVICE_ACCOUNT_JSON`: サービスアカウントの JSON（Secret）。Firestore REST を認証付きで呼ぶために使います（#31 の LINE Webhook「>申請状況」や `/resolve-token`）。`.github/scripts/timetable_sync.py` で使っているものと同じ鍵でよいです。未設定の場合は認証なしで動作します（`firestore.rules` に許容される範囲のみ）。
 
 ※ LINE Developers Console にて、コールバック URL として `https://yourdomain.com/line-callback.html` （開発用: `http://localhost:5173/line-callback.html`）を登録してください。
 
