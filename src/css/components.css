@@ -280,7 +280,6 @@
   max-height:440px;max-height:min(440px,62dvh);
 }
 .ai-window.open{display:flex;animation:slideUp .2s ease}
-@keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .ai-win-hdr{
   padding:12px 14px;background:var(--navy);color:white;
   display:flex;justify-content:space-between;align-items:center;flex-shrink:0;
