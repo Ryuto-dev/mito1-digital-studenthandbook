@@ -1,16 +1,18 @@
 /**
  * workers/test/line-webhook.test.mjs
  *
- * LINE Webhook（Reply API による時間割の問い合わせ応答）の回帰テスト。
+ * LINE Webhook（Reply API による時間割・申請状況の問い合わせ応答）の回帰テスト。
  *
  * ■ なぜこのテストが必要か
  *   - 署名検証の誤りは「正規のLINEイベントを403で捨てる」か
  *     「第三者の偽造リクエストでReply APIを悪用される」のどちらかに直結する。
  *     本番でしか気づけない類の不具合のため、HMAC-SHA256の正系・誤系を固定する。
- *   - キーワード判定の変更（例：正規表現の編集ミス）で「時間割」と送っても
+ *   - キーワード判定の変更（例：正規表現の編集ミス）で「時間割」「申請状況」と送っても
  *     無反応になると、ユーザーからは原因不明の沈黙に見える。境界例を固定する。
  *   - Reply上限（5件/回）を超える構成だとAPIが400を返し、replyTokenを
  *     使い捨てる（再送不可）。件数上限の回帰を防ぐ。
+ *   - 申請状況カードの進行状況（プログレスバー）がステータスごとに
+ *     正しい段階を「済み／進行中」で描けるかを固定する（#31）。
  *
  * 実行:
  *   node --test workers/test/
@@ -27,8 +29,10 @@ const WORKER_SRC = path.join(__dirname, '..', 'index.js')
 // テスト対象の純粋関数だけをソースから抜き出して読み込む。
 const EXPORTED = [
   'isTimetableQuery',
+  'isStatusQuery',
   'verifyLineSignature',
   'buildTimetableReplyMessages',
+  'buildStatusFlex',
 ]
 
 function extractFunctions(src, names) {
@@ -54,7 +58,7 @@ function extractFunctions(src, names) {
 const src = fs.readFileSync(WORKER_SRC, 'utf8')
 const tmpFile = path.join(__dirname, '.tmp-line-webhook.mjs')
 fs.writeFileSync(tmpFile, extractFunctions(src, EXPORTED))
-const { isTimetableQuery, verifyLineSignature, buildTimetableReplyMessages } =
+const { isTimetableQuery, isStatusQuery, verifyLineSignature, buildTimetableReplyMessages, buildStatusFlex } =
   await import(tmpFile)
 fs.unlinkSync(tmpFile)
 
@@ -77,6 +81,23 @@ test('isTimetableQuery: 無関係・部分一致には反応しない', () => {
   assert.equal(isTimetableQuery(''), false)
   assert.equal(isTimetableQuery(null), false)
   assert.equal(isTimetableQuery(undefined), false)
+})
+
+test('isStatusQuery: 「>申請状況」の完全一致のみ検出する', () => {
+  assert.equal(isStatusQuery('>申請状況'), true)
+  assert.equal(isStatusQuery('＞申請状況'), true)
+  assert.equal(isStatusQuery('  >申請状況  '), true)
+})
+
+test('isStatusQuery: 無関係・部分一致には反応しない', () => {
+  assert.equal(isStatusQuery('申請状況'), false)
+  assert.equal(isStatusQuery('申請状況を教えて'), false)
+  assert.equal(isStatusQuery('>時間割'), false)
+  assert.equal(isStatusQuery('>公欠'), false)
+  assert.equal(isStatusQuery('しんせいじょうきょう'), false)
+  assert.equal(isStatusQuery(''), false)
+  assert.equal(isStatusQuery(null), false)
+  assert.equal(isStatusQuery(undefined), false)
 })
 
 // --------------------------------------------------------------------------
@@ -145,4 +166,71 @@ test('buildTimetableReplyMessages: 未登録時はテキスト案内のみ', () 
     assert.equal(msgs.length, 1)
     assert.equal(msgs[0].type, 'text')
   }
+})
+
+// --------------------------------------------------------------------------
+// 申請状況カード（#31）
+// --------------------------------------------------------------------------
+const caseBase = {
+  title: '部活動合宿のため公欠',
+  reason: '部活動',
+  reasonDetail: '',
+  dates: ['2026-10-01', '2026-10-02'],
+}
+
+test('buildStatusFlex: pending_supervisor は顧問承認待ち・バーが1段階進行', () => {
+  const flex = buildStatusFlex({ caseData: { ...caseBase, status: 'pending_supervisor' }, studentName: '山田 太郎', base: BASE })
+  assert.equal(flex.type, 'flex')
+  assert.equal(flex.contents.type, 'bubble')
+  // ヘッダーにステータス表示
+  const headerTexts = JSON.stringify(flex.contents.header)
+  assert.match(headerTexts, /公欠申請の状況/)
+  assert.match(headerTexts, /顧問承認待ち/)
+  // 本文（body）のプログレスバー: 申請=済み(ネイビー)、顧問承認=進行中(琥珀)
+  const barBoxes = flex.contents.body.contents.find(c => c.type === 'box' && c.layout === 'horizontal' && c.contents?.[0]?.contents?.[0]?.height === '4px')
+  assert.ok(barBoxes, 'プログレスバーが存在すること')
+  const barColors = barBoxes.contents.map(s => s.contents[0].backgroundColor)
+  assert.equal(barColors[0], '#1A2744') // 申請: 済み
+  assert.equal(barColors[1], '#E8A33D') // 顧問承認: 進行中
+  assert.equal(barColors[2], '#EEEEE9') // 担任承認: 未
+  assert.equal(barColors[3], '#EEEEE9') // 完了: 未
+})
+
+test('buildStatusFlex: pending_homeroom は担任承認待ち・バーが2段階進行', () => {
+  const flex = buildStatusFlex({ caseData: { ...caseBase, status: 'pending_homeroom' }, studentName: '山田 太郎', base: BASE })
+  assert.match(JSON.stringify(flex.contents.header), /担任承認待ち/)
+  const barBoxes = flex.contents.body.contents.find(c => c.type === 'box' && c.layout === 'horizontal' && c.contents?.[0]?.contents?.[0]?.height === '4px')
+  const barColors = barBoxes.contents.map(s => s.contents[0].backgroundColor)
+  assert.equal(barColors[0], '#1A2744')
+  assert.equal(barColors[1], '#1A2744')
+  assert.equal(barColors[2], '#E8A33D')
+  assert.equal(barColors[3], '#EEEEE9')
+})
+
+test('buildStatusFlex: approved は承認完了・バーが全段階済み', () => {
+  const flex = buildStatusFlex({ caseData: { ...caseBase, status: 'approved' }, studentName: '山田 太郎', base: BASE })
+  assert.match(JSON.stringify(flex.contents.header), /承認完了/)
+  const barBoxes = flex.contents.body.contents.find(c => c.type === 'box' && c.layout === 'horizontal' && c.contents?.[0]?.contents?.[0]?.height === '4px')
+  const barColors = barBoxes.contents.map(s => s.contents[0].backgroundColor)
+  assert.ok(barColors.every(c => c === '#1A2744'), '全段階が済み色であること')
+})
+
+test('buildStatusFlex: rejected は差し戻し・差し戻し理由を表示', () => {
+  const flex = buildStatusFlex({
+    caseData: { ...caseBase, status: 'rejected', rejectedReason: '書類の添付がありません' },
+    studentName: '山田 太郎', base: BASE,
+  })
+  assert.match(JSON.stringify(flex.contents.header), /差し戻し/)
+  assert.match(JSON.stringify(flex.contents.body), /書類の添付がありません/)
+  // 差し戻し時はプログレスバーは「済み＝申請のみ」のままにする
+  const barBoxes = flex.contents.body.contents.find(c => c.type === 'box' && c.layout === 'horizontal' && c.contents?.[0]?.contents?.[0]?.height === '4px')
+  const barColors = barBoxes.contents.map(s => s.contents[0].backgroundColor)
+  assert.equal(barColors[0], '#1A2744')
+  assert.ok(barColors.slice(1).every(c => c === '#EEEEE9'), '申請以降は未進行')
+})
+
+test('buildStatusFlex: マイページへの導線が含まれる', () => {
+  const flex = buildStatusFlex({ caseData: { ...caseBase, status: 'pending_homeroom' }, studentName: '山田 太郎', base: BASE })
+  assert.match(JSON.stringify(flex.contents.footer), /マイページで確認/)
+  assert.match(JSON.stringify(flex.contents.footer), new RegExp(`${BASE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/#mypage`))
 })

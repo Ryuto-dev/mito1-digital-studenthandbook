@@ -829,6 +829,202 @@ function buildApprovalFlex({ studentName, title, dates, reason, reasonDetail, ba
 }
 
 /**
+ * 申請状況をプログレスバー付きのカードで返すための Flex Message を組み立てる。
+ * 「申請完了カード」と同じデザイン言語（ネイビー＋アイコン）を使い、
+ * 進行状況（申請 → 顧問承認 → 担任承認 → 完了）をバーで示す。
+ */
+function buildStatusFlex({ caseData, studentName, base }) {
+  const datesArr = Array.isArray(caseData.dates) ? caseData.dates : (caseData.dates ? [caseData.dates] : [])
+  const datesStr = datesArr.join('、') || '—'
+  const reasonDisplay = caseData.reasonDetail ? `${caseData.reason}（${caseData.reasonDetail}）` : (caseData.reason || '—')
+  const st = caseData.status || ''
+
+  const STATUS = {
+    pending_supervisor: { label: '顧問承認待ち', color: '#B8860B', bg: '#FFF8E1', icon: '⏳', iconBg: '#E8A33D' },
+    pending_homeroom:   { label: '担任承認待ち', color: '#1A5276', bg: '#EAF4FB', icon: '⏳', iconBg: '#2980B9' },
+    approved:           { label: '承認完了',     color: '#1E8449', bg: '#EAFAF1', icon: '✓', iconBg: '#27AE60' },
+    rejected:           { label: '差し戻し',     color: '#C0392B', bg: '#FDEDEC', icon: '✗', iconBg: '#E74C3C' },
+  }
+  const meta = STATUS[st] || STATUS.pending_supervisor
+
+  const steps = [
+    { label: '申請',     done: true,                                                active: false },
+    { label: '顧問承認', done: ['pending_homeroom', 'approved'].includes(st),       active: st === 'pending_supervisor' },
+    { label: '担任承認', done: st === 'approved',                                   active: st === 'pending_homeroom' },
+    { label: '完了',     done: st === 'approved',                                   active: false },
+  ]
+
+  const row = (label, value) => ({
+    type: 'box',
+    layout: 'baseline',
+    spacing: 'sm',
+    contents: [
+      { type: 'text', text: label, color: '#9aa4b8', size: 'sm', flex: 2, weight: 'bold' },
+      { type: 'text', text: value, color: '#333333', size: 'sm', flex: 5, wrap: true },
+    ],
+  })
+
+  const progressBar = {
+    type: 'box',
+    layout: 'horizontal',
+    spacing: 'none',
+    margin: 'md',
+    contents: steps.map(s => ({
+      type: 'box',
+      layout: 'vertical',
+      flex: 1,
+      contents: [
+        {
+          type: 'box',
+          layout: 'vertical',
+          height: '4px',
+          cornerRadius: '2px',
+          backgroundColor: s.done ? '#1A2744' : (s.active ? '#E8A33D' : '#EEEEE9'),
+        },
+        {
+          type: 'text',
+          text: s.label,
+          size: 'xxs',
+          align: 'center',
+          margin: 'xs',
+          color: s.done ? '#1A2744' : (s.active ? '#B8860B' : '#AAAAAA'),
+          weight: (s.done || s.active) ? 'bold' : 'regular',
+        },
+      ],
+    })),
+  }
+
+  const rejectedNote = st === 'rejected'
+    ? {
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: '#FDEDEC',
+        cornerRadius: '8px',
+        paddingAll: '12px',
+        contents: [{
+          type: 'text',
+          text: caseData.rejectedReason
+            ? `差し戻し理由: ${caseData.rejectedReason}`
+            : '申請内容が差し戻されました。マイページで内容を確認し、必要に応じて再申請してください。',
+          size: 'xxs',
+          color: '#C0392B',
+          wrap: true,
+        }],
+      }
+    : null
+
+  const note = rejectedNote || {
+    type: 'box',
+    layout: 'vertical',
+    backgroundColor: meta.bg,
+    cornerRadius: '8px',
+    paddingAll: '12px',
+    contents: [{
+      type: 'text',
+      text: st === 'approved'
+        ? '顧問・担任の承認が完了しました。当日は担任の指示に従ってください。'
+        : '承認が完了するとLINEでお知らせが届きます。',
+      size: 'xxs',
+      color: meta.color,
+      wrap: true,
+    }],
+  }
+
+  return {
+    type: 'flex',
+    altText: `【申請状況】${meta.label}「${caseData.title || '公欠申請'}」`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: {
+        type: 'box',
+        layout: 'horizontal',
+        spacing: 'md',
+        backgroundColor: '#1A2744',
+        paddingAll: '20px',
+        contents: [
+          {
+            type: 'box',
+            layout: 'vertical',
+            width: '36px',
+            height: '36px',
+            cornerRadius: '18px',
+            backgroundColor: meta.iconBg,
+            justifyContent: 'center',
+            alignItems: 'center',
+            contents: [
+              { type: 'text', text: meta.icon, color: '#FFFFFF', size: 'lg', weight: 'bold', align: 'center' },
+            ],
+          },
+          {
+            type: 'box',
+            layout: 'vertical',
+            spacing: 'none',
+            justifyContent: 'center',
+            contents: [
+              { type: 'text', text: '公欠申請の状況', color: '#FFFFFF', size: 'md', weight: 'bold', wrap: true },
+              { type: 'text', text: meta.label, color: '#A0B0CC', size: 'xxs', margin: 'xs', wrap: true },
+            ],
+          },
+        ],
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'md',
+        paddingAll: '20px',
+        contents: [
+          { type: 'text', text: caseData.title || '公欠申請', weight: 'bold', size: 'lg', color: '#111111', wrap: true },
+          { type: 'separator', color: '#EEEEE9' },
+          {
+            type: 'box',
+            layout: 'vertical',
+            spacing: 'sm',
+            contents: [
+              row('申請者', studentName || '—'),
+              row('事由',   reasonDisplay),
+              row('公欠日', datesStr),
+            ],
+          },
+          progressBar,
+          note,
+        ],
+      },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'sm',
+        paddingAll: '16px',
+        contents: [
+          {
+            type: 'button',
+            style: 'primary',
+            color: '#1A2744',
+            height: 'sm',
+            action: {
+              type: 'uri',
+              label: 'マイページで確認',
+              uri: `${base || 'https://mito1-tetyo.tech'}/#mypage`,
+            },
+          },
+          {
+            type: 'text',
+            text: 'デジタル生徒手帳 公欠申請システム',
+            size: 'xxs',
+            color: '#AAAAAA',
+            align: 'center',
+          },
+        ],
+      },
+      styles: {
+        header: { separator: false },
+        footer: { separator: true, separatorColor: '#EEEEE9' },
+      },
+    },
+  }
+}
+
+/**
  * Firestore REST API 経由で生徒の lineUserId を取得する
  */
 async function getLineUserIdByStudentId(studentId, env) {
@@ -850,6 +1046,109 @@ async function getLineUserIdByStudentId(studentId, env) {
     console.error('[getLineUserIdByStudentId] error:', e)
   }
   return null
+}
+
+/**
+ * Firestore REST API 経由で lineUserId から users ドキュメントを検索する。
+ * LINE Webhook の source.userId から、連携済みの生徒を特定するために使う。
+ * 見つからない（未連携）場合は null を返す。
+ */
+async function findUserByLineUserId(lineUserId, env) {
+  if (!lineUserId) return null
+  const projectId = env.FIREBASE_PROJECT_ID
+  if (!projectId) return null
+
+  try {
+    const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`
+    const queryBody = {
+      structuredQuery: {
+        from: [{ collectionId: 'users' }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: 'lineUserId' },
+            op: 'EQUAL',
+            value: { stringValue: lineUserId }
+          }
+        },
+        limit: 1
+      }
+    }
+    const res = await fetch(firestoreUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(queryBody)
+    })
+    if (!res.ok) {
+      console.error(`[findUserByLineUserId] Firestore REST error (${res.status}):`, await res.text())
+      return null
+    }
+    const results = await res.json()
+    const doc = results && results[0] && results[0].document
+    if (!doc) return null
+    const fields = doc.fields || {}
+    return {
+      uid: doc.name.split('/').pop(),
+      name: fields.name?.stringValue || '',
+    }
+  } catch (e) {
+    console.error('[findUserByLineUserId] error:', e)
+    return null
+  }
+}
+
+/**
+ * Firestore REST API 経由で、特定の生徒 uid の公欠申請ケース一覧を取得する。
+ * createdAt 降順（新しい順）にソートして返す。
+ */
+async function getCasesByStudentId(studentId, env) {
+  if (!studentId) return []
+  const projectId = env.FIREBASE_PROJECT_ID
+  if (!projectId) return []
+
+  try {
+    const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`
+    const queryBody = {
+      structuredQuery: {
+        from: [{ collectionId: 'cases' }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: 'studentId' },
+            op: 'EQUAL',
+            value: { stringValue: studentId }
+          }
+        }
+      }
+    }
+    const res = await fetch(firestoreUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(queryBody)
+    })
+    if (!res.ok) {
+      console.error(`[getCasesByStudentId] Firestore REST error (${res.status}):`, await res.text())
+      return []
+    }
+    const results = await res.json()
+    const docs = Array.isArray(results) ? results.filter(r => r.document).map(r => r.document) : []
+    return docs.map(d => {
+      const f = d.fields || {}
+      return {
+        id:         d.name.split('/').pop(),
+        title:      f.title?.stringValue || '',
+        reason:     f.reason?.stringValue || '',
+        reasonDetail: f.reasonDetail?.stringValue || '',
+        status:     f.status?.stringValue || '',
+        dates:      Array.isArray(f.dates?.arrayValue?.values)
+                      ? f.dates.arrayValue.values.map(v => v.stringValue || '').filter(Boolean)
+                      : [],
+        rejectedReason: f.rejectedReason?.stringValue || '',
+        createdAt:  f.createdAt?.timestampValue || '',
+      }
+    }).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+  } catch (e) {
+    console.error('[getCasesByStudentId] error:', e)
+    return []
+  }
 }
 
 /**
@@ -896,15 +1195,18 @@ async function lineNotifyComplete(body, env) {
 }
 
 // =======================================================================
-// LINE Webhook（Reply API による時間割の問い合わせ応答）
+// LINE Webhook（Reply API による時間割・申請状況の問い合わせ応答）
 // =======================================================================
 //
 // フロー:
-//   1. ユーザーが公式アカウントに「>時間割」と送る
+//   1. ユーザーが公式アカウントに「>時間割」または「>申請状況」と送る
 //   2. LINEプラットフォームが POST /line/webhook にイベントを送る
 //   3. x-line-signature をチャネルシークレットで検証（改ざん・なりすまし対策）
-//   4. 公開マニフェスト（APP_BASE_URL/timetable/manifest.json）を読んで
+//   4. 「>時間割」: 公開マニフェスト（APP_BASE_URL/timetable/manifest.json）を読んで
 //      画像メッセージを Reply API で返す（replyToken消費＝Push通数を使わない）
+//      「>申請状況」: source.userId から連携済み生徒を特定し、申請状況を
+//      Flex Message（プログレスバー付きカード）で返す。未連携なら
+//      マイページからの連携を促すメッセージを返す（Reply API なので通数は消費しない）
 //
 // LINE Developers Console での手動設定（コードではできない部分）:
 //   Messaging APIチャネル → Webhook設定 → Webhook URL に
@@ -919,6 +1221,15 @@ const LINE_REPLY_URL = 'https://api.line.me/v2/bot/message/reply'
 function isTimetableQuery(text) {
   if (typeof text !== 'string' || !text) return false
   return /^[>＞]時間割$/.test(text.trim())
+}
+
+// 申請状況の問い合わせとみなすメッセージ。
+// 「>申請状況」「＞申請状況」の完全一致（前後の空白のみ許容）とする。
+// LINE連携していないユーザーにも「連携してね」と案内するため、
+// 未連携でも無反応にならない（Reply API はメッセージ通数を消費しない）。
+function isStatusQuery(text) {
+  if (typeof text !== 'string' || !text) return false
+  return /^[>＞]申請状況$/.test(text.trim())
 }
 
 /**
@@ -1013,23 +1324,63 @@ async function lineWebhook(request, env) {
 
   for (const ev of events) {
     try {
-      // 時間割の問い合わせ（テキストメッセージ）にのみ応答する
+      // 時間割・申請状況の問い合わせ（テキストメッセージ）にのみ応答する
       if (ev.type !== 'message' || ev.message?.type !== 'text') continue
-      if (!isTimetableQuery(ev.message.text)) continue
       if (!ev.replyToken) continue
 
-      // 公開マニフェストから最新の画像一覧を取得する
-      let manifest = null
-      try {
-        const mres = await fetch(`${base}/timetable/manifest.json?webhook=1`)
-        if (mres.ok) manifest = await mres.json()
-      } catch (e) {
-        console.error('[line/webhook] manifest fetch failed:', e)
+      // ---- 時間割の問い合わせ ----
+      if (isTimetableQuery(ev.message.text)) {
+        // 公開マニフェストから最新の画像一覧を取得する
+        let manifest = null
+        try {
+          const mres = await fetch(`${base}/timetable/manifest.json?webhook=1`)
+          if (mres.ok) manifest = await mres.json()
+        } catch (e) {
+          console.error('[line/webhook] manifest fetch failed:', e)
+        }
+
+        const messages = buildTimetableReplyMessages(manifest, base)
+        await lineReply(env, ev.replyToken, messages)
+        replied++
+        continue
       }
 
-      const messages = buildTimetableReplyMessages(manifest, base)
-      await lineReply(env, ev.replyToken, messages)
-      replied++
+      // ---- 申請状況の問い合わせ ----
+      if (isStatusQuery(ev.message.text)) {
+        const lineUserId = ev.source?.userId || ''
+        const user = lineUserId ? await findUserByLineUserId(lineUserId, env) : null
+        // 未連携ならマイページへの連携を促す（無反応にしない）
+        if (!user) {
+          await lineReply(env, ev.replyToken, [
+            {
+              type: 'text',
+              text: 'このLINEアカウントは生徒手帳とまだ連携されていません。\n\n'
+                + '連携すると、公欠申請の承認完了などのお知らせや、申請状況の確認がLINEでできるようになります。\n'
+                + `マイページ（ ${base}/#mypage ）から「LINEで通知を受け取る」をタップして連携してください。`,
+            },
+          ])
+          replied++
+          continue
+        }
+
+        const cases = await getCasesByStudentId(user.uid, env)
+
+        if (!cases.length) {
+          await lineReply(env, ev.replyToken, [
+            { type: 'text', text: 'まだ申請した公欠申請はありません。\n\nマイページ（ ' + base + '/#mypage ）から新しい申請を作成できます。' },
+          ])
+          replied++
+          continue
+        }
+
+        // 進行中の申請を優先し、最大3件をカードで返す（Reply上限5件以内）
+        const active = cases.filter(c => ['pending_supervisor', 'pending_homeroom'].includes(c.status))
+        const visible = (active.length ? active : cases).slice(0, 3)
+        const messages = visible.map(c => buildStatusFlex({ caseData: c, studentName: user.name, base }))
+        await lineReply(env, ev.replyToken, messages)
+        replied++
+        continue
+      }
     } catch (e) {
       // 1イベントの失敗で全体を道連れにしない。
       // LINEは非2xxでリトライしてくるため、処理済み分は200で返す。
