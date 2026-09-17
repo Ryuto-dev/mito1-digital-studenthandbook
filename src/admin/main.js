@@ -5,8 +5,8 @@ import {
   onAuthStateChanged,
 } from 'firebase/auth'
 import {
-  collection, doc, getDocs, getDoc,
-  addDoc, setDoc, updateDoc, deleteDoc,
+  collection, collectionGroup, doc, getDocs, getDoc,
+  addDoc, setDoc, updateDoc, deleteDoc, deleteField,
   orderBy, query, where, serverTimestamp, Timestamp, writeBatch,
 } from 'firebase/firestore'
 import { getCurrentProfile } from '../auth.js'
@@ -2167,11 +2167,14 @@ window.deleteAdminCase = async function (caseId) {
 
 // =============================================
 // ユーザー管理（Issue #49: 属性が増えたのでテーブル+カード併用）
+// Issue #21: LINE連携解除 / Push利用状況の確認を追加
 // ロールのラベル・配色は roles.js（R_LABELS/R_COLORS/R_BGS）を共通利用
 // =============================================
 let allUsers = []
 let userFilters = { role: 'all', grade: 'all', class: 'all', status: 'all', search: '' }
 let userSort = 'role'
+// uid → 登録されているPush購読（端末）数
+let pushCountByUid = {}
 
 const ROLE_ORDER = { owner: 0, admin_teacher: 1, admin_student: 2, moderator: 3, teacher: 4, student: 5 }
 
@@ -2180,8 +2183,27 @@ async function loadUsers() {
   if (!el) return
   el.innerHTML = spinner()
   try {
-    const snap = await getDocs(collection(db, 'users'))
+    const [snap, pushSnap] = await Promise.all([
+      getDocs(collection(db, 'users')),
+      // Push利用状況: 全ユーザーの購読をcollectionGroupで1クエリに集約
+      // （firestore.rules に collectionGroup の読み取りルールが必要。未デプロイ時はフォールバック）
+      getDocs(query(collectionGroup(db, 'pushSubscriptions'))).catch(() => null),
+    ])
     allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+
+    pushCountByUid = {}
+    if (pushSnap) {
+      for (const d of pushSnap.docs) {
+        const uid = d.ref.parent.parent.id // users/{uid}/pushSubscriptions/{subId}
+        if (uid) pushCountByUid[uid] = (pushCountByUid[uid] || 0) + 1
+      }
+    } else {
+      // 集約失敗時（ルール未デプロイ等）はユーザーごとのフィールド値でフォールバック
+      for (const u of allUsers) {
+        if (u.pushEnabled) pushCountByUid[u.id] = Math.max(pushCountByUid[u.id] || 0, 1)
+      }
+    }
+
     updateSidebarCount('users', allUsers.length)
     renderUsers()
   } catch (e) {
@@ -2204,6 +2226,8 @@ function filteredUsers() {
     case 'beta':       list = list.filter(u => u.betaTester === true); break
     case 'line':       list = list.filter(u => !!u.lineUserId); break
     case 'noline':     list = list.filter(u => !u.lineUserId); break
+    case 'push':       list = list.filter(u => (pushCountByUid[u.id] || 0) > 0); break
+    case 'nopush':     list = list.filter(u => (pushCountByUid[u.id] || 0) === 0); break
   }
 
   if (userFilters.search) {
@@ -2244,6 +2268,7 @@ function renderUserStats() {
   const teachers   = allUsers.filter(u => u.role === 'teacher').length
   const lineLinked = allUsers.filter(u => !!u.lineUserId).length
   const betaTesters = allUsers.filter(u => u.betaTester === true).length
+  const pushUsers = allUsers.filter(u => (pushCountByUid[u.id] || 0) > 0).length
 
   el.innerHTML = `
     <button class="stat-chip clickable" type="button" data-filter-preset="all"><b>${total}</b> 全ユーザー</button>
@@ -2252,6 +2277,7 @@ function renderUserStats() {
     <button class="stat-chip clickable" type="button" data-filter-preset="teacher"><b>${teachers}</b> 先生</button>
     <button class="stat-chip clickable" type="button" data-filter-preset="staff"><b>${staff}</b> 委員会メンバー</button>
     <button class="stat-chip clickable" type="button" data-filter-preset="line"><b>${lineLinked}</b> LINE連携済み</button>
+    <button class="stat-chip clickable" type="button" data-filter-preset="push"><b>${pushUsers}</b> Push利用中</button>
     ${betaTesters ? `<button class="stat-chip clickable" type="button" data-filter-preset="beta"><b>${betaTesters}</b> βテスター</button>` : ''}`
 }
 
@@ -2265,6 +2291,7 @@ function applyUserPreset(preset) {
   else if (preset === 'unapproved') { userFilters.status = 'unapproved'; userSort = 'status' }
   else if (preset === 'beta')       { userFilters.status = 'beta' }
   else if (preset === 'line')       { userFilters.status = 'line' }
+  else if (preset === 'push')       { userFilters.status = 'push' }
   else if (preset === 'staff')      { userFilters.status = 'all' } // 下で個別処理
 
   // セレクトボックスの表示を同期
@@ -2303,10 +2330,20 @@ function approvalCell(u, iCanToggleAppr) {
   return `<span class="badge ${cls}">${label}</span>`
 }
 
-function lineCell(u) {
-  return u.lineUserId
-    ? `<span class="badge badge-ok" title="${escHtml(u.lineDisplayName ? 'LINE: ' + u.lineDisplayName : 'LINE連携済み')}">✓ 連携済み</span>`
-    : '<span class="badge badge-muted">未連携</span>'
+function lineCell(u, iCanUnlink) {
+  if (!u.lineUserId) return '<span class="badge badge-muted">未連携</span>'
+  const badge = `<span class="badge badge-ok" title="${escHtml(u.lineDisplayName ? 'LINE: ' + u.lineDisplayName : 'LINE連携済み')}">✓ 連携済み</span>`
+  if (!iCanUnlink) return badge
+  // 管理画面からLINE連携を解除可能（Issue #21）
+  return `<span style="display:inline-flex;align-items:center;gap:5px">${badge}
+    <button class="toggle-pill" style="color:var(--enjii);background:var(--enjii-bg)" onclick="unlinkUserLine('${u.id}')" title="LINE連携を解除する">解除</button></span>`
+}
+
+/** Push利用状況（購読中デバイス数） */
+function pushCell(u) {
+  const n = pushCountByUid[u.id] || 0
+  if (n <= 0) return '<span class="badge badge-muted">未利用</span>'
+  return `<span class="badge badge-ok" title="${n}台の端末でプッシュ通知を利用中">✓ ${n}台</span>`
 }
 
 // βテスター指定 (Issue #53)。操作は委員会管理者以上のみ。
@@ -2341,6 +2378,8 @@ function renderUsers() {
   const iCanToggleAppr = canToggleApproval(myRole) // 承認状態の切替
   const iCanManageRole = canManageRoles(myRole)    // ロール変更・削除
   const iCanManageBeta = canManageBetaTester(myRole) // βテスター指定 (Issue #53)
+  // LINE連携解除はユーザー情報の編集権限と同等のロール制約をかける（Issue #21）
+  const iCanUnlinkLine = iCanEditInfo
 
   const ops = (u) => {
     const canOpEdit   = iCanEditInfo   && canManageTargetRole(myRole, u.role)
@@ -2350,6 +2389,8 @@ function renderUsers() {
       ${canOpEdit ? `<button class="btn-xs" onclick="editUser('${u.id}')">編集</button>` : ''}
       ${canOpDelete ? `<button class="btn-xs danger" onclick="deleteUser('${u.id}','${escAttr(u.name || u.email || '')}')">削除</button>` : ''}`
   }
+
+  const canUnlink = (u) => iCanUnlinkLine && canManageTargetRole(myRole, u.role)
 
   const ident = (u) => `
     <div class="user-ident">
@@ -2376,6 +2417,7 @@ function renderUsers() {
               <th class="num">学年・組・番号</th>
               <th class="num">承認</th>
               <th class="num">LINE</th>
+              <th class="num">Push</th>
               <th class="num">β</th>
               <th></th>
             </tr>
@@ -2391,7 +2433,8 @@ function renderUsers() {
                     : '<span style="color:var(--text-3)">—</span>'}
                 </td>
                 <td class="num">${approvalCell(u, iCanToggleAppr)}</td>
-                <td class="num">${lineCell(u)}</td>
+                <td class="num">${lineCell(u, canUnlink(u))}</td>
+                <td class="num">${pushCell(u)}</td>
                 <td class="num">${betaCell(u, iCanManageBeta)}</td>
                 <td><div class="row-ops">${ops(u)}</div></td>
               </tr>`).join('')}
@@ -2411,7 +2454,8 @@ function renderUsers() {
           <div class="user-card-attrs">
             ${roleAttrs(u).map(a => `<span class="attr">${a}</span>`).join('')}
             ${approvalCell(u, iCanToggleAppr)}
-            ${lineCell(u)}
+            ${lineCell(u, canUnlink(u))}
+            ${pushCell(u)}
             ${betaCell(u, iCanManageBeta)}
           </div>
           ${(iCanEditInfo || iCanManageRole) ? `<div class="user-card-ops">${ops(u)}</div>` : ''}
@@ -2453,6 +2497,40 @@ window.toggleBetaTester = async function (uid, newBeta) {
   }
 }
 
+/**
+ * LINE連携の解除（管理画面から。Issue #21）
+ * ユーザー情報の編集権限と同じロール制約で操作できる。
+ * 解除後も今後ユーザー自身がマイページから再連携できる。
+ */
+window.unlinkUserLine = async function (uid) {
+  if (!canEditUserInfo(myProfile?.role)) { showToast('この操作を行う権限がありません'); return }
+  const user = allUsers.find(u => u.id === uid)
+  if (!user) return
+  if (!canManageTargetRole(myProfile?.role, user.role)) { showToast('このユーザーを操作する権限がありません'); return }
+  if (!user.lineUserId) return
+  const name = user.lineDisplayName || user.name || user.email || uid
+  if (!confirm(`「${name}」のLINE連携を解除しますか？\n以降、このユーザーにはLINE通知が届かなくなります。`)) return
+  try {
+    // users/{uid} の LINE 連携フィールドを削除（firestore.rules: 委員会管理者以上が対象ロール内で更新可）
+    await updateDoc(doc(db, 'users', uid), {
+      lineUserId:      deleteField(),
+      lineDisplayName: deleteField(),
+      linePictureUrl:  deleteField(),
+      lineNotify:      deleteField(),
+      lineLinkedAt:    deleteField(),
+    })
+    delete user.lineUserId
+    delete user.lineDisplayName
+    delete user.linePictureUrl
+    delete user.lineNotify
+    delete user.lineLinkedAt
+    showToast('LINE連携を解除しました')
+    renderUsers()
+  } catch (e) {
+    showToast('エラー: ' + (e?.message || String(e)))
+  }
+}
+
 window.filterUsers = function (type, value) {
   userFilters[type] = value
   userFilters._staffOnly = false
@@ -2483,7 +2561,8 @@ window.editUser = async function (uid) {
     return
   }
 
-  const iCanChangeRole = canManageRoles(myRole)
+  const iCanChangeRole    = canManageRoles(myRole)
+  const canUnlinkModal    = canEditUserInfo(myRole) && canManageTargetRole(myRole, user.role)
   const roleOptions = assignableRoles(myRole)
   // 現在のロールが選択肢に無い場合（自分より上位のロールを持つ対象など）は表示のみ追加
   if (!roleOptions.includes(user.role)) roleOptions.push(user.role)
@@ -2541,7 +2620,17 @@ window.editUser = async function (uid) {
         <div class="collapse-body">
           <dl class="case-rows" style="margin-top:0">
             <dt>UID</dt><dd style="font-family:monospace;font-size:11px">${escHtml(user.id)}</dd>
-            <dt>LINE</dt><dd>${user.lineUserId ? `連携済み${user.lineDisplayName ? '（' + escHtml(user.lineDisplayName) + '）' : ''}` : '未連携'}</dd>
+            <dt>LINE</dt><dd style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              ${user.lineUserId
+                ? `連携済み${user.lineDisplayName ? '（' + escHtml(user.lineDisplayName) + '）' : ''}`
+                : '未連携'}
+              ${user.lineUserId && canUnlinkModal
+                ? `<button type="button" class="btn-xs danger" onclick="unlinkUserLine('${user.id}')" style="margin-left:auto">LINE連携を解除</button>`
+                : ''}
+            </dd>
+            <dt>プッシュ通知</dt><dd>${(pushCountByUid[user.id] || 0) > 0
+              ? `${pushCountByUid[user.id]}台の端末で利用中`
+              : '未利用'}</dd>
             <dt>承認状態</dt><dd>${user.role === 'student' ? (user.approved ? '承認済み' : '未承認') : '—（生徒以外）'}</dd>
           </dl>
         </div>

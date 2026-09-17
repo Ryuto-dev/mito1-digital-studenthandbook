@@ -102,15 +102,17 @@ service cloud.firestore {
     }
 
     // 本人が自分のドキュメントに書き込んでよいフィールド
-    // （LINE連携・Google連携・お知らせ既読・氏名等の自己更新用。
+    // （LINE連携・Google連携・お知らせ既読・通知受け取り設定・氏名等の自己更新用。
     //  role / approved / betaTester は権限昇格に直結するため本人更新不可）
     // email / previousEmails / authProvider / photoURL / googleLinkedAt は
     // Google連携時の正規メアド同期用（連携のみ・新規登録不可の方針）
+    // notificationPrefs / pushEnabled は「受け取る通知」の選択・Push利用状態（Issue #21）
     function selfUpdatableKeys() {
       return ['name', 'grade', 'class', 'number',
               'email', 'previousEmails', 'authProvider', 'photoURL', 'googleLinkedAt',
               'lineUserId', 'lineDisplayName', 'linePictureUrl', 'lineNotify', 'lineLinkedAt',
-              'lastSeenAnnouncementsAt'];
+              'lastSeenAnnouncementsAt',
+              'notificationPrefs', 'pushEnabled'];
     }
 
     // =============================================
@@ -180,6 +182,13 @@ service cloud.firestore {
       allow read: if isOwnerUid(userId) || isStaff() || isTeacherRole();
       allow create, update: if isOwnerUid(userId);
       allow delete: if isOwnerUid(userId);
+    }
+
+    // 管理画面で「Push利用状況」を確認するための collectionGroup クエリ用ルール（Issue #21）
+    // 一覧は先生・委員会スタッフのみ読み取り可（個別パスの上記ルールと同等の権限）。
+    // 対象のユーザーに紐づく pushSubscriptions ドキュメントのみがマッチする。
+    match /{path=**}/pushSubscriptions/{subId} {
+      allow read: if isStaff() || isTeacherRole();
     }
 
     // =============================================

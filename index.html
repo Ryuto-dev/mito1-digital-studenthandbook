@@ -580,9 +580,13 @@
         </div>
         <button type="button" class="line-unlink-btn" id="pushToggleBtn" onclick="togglePushFront()">通知をONにする</button>
       </div>
-      <div id="pushTestRow" style="display:none;margin-top:10px;text-align:right">
-        <button type="button" class="line-unlink-btn" onclick="sendTestPushFront()">テスト通知を送る</button>
-      </div>
+    </div>
+
+    <!-- ============ 受け取る通知（Push / LINE 共通。将来の通知種別は push.js の NOTIFICATION_TYPES に追加） ============ -->
+    <div id="notifyPrefsBlock" class="notify-prefs" style="display:none">
+      <div class="settings-sec-label">受け取る通知</div>
+      <div class="notify-prefs-list" id="notifyPrefsList"></div>
+      <div class="notify-prefs-hint">ここでOFFにした通知は、プッシュ通知・LINE通知のどちらにも届きません。</div>
     </div>
 
     <div class="settings-sec-label">表示</div>
@@ -2174,7 +2178,9 @@ import {
 } from '/src/featureFlags.js'
 import {
   pushAvailability, getPushState,
-  subscribePush, unsubscribePush, sendTestPush,
+  subscribePush, unsubscribePush,
+  setNotificationPrefs, getNotificationPrefs,
+  NOTIFICATION_TYPES, DEFAULT_NOTIFICATION_PREFS, normalizeNotificationPrefs,
 } from '/src/push.js'
 
 loadAllData().catch(e => console.error('[Firestore]', e))
@@ -2280,6 +2286,9 @@ function updateAuthUI() {
 
     // PWAプッシュ通知の状態表示
     renderPushUI()
+
+    // 受け取る通知の選択肢（プッシュON / LINE連携済みのときに表示）
+    renderNotifyPrefs()
 
     // βテスト中の機能一覧（Issue #53: 対象者のみ表示）
     renderBetaFeatures(profile)
@@ -2452,6 +2461,9 @@ function renderLineLinkUI(profile) {
     banner.style.display    = ''
     linkedBox.style.display = 'none'
   }
+
+  // 受け取る通知の選択肢の表示条件（LINE連携有無）が変わったので再描画
+  renderNotifyPrefs()
 }
 
 // =============================================
@@ -2999,7 +3011,6 @@ async function renderPushUI() {
   const badge = document.getElementById('pushStatusBadge')
   const text  = document.getElementById('pushStatusText')
   const btn   = document.getElementById('pushToggleBtn')
-  const testRow = document.getElementById('pushTestRow')
   if (!card || !_currentUser) { if (card) card.style.display = 'none'; return }
   // βテスト中は対象外にカードごと非表示（Issue #53）
   try {
@@ -3021,7 +3032,6 @@ async function renderPushUI() {
       text.textContent = 'このブラウザはプッシュ通知に対応していません。'
       btn.style.display = 'none'
     }
-    if (testRow) testRow.style.display = 'none'
     return
   }
   btn.style.display = ''
@@ -3032,22 +3042,22 @@ async function renderPushUI() {
       badge.textContent = 'プッシュ通知: ブロック中'
       text.textContent = 'ブラウザ設定で通知を許可してください（iPhone: 設定 → アプリ → 通知）。'
       btn.textContent = '通知をONにする'
-      if (testRow) testRow.style.display = 'none'
     } else if (st.subscribed) {
       badge.textContent = '✓ プッシュ通知: ON'
       text.textContent = '承認完了などのお知らせをこの端末にプッシュ通知します。'
       btn.textContent = '通知をOFFにする'
-      if (testRow) testRow.style.display = ''
     } else {
       badge.textContent = 'プッシュ通知: OFF'
       text.textContent = 'ONにすると承認完了などのお知らせをこの端末にプッシュ通知します。'
       btn.textContent = '通知をONにする'
-      if (testRow) testRow.style.display = 'none'
     }
   } catch {
     badge.textContent = 'プッシュ通知: 確認失敗'
     text.textContent = '状態の確認に失敗しました。'
   }
+
+  // 受け取る通知の選択肢は常に描画（ON/OFFに応じて表示切替）
+  await renderNotifyPrefs()
 }
 
 window.togglePushFront = async function() {
@@ -3079,11 +3089,68 @@ window.togglePushFront = async function() {
   }
 }
 
-window.sendTestPushFront = async function() {
+// =============================================
+// マイページ：受け取る通知（Push / LINE 共通の設定）
+// 表示条件: プッシュ通知ON または LINE連携済み のどちらか。
+// 未連携でも「どの通知を受け取るか」を先に選んでおけるよう、
+// どちらも未設定の場合は非表示とする。
+// =============================================
+let _notifyPrefsDirty = false
+
+async function renderNotifyPrefs() {
+  const block = document.getElementById('notifyPrefsBlock')
+  const list  = document.getElementById('notifyPrefsList')
+  if (!block || !list || !_currentUser) { if (block) block.style.display = 'none'; return }
+
+  let pushOn = false
   try {
-    await sendTestPush()
+    const st = await getPushState()
+    pushOn = st.subscribed === true
+  } catch { /* 判定不能ならOFF扱い */ }
+
+  const lineOn = isLinked(_currentProfile)
+
+  // プッシュ・LINEどちらも届かない状態では表示しない
+  if (!pushOn && !lineOn) { block.style.display = 'none'; return }
+
+  const prefs = normalizeNotificationPrefs(
+    (_currentProfile && _currentProfile.notificationPrefs) || DEFAULT_NOTIFICATION_PREFS
+  )
+  // プロフィールに未保存の場合、保存済みの値を取りに行く（初回のみ）
+  if (_currentProfile && !_currentProfile.notificationPrefs && !_notifyPrefsDirty) {
+    try {
+      const saved = await getNotificationPrefs(_currentUser.uid)
+      Object.assign(prefs, saved)
+    } catch { /* ignore */ }
+  }
+
+  list.innerHTML = Object.values(NOTIFICATION_TYPES).map(t =>
+    `<label class="notify-pref-item">
+      <input type="checkbox" data-pref-key="${escH(t.key)}" ${prefs[t.key] ? 'checked' : ''}
+        onchange="toggleNotifyPref('${t.key}')">
+      <span class="notify-pref-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
+      <span class="notify-pref-label">${escH(t.label)}</span>
+    </label>`
+  ).join('')
+  block.style.display = ''
+}
+
+window.toggleNotifyPref = async function(key) {
+  if (!_currentUser) return
+  if (!NOTIFICATION_TYPES[key]) return
+  const cb = document.querySelector(`#notifyPrefsList input[data-pref-key="${key}"]`)
+  const checked = cb ? cb.checked : true
+  try {
+    const prefs = normalizeNotificationPrefs(
+      (_currentProfile && _currentProfile.notificationPrefs) || {}
+    )
+    prefs[key] = checked
+    const saved = await setNotificationPrefs(_currentUser.uid, prefs)
+    if (_currentProfile) _currentProfile.notificationPrefs = saved
+    _notifyPrefsDirty = true
   } catch (e) {
-    alert('テスト送信に失敗: ' + (e?.message || String(e)))
+    if (cb) cb.checked = !checked
+    alert('設定の保存に失敗しました: ' + (e?.message || String(e)))
   }
 }
 
