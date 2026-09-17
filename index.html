@@ -105,6 +105,21 @@
   </div>
 </header>
 
+<!-- 時間割フローティングウィジェット（Issue #85）
+     ホーム画面のみに表示（nav() がホーム以外では .tt-hidden を付与）。
+     ヘッダー直下・画面右上。AI FLOATとは別位置（右下）なので衝突しない。
+     機能フラグ非対象のときはJS側(applyFeatureGates)で非表示にする。 -->
+<button class="tt-widget" id="ttWidget" data-p="timetable" onclick="nav('timetable')" title="時間割を開く" aria-label="時間割を開く">
+  <span class="tt-widget-icon">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+  </span>
+  <span class="tt-widget-txt">
+    <span class="tt-widget-ttl">時間割<span class="tt-widget-badge" id="ttWidgetBadge" style="display:none">NEW</span></span>
+    <span class="tt-widget-sub" id="ttWidgetSub">読み込み中...</span>
+  </span>
+  <span class="tt-widget-chev"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></span>
+</button>
+
 <div class="sidebar-overlay" id="sbOverlay" onclick="toggleSidebar()"></div>
 
 <!-- SIDEBAR -->
@@ -161,7 +176,7 @@
     <div class="sb-label">学校生活</div>
     <button class="sb-item" data-p="timetable" onclick="nav('timetable')">
       <span class="sb-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
-      今日の時間割
+      時間割
       <span class="sb-badge" id="sbBadgeTimetable" style="display:none;background:#c0392b;color:#fff"></span>
     </button>
     <button class="sb-item" data-p="curriculum" onclick="nav('curriculum')">
@@ -264,7 +279,7 @@
       </button>
       <button class="more-item" data-mp="timetable" onclick="nav('timetable');closeMore()">
         <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        <div class="more-lbl">今日の時間割</div>
+        <div class="more-lbl">時間割</div>
       </button>
       <button class="more-item" data-mp="curriculum" onclick="nav('curriculum');closeMore()">
         <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
@@ -590,6 +605,13 @@
       </div>
     </div>
 
+    <!-- ============ 受け取る通知（Push / LINE 共通。将来の通知種別は push.js の NOTIFICATION_TYPES に追加） ============ -->
+    <div id="notifyPrefsBlock" class="notify-prefs" style="display:none">
+      <div class="settings-sec-label">受け取る通知</div>
+      <div class="notify-prefs-list" id="notifyPrefsList"></div>
+      <div class="notify-prefs-hint">ここでOFFにした通知は、プッシュ通知・LINE通知のどちらにも届きません。</div>
+    </div>
+
     <div class="settings-sec-label">表示</div>
     <button type="button" class="settings-row" onclick="toggleTheme()">
       <span class="settings-row-icon"><svg id="settingsThemeIcon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
@@ -636,17 +658,6 @@
       </div>
 
       <div class="cat-grid">
-        <div class="cat-card cat-card-timetable" id="timetableHomeCard" onclick="nav('timetable')">
-          <div class="cat-card-inner">
-            <div>
-              <div class="cat-card-line"></div>
-              <div class="cat-card-title">今日の<br>時間割</div>
-              <div class="cat-card-sub" id="timetableCardSub">自動更新</div>
-            </div>
-            <div class="cat-card-arrow">開く<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
-          </div>
-        </div>
-
         <div class="cat-card cat-card-rules" onclick="nav('rules')">
           <div class="cat-card-inner">
             <div>
@@ -907,8 +918,14 @@
   <section class="pg" id="pg-timetable">
     <div class="pg-header">
       <div class="breadcrumb"><span onclick="nav('home')">ホーム</span><span class="breadcrumb-sep">›</span><span>時間割</span></div>
-      <h1 class="pg-title">今日の時間割</h1>
-      <div class="pg-meta"><span id="timetableMeta">読み込み中...</span></div>
+      <h1 class="pg-title">時間割</h1>
+      <div class="pg-meta">
+        <span id="timetableMeta">読み込み中...</span>
+        <button type="button" class="tt-refresh-btn" id="timetableRefreshBtn" onclick="window.refreshTimetable && window.refreshTimetable()">
+          <svg viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>
+          更新
+        </button>
+      </div>
     </div>
     <div id="timetableBetaNotice" style="display:none;padding:40px 20px;text-align:center;color:var(--text-3);font-size:13px">
       時間割は現在βテスト中です。<br>公開までお待ちください。
@@ -916,7 +933,7 @@
     <div id="timetableImagesFront">
       <div style="padding:40px;text-align:center;color:var(--text-3);font-size:13px">読み込み中...</div>
     </div>
-    <p style="font-size:12px;color:var(--text-3);text-align:center;margin-top:8px">生徒用時間割を5分おきに自動確認しています</p>
+    <p style="font-size:12px;color:var(--text-3);text-align:center;margin-top:8px">前日14時ごろに次の時間割へ自動更新されます。表示が古い場合は上の「更新」を押してください</p>
   </section>
 
   <!-- 生徒会活動 -->
@@ -1868,6 +1885,17 @@ function dismissInstallBanner(){
   const b=document.getElementById('installBanner');
   if(b)b.classList.remove('show');
   try{ localStorage.setItem('installBannerDismissedAt', String(Date.now())) }catch(e){}
+  updateTtWidgetVisibility();
+}
+/* 時間割フローティングウィジェットの表示制御:
+   ホーム画面かつインストールバナー非表示のときだけ表示する。
+   （バナー表示中に重なると右上の「閉じる」を覆ってしまうため） */
+function updateTtWidgetVisibility(){
+  const tt=document.getElementById('ttWidget');
+  if(!tt) return;
+  const onHome=currentPage==='home';
+  const bannerOn=!!(document.getElementById('installBanner')?.classList.contains('show'));
+  tt.classList.toggle('tt-hidden', !onHome || bannerOn);
 }
 /* ブラウザに合わせてシートの手順を出し分ける */
 function applyInstallSteps(){
@@ -1905,6 +1933,7 @@ function neverShowInstall(){
   const b=document.getElementById('installBanner');
   if(b)b.classList.remove('show');
   try{ localStorage.setItem('installPromptHidden','1') }catch(e){}
+  updateTtWidgetVisibility();
 }
 (function(){
   if(!shouldShowInstall()) return;
@@ -1914,6 +1943,7 @@ function neverShowInstall(){
     const banner=document.getElementById('installBanner');
     if(banner && (!d || Date.now()-Number(d) > 7*24*60*60*1000)){
       banner.classList.add('show');
+      updateTtWidgetVisibility();
     }
   }catch(e){}
   // リロードのたびに、ローディング演出（約3.2秒）後にシートを自動表示
@@ -2171,7 +2201,9 @@ import {
 } from '/src/featureFlags.js'
 import {
   pushAvailability, getPushState,
-  subscribePush, unsubscribePush, sendTestPush,
+  subscribePush, unsubscribePush,
+  setNotificationPrefs, getNotificationPrefs,
+  NOTIFICATION_TYPES, DEFAULT_NOTIFICATION_PREFS, normalizeNotificationPrefs,
 } from '/src/push.js'
 
 loadAllData().catch(e => console.error('[Firestore]', e))
@@ -2286,6 +2318,9 @@ function updateAuthUI() {
     // PWAプッシュ通知の状態表示
     renderPushUI()
 
+    // 受け取る通知の選択肢（プッシュON / LINE連携済みのときに表示）
+    renderNotifyPrefs()
+
     // βテスト中の機能一覧（Issue #53: 対象者のみ表示）
     renderBetaFeatures(profile)
 
@@ -2338,12 +2373,10 @@ async function applyFeatureGates(profile, { loggedIn } = {}) {
   const newApplyBtn = document.getElementById('mypageNewApplyBtn')
   if (newApplyBtn) newApplyBtn.style.display = applyVisible ? '' : 'none'
 
-  // 時間割（β）: ナビ・ホームカード・ページ本体をゲート
+  // 時間割（β）: ナビ・フローティングウィジェット・ページ本体をゲート
   document.querySelectorAll('[data-p="timetable"],[data-mp="timetable"]').forEach(el => {
     el.style.display = timetableVisible ? '' : 'none'
   })
-  const timetableCard = document.getElementById('timetableHomeCard')
-  if (timetableCard) timetableCard.style.display = timetableVisible ? '' : 'none'
   const ttNotice = document.getElementById('timetableBetaNotice')
   const ttImages = document.getElementById('timetableImagesFront')
   if (ttNotice) ttNotice.style.display = timetableVisible ? 'none' : ''
@@ -2460,6 +2493,9 @@ function renderLineLinkUI(profile) {
     banner.style.display    = ''
     linkedBox.style.display = 'none'
   }
+
+  // 受け取る通知の選択肢の表示条件（LINE連携有無）が変わったので再描画
+  renderNotifyPrefs()
 }
 
 // =============================================
@@ -3054,16 +3090,22 @@ window.updateMypageDot = updateMypageDot
 const origNav = window.nav
 window.nav = function(page, skipHash) {
   origNav(page, skipHash)
+  // 時間割フローティングウィジェットはホーム画面のみに表示
+  updateTtWidgetVisibility()
   if (page === 'mypage') window.loadMyCases()
   if (page === 'notices') window.loadNotices()
-  // 時間割を開いたら画像を描画＋既読にする（サイドバーのNEWバッジ消去用）
+  // 時間割を開いたら画像を描画＋既読にする（サイドバー・ウィジェットのNEWバッジ消去用）。
+  // Issue #85: PWAキャッシュで古い画像が残る事故を防ぐため、ページ訪問時は
+  // 常に強制再取得（force=true）してから描画する。
   if (page === 'timetable') {
-    if (window.renderTimetableImages) window.renderTimetableImages()
+    if (window.renderTimetableImages) window.renderTimetableImages(true)
     if (window._timetableUpdatedAt) {
       try { localStorage.setItem('timetableSeenAt', window._timetableUpdatedAt) } catch {}
     }
-    const badge = document.getElementById('sbBadgeTimetable')
-    if (badge) badge.style.display = 'none'
+    ;['sbBadgeTimetable', 'ttWidgetBadge'].forEach(id => {
+      const badge = document.getElementById(id)
+      if (badge) badge.style.display = 'none'
+    })
   }
 }
 
@@ -3094,7 +3136,6 @@ async function renderPushUI() {
   const badge = document.getElementById('pushStatusBadge')
   const text  = document.getElementById('pushStatusText')
   const btn   = document.getElementById('pushToggleBtn')
-  const testRow = document.getElementById('pushTestRow')
   if (!card || !_currentUser) { if (card) card.style.display = 'none'; return }
   // βテスト中は対象外にカードごと非表示（Issue #53）
   try {
@@ -3116,7 +3157,6 @@ async function renderPushUI() {
       text.textContent = 'このブラウザはプッシュ通知に対応していません。'
       btn.style.display = 'none'
     }
-    if (testRow) testRow.style.display = 'none'
     return
   }
   btn.style.display = ''
@@ -3127,22 +3167,22 @@ async function renderPushUI() {
       badge.textContent = 'プッシュ通知: ブロック中'
       text.textContent = 'ブラウザ設定で通知を許可してください（iPhone: 設定 → アプリ → 通知）。'
       btn.textContent = '通知をONにする'
-      if (testRow) testRow.style.display = 'none'
     } else if (st.subscribed) {
       badge.textContent = '✓ プッシュ通知: ON'
       text.textContent = '承認完了などのお知らせをこの端末にプッシュ通知します。'
       btn.textContent = '通知をOFFにする'
-      if (testRow) testRow.style.display = ''
     } else {
       badge.textContent = 'プッシュ通知: OFF'
       text.textContent = 'ONにすると承認完了などのお知らせをこの端末にプッシュ通知します。'
       btn.textContent = '通知をONにする'
-      if (testRow) testRow.style.display = 'none'
     }
   } catch {
     badge.textContent = 'プッシュ通知: 確認失敗'
     text.textContent = '状態の確認に失敗しました。'
   }
+
+  // 受け取る通知の選択肢は常に描画（ON/OFFに応じて表示切替）
+  await renderNotifyPrefs()
 }
 
 window.togglePushFront = async function() {
@@ -3174,11 +3214,68 @@ window.togglePushFront = async function() {
   }
 }
 
-window.sendTestPushFront = async function() {
+// =============================================
+// マイページ：受け取る通知（Push / LINE 共通の設定）
+// 表示条件: プッシュ通知ON または LINE連携済み のどちらか。
+// 未連携でも「どの通知を受け取るか」を先に選んでおけるよう、
+// どちらも未設定の場合は非表示とする。
+// =============================================
+let _notifyPrefsDirty = false
+
+async function renderNotifyPrefs() {
+  const block = document.getElementById('notifyPrefsBlock')
+  const list  = document.getElementById('notifyPrefsList')
+  if (!block || !list || !_currentUser) { if (block) block.style.display = 'none'; return }
+
+  let pushOn = false
   try {
-    await sendTestPush()
+    const st = await getPushState()
+    pushOn = st.subscribed === true
+  } catch { /* 判定不能ならOFF扱い */ }
+
+  const lineOn = isLinked(_currentProfile)
+
+  // プッシュ・LINEどちらも届かない状態では表示しない
+  if (!pushOn && !lineOn) { block.style.display = 'none'; return }
+
+  const prefs = normalizeNotificationPrefs(
+    (_currentProfile && _currentProfile.notificationPrefs) || DEFAULT_NOTIFICATION_PREFS
+  )
+  // プロフィールに未保存の場合、保存済みの値を取りに行く（初回のみ）
+  if (_currentProfile && !_currentProfile.notificationPrefs && !_notifyPrefsDirty) {
+    try {
+      const saved = await getNotificationPrefs(_currentUser.uid)
+      Object.assign(prefs, saved)
+    } catch { /* ignore */ }
+  }
+
+  list.innerHTML = Object.values(NOTIFICATION_TYPES).map(t =>
+    `<label class="notify-pref-item">
+      <input type="checkbox" data-pref-key="${escH(t.key)}" ${prefs[t.key] ? 'checked' : ''}
+        onchange="toggleNotifyPref('${t.key}')">
+      <span class="notify-pref-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
+      <span class="notify-pref-label">${escH(t.label)}</span>
+    </label>`
+  ).join('')
+  block.style.display = ''
+}
+
+window.toggleNotifyPref = async function(key) {
+  if (!_currentUser) return
+  if (!NOTIFICATION_TYPES[key]) return
+  const cb = document.querySelector(`#notifyPrefsList input[data-pref-key="${key}"]`)
+  const checked = cb ? cb.checked : true
+  try {
+    const prefs = normalizeNotificationPrefs(
+      (_currentProfile && _currentProfile.notificationPrefs) || {}
+    )
+    prefs[key] = checked
+    const saved = await setNotificationPrefs(_currentUser.uid, prefs)
+    if (_currentProfile) _currentProfile.notificationPrefs = saved
+    _notifyPrefsDirty = true
   } catch (e) {
-    alert('テスト送信に失敗: ' + (e?.message || String(e)))
+    if (cb) cb.checked = !checked
+    alert('設定の保存に失敗しました: ' + (e?.message || String(e)))
   }
 }
 

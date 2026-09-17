@@ -257,6 +257,75 @@
 .coming-card-desc{font-size:11.5px;color:var(--text-3);line-height:1.6}
 
 /* ===========================
+   時間割 フローティングウィジェット（Issue #85）
+   ホーム画面のみに表示。ヘッダー直下・画面右上に固定。
+   AI FLOAT（右下）や生徒手帳の浮遊画像（.home-book、中央）とは重ならない。
+=========================== */
+.tt-widget{
+  position:fixed;top:calc(var(--header-h) + 14px);right:calc(16px + var(--safe-r));
+  z-index:190;display:flex;align-items:center;gap:10px;
+  background:linear-gradient(135deg,#1b2c52 0%,#223964 60%,#1a2744 100%);
+  color:#fff;border:1px solid rgba(255,255,255,.14);border-radius:999px;cursor:pointer;
+  padding:9px 14px 9px 9px;
+  box-shadow:0 8px 26px rgba(20,30,60,.35),inset 0 1px 0 rgba(255,255,255,.12);
+  transition:transform .2s,box-shadow .2s,background .2s;
+  max-width:min(200px,44vw);
+}
+.tt-widget:hover{transform:translateY(-2px);box-shadow:0 12px 34px rgba(20,30,60,.42),inset 0 1px 0 rgba(255,255,255,.14)}
+.tt-widget:active{transform:translateY(0)}
+.tt-widget-icon{
+  flex-shrink:0;width:30px;height:30px;border-radius:50%;
+  background:linear-gradient(135deg,#a41f31 0%,#7a1626 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 2px 6px rgba(122,22,38,.35);
+  display:flex;align-items:center;justify-content:center;
+}
+.tt-widget-icon svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tt-widget-txt{display:flex;flex-direction:column;align-items:flex-start;min-width:0;text-align:left;line-height:1.2}
+.tt-widget-ttl{font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;letter-spacing:.02em}
+.tt-widget-badge{
+  font-size:8px;font-weight:700;letter-spacing:.05em;
+  background:var(--enjii);color:#fff;padding:2px 7px;border-radius:999px;line-height:1.2;
+  box-shadow:0 0 0 1px rgba(255,255,255,.28);
+  animation:ttBadgePulse 1.8s ease-in-out infinite;
+}
+@keyframes ttBadgePulse{
+  0%,100%{box-shadow:0 0 0 1px rgba(255,255,255,.28),0 0 0 0 rgba(139,26,44,.55)}
+  50%{box-shadow:0 0 0 1px rgba(255,255,255,.28),0 0 0 6px rgba(139,26,44,0)}
+}
+.tt-widget-sub{
+  font-size:9.5px;color:rgba(255,255,255,.72);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
+}
+.tt-widget-chev{margin-left:auto;flex-shrink:0;display:flex;align-items:center}
+.tt-widget-chev svg{width:12px;height:12px;stroke:rgba(255,255,255,.5);fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s}
+.tt-widget:hover .tt-widget-chev svg{transform:translateX(2px)}
+/* ホーム以外では非表示（nav() が .tt-hidden を付与） */
+.tt-widget.tt-hidden{display:none}
+@media(max-width:768px){
+  .tt-widget{top:calc(var(--header-h) + 10px);right:calc(10px + var(--safe-r));padding:8px 12px 8px 8px}
+  .tt-widget-sub{max-width:96px}
+}
+.pwa-mode .tt-widget{top:calc(var(--header-h) + var(--safe-t) + 10px)}
+
+/* ===========================
+   時間割ページ「更新」ボタン（Issue #85）
+=========================== */
+.tt-refresh-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--navy);color:#fff;border:none;border-radius:999px;cursor:pointer;
+  padding:7px 16px;font-size:12px;font-weight:600;line-height:1;
+  box-shadow:0 3px 12px rgba(26,39,68,.28),inset 0 1px 0 rgba(255,255,255,.16);
+  transition:background .18s,transform .18s,box-shadow .18s,opacity .18s;
+}
+.tt-refresh-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tt-refresh-btn:hover{background:var(--navy-light);transform:translateY(-1px);box-shadow:0 5px 16px rgba(26,39,68,.34),inset 0 1px 0 rgba(255,255,255,.18)}
+.tt-refresh-btn:active{transform:translateY(0)}
+.tt-refresh-btn:disabled{opacity:.55;cursor:progress;box-shadow:none}
+.tt-refresh-btn.loading svg{animation:ttSpin .8s linear infinite}
+@keyframes ttSpin{to{transform:rotate(360deg)}}
+[data-theme="dark"] .tt-refresh-btn{box-shadow:0 3px 12px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.12)}
+
+/* ===========================
    AI FLOAT
 =========================== */
 .ai-float{position:fixed;right:calc(18px + var(--safe-r));bottom:18px;z-index:350;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
@@ -754,3 +823,31 @@ select.cf-input{cursor:pointer}
 /* 設定シート内に移設したカード群は上下の余白のみ調整（見た目はそのまま） */
 .settings-sheet-scroll .line-banner,
 .settings-sheet-scroll .line-linked{margin-bottom:12px}
+
+/* ===========================
+   設定シート: 受け取る通知（Issue #21）
+   Push/LINE共通の通知種別チェックリスト
+   =========================== */
+.notify-prefs{margin-bottom:12px}
+.notify-prefs .settings-sec-label{padding-top:16px}
+.notify-prefs-list{
+  display:flex;flex-direction:column;gap:8px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:14px 16px;
+}
+.notify-pref-item{
+  display:flex;align-items:center;gap:11px;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;user-select:none;
+}
+.notify-pref-item input{position:absolute;opacity:0;width:0;height:0}
+.notify-pref-check{
+  width:20px;height:20px;flex-shrink:0;border-radius:5px;
+  border:1.5px solid var(--border-2);background:var(--surface2);
+  display:flex;align-items:center;justify-content:center;transition:.15s;
+}
+.notify-pref-check svg{width:12px;height:12px;stroke:#fff;fill:none;stroke-width:3;opacity:0;transition:opacity .12s}
+.notify-pref-item input:checked + .notify-pref-check{background:var(--navy);border-color:var(--navy)}
+.notify-pref-item input:checked + .notify-pref-check svg{opacity:1}
+.notify-pref-item input:focus-visible + .notify-pref-check{outline:2px solid var(--navy);outline-offset:2px}
+.notify-pref-label{font-size:13px;font-weight:500;color:var(--text)}
+.notify-prefs-hint{font-size:10.5px;color:var(--text-3);margin-top:8px;padding:0 2px;line-height:1.7}

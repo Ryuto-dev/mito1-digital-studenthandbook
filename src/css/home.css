@@ -39,8 +39,7 @@
   grid-template-columns:repeat(3,1fr);
   gap:13px;
 }
-/* 時間割カードは専用クラスで独立（events との grid-area 重複が食い込みの原因だった） */
-.cat-card-timetable{grid-column:auto}
+/* 時間割カードは専用クラスで独立（events との grid-area 重複が食い込みの原因だった）削除 */
 .cat-card-curriculum{grid-column:span 2}
 .cat-card-about{grid-column:1/-1}
 
@@ -56,7 +55,6 @@
 
 /* Card backgrounds */
 .cat-card-rules     {background:linear-gradient(135deg,#1a2744 0%,#1e3568 100%)}
-.cat-card-timetable {background:linear-gradient(135deg,#14324a 0%,#1e5a7a 100%)}
 .cat-card-events    {background:linear-gradient(135deg,#1e3568 0%,#2a4a82 100%)}
 .cat-card-curriculum{background:linear-gradient(135deg,#0f1e3a 0%,#1a2f5a 100%)}
 .cat-card-council   {background:linear-gradient(135deg,#6b1222 0%,#8b1a2c 100%)}

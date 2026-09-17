@@ -964,7 +964,7 @@ function buildTimetableReplyMessages(manifest, base) {
     const url = `${base}/timetable/${encodeURIComponent(im.file)}`
     return { type: 'image', originalContentUrl: url, previewImageUrl: url }
   })
-  msgs.push({ type: 'text', text: `今日の時間割です${label}\n詳しくは手帳アプリでも確認できます：${base}/#timetable` })
+  msgs.push({ type: 'text', text: `時間割です${label}\n詳しくは手帳アプリでも確認できます：${base}/#timetable` })
   return msgs
 }
 
