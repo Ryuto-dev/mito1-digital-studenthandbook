@@ -2958,6 +2958,24 @@ window.resetApply = function() {
 }
 
 // =============================================
+// Issue #32: 公欠期間の状態判定
+// 申請済みの日付リストと本日の日付を比較し、
+// 「期間前 / 期間中 / 期間終了」を判定する。
+// 日付は "YYYY-MM-DD" 形式の文字列比較でOK（ISO順=辞書順）。
+// =============================================
+function getCasePeriodState(dates) {
+  if (!dates || !dates.length) return 'none'
+  const sorted = [...dates].filter(Boolean).sort()
+  if (!sorted.length) return 'none'
+  const todayStr = new Date().toLocaleDateString('sv-SE') // YYYY-MM-DD（ローカル日付）
+  const first = sorted[0]
+  const last  = sorted[sorted.length - 1]
+  if (todayStr < first) return 'upcoming'
+  if (todayStr > last)  return 'ended'
+  return 'ongoing'
+}
+
+// =============================================
 // マイページ：ケース一覧
 // =============================================
 window.loadMyCases = async function() {
@@ -3031,15 +3049,24 @@ window.loadMyCases = async function() {
       const rejected = st === 'rejected'
       const canDelete = st === 'pending_supervisor'
 
+      // Issue #32: 承認完了後の公欠期間の状態（期間前／期間中／期間終了）を判定し、
+      // カードの見た目（ハイライト／グレーアウト）と期間バッジに反映する。
+      const periodState = st === 'approved' ? getCasePeriodState(c.dates) : 'none'
+      const cardStateClass = periodState === 'ongoing' ? ' is-ongoing' : periodState === 'ended' ? ' is-ended' : ''
+      const periodBadge =
+        periodState === 'ongoing' ? '<span class="mp-case-period-badge">🔵 公欠期間中</span>' :
+        periodState === 'ended'   ? '<span class="mp-case-period-badge ended">記録（期間終了）</span>' :
+        ''
+
       const progressBar = rejected
         ? `<div style="margin:12px 0;font-size:11.5px;color:#721c24;background:#f8d7da;padding:8px 12px;border-radius:6px">
              ❌ 差し戻されました${c.rejectedReason ? '：' + escHtml(c.rejectedReason) : ''}
            </div>`
         : `<div style="display:flex;margin:14px 0 4px;gap:0">
              ${steps.map(s=>`
-               <div style="flex:1;text-align:center">
-                 <div style="height:4px;border-radius:2px;margin-bottom:5px;background:${s.done?'var(--navy)':s.active?'#ffc107':'var(--border)'}"></div>
-                 <span style="font-size:10px;font-weight:${s.done||s.active?'700':'400'};color:${s.done?'var(--navy)':s.active?'#856404':'var(--text-3)'}">${s.label}</span>
+               <div class="mp-step">
+                 <div class="mp-step-bar${s.done?' done':s.active?' active':''}"></div>
+                 <span class="mp-step-lbl${s.done?' done':s.active?' active':''}">${s.label}</span>
                </div>`).join('')}
            </div>`
 
@@ -3054,9 +3081,10 @@ window.loadMyCases = async function() {
         : ''
 
       return `
-        <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:18px 20px;margin-bottom:12px">
+        <div class="mp-case-card${cardStateClass}">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
             <span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:4px;color:${STATUS_COLOR[st]||'#888'};background:${STATUS_BG[st]||'#eee'}">${STATUS_LABEL[st]||st}</span>
+            ${periodBadge}
             <span style="font-size:11px;color:var(--text-3);margin-left:auto">${c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString('ja') : ''}</span>
           </div>
           <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px">${escHtml(c.title||'')}</div>

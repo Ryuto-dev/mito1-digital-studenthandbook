@@ -855,3 +855,53 @@ select.cf-input{cursor:pointer}
 .notify-pref-item input:focus-visible + .notify-pref-check{outline:2px solid var(--navy);outline-offset:2px}
 .notify-pref-label{font-size:13px;font-weight:500;color:var(--text)}
 .notify-prefs-hint{font-size:10.5px;color:var(--text-3);margin-top:8px;padding:0 2px;line-height:1.7}
+
+/* ===========================
+   マイページ: 公欠申請カード（Issue #32）
+   ・承認フローの「進行中」ステップはシマーアニメーションで分かりやすく
+   ・承認済みかつ公欠期間中はハイライト表示
+   ・承認済みかつ公欠期間が終了したら記録としてグレーアウト表示
+   =========================== */
+.mp-case-card{
+  background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);
+  padding:18px 20px;margin-bottom:12px;
+  transition:opacity .2s ease,border-color .2s ease,background .2s ease,box-shadow .2s ease;
+}
+.mp-case-card.is-ongoing{
+  border-color:var(--navy);
+  background:linear-gradient(135deg,var(--navy-dim),var(--surface) 60%);
+  box-shadow:0 0 0 1px var(--navy-dim),var(--shadow-sm);
+}
+.mp-case-card.is-ended{
+  opacity:.62;filter:grayscale(.4);
+}
+.mp-case-card.is-ended:hover,
+.mp-case-card.is-ended:focus-within{opacity:.9;filter:grayscale(0)}
+
+.mp-case-period-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:20px;
+  background:var(--navy);color:#fff;
+}
+.mp-case-period-badge.ended{background:var(--surface2);color:var(--text-3);font-weight:600}
+
+/* 承認フローのステップ表示（進行中ステップはシマーアニメーション） */
+.mp-step{flex:1;text-align:center}
+.mp-step-bar{
+  height:4px;border-radius:2px;margin-bottom:5px;background:var(--border);
+  position:relative;overflow:hidden;
+}
+.mp-step-bar.done{background:var(--navy)}
+.mp-step-bar.active{background:#ffc107}
+.mp-step-bar.active::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.8),transparent);
+  animation:mpStepShimmer 1.3s ease-in-out infinite;
+}
+@keyframes mpStepShimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.mp-step-lbl{font-size:10px;color:var(--text-3);font-weight:400}
+.mp-step-lbl.done{font-weight:700;color:var(--navy)}
+.mp-step-lbl.active{font-weight:700;color:#856404}
+@media (prefers-reduced-motion:reduce){
+  .mp-step-bar.active::after{animation:none}
+}
