@@ -72,4 +72,11 @@ FIREBASE_PROJECT_ID = "timer-c0ed3"
 #   LINE_Channel_ID / LINE_Channel_secret / LINE_CHANNEL_ACCESS_TOKEN
 #   VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY
 #     ※VAPID公開鍵はフロント src/push.js の定数と一致させること。
+#   FIREBASE_SERVICE_ACCOUNT_JSON
+#     ※Firestore REST を認証付きで呼ぶために必要（#31）。
+#       LINE Webhook の「>申請状況」や /resolve-token が
+#       users/cases のリスト・参照に失敗しないためのサービスアカウントJSON。
+#       GitHub Actions（.github/scripts/timetable_sync.py）で使っている
+#       FIREBASE_SERVICE_ACCOUNT_JSON と同じ鍵でよい。
+#       未設定の場合は認証なし（firestore.rules に許容される範囲のみ）で動作する。
 # -----------------------------------------------------------------

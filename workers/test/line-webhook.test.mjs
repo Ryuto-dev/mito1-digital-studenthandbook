@@ -33,7 +33,21 @@ const EXPORTED = [
   'verifyLineSignature',
   'buildTimetableReplyMessages',
   'buildStatusFlex',
+  'pemToDer',
+  'bytesToB64url',
+  'buildServiceAccountJwt',
+  'getFirestoreAccessToken',
+  'firestoreFetch',
 ]
+
+// 抜き出した関数が依存するモジュール定数・状態を事前に差し込む
+// （mail.test.mjs の PRELUDE と同じ方式）
+const PRELUDE = `
+const FIRESTORE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+const FIRESTORE_SCOPE     = 'https://www.googleapis.com/auth/datastore'
+let _firestoreToken = { token: '', expiresAt: 0 }
+function resetFirestoreTokenCache() { _firestoreToken = { token: '', expiresAt: 0 } }
+`
 
 function extractFunctions(src, names) {
   let out = ''
@@ -52,15 +66,23 @@ function extractFunctions(src, names) {
     }
     out += src.slice(start, i) + '\n'
   }
-  return out + `export { ${names.join(', ')} }\n`
+  return out + `export { ${names.join(', ')} }\n` + `export { resetFirestoreTokenCache }\n`
 }
 
 const src = fs.readFileSync(WORKER_SRC, 'utf8')
 const tmpFile = path.join(__dirname, '.tmp-line-webhook.mjs')
-fs.writeFileSync(tmpFile, extractFunctions(src, EXPORTED))
-const { isTimetableQuery, isStatusQuery, verifyLineSignature, buildTimetableReplyMessages, buildStatusFlex } =
-  await import(tmpFile)
+fs.writeFileSync(tmpFile, PRELUDE + extractFunctions(src, EXPORTED))
+const {
+  isTimetableQuery, isStatusQuery, verifyLineSignature, buildTimetableReplyMessages, buildStatusFlex,
+  pemToDer, bytesToB64url, buildServiceAccountJwt, getFirestoreAccessToken, firestoreFetch,
+  resetFirestoreTokenCache,
+} = await import(tmpFile)
 fs.unlinkSync(tmpFile)
+
+/** トークンキャッシュをリセット（テスト間の干渉を防ぐ） */
+function resetTokenCache() {
+  resetFirestoreTokenCache()
+}
 
 // --------------------------------------------------------------------------
 // キーワード判定
@@ -233,4 +255,117 @@ test('buildStatusFlex: マイページへの導線が含まれる', () => {
   const flex = buildStatusFlex({ caseData: { ...caseBase, status: 'pending_homeroom' }, studentName: '山田 太郎', base: BASE })
   assert.match(JSON.stringify(flex.contents.footer), /マイページで確認/)
   assert.match(JSON.stringify(flex.contents.footer), new RegExp(`${BASE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/#mypage`))
+})
+
+// --------------------------------------------------------------------------
+// Firestore 管理者アクセス（サービスアカウント OAuth2）
+// 未認証のままだと users の list/get が 403 になり「未連携」扱いになる（#31）
+// --------------------------------------------------------------------------
+
+// テスト用 RSA 鍵ペア（PKCS#8 PEM）を生成する
+async function generateRsaKey() {
+  const kp = await crypto.subtle.generateKey(
+    { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
+    true, ['sign', 'verify']
+  )
+  const privateDer = new Uint8Array(await crypto.subtle.exportKey('pkcs8', kp.privateKey))
+  const publicDer  = new Uint8Array(await crypto.subtle.exportKey('spki', kp.publicKey))
+  const pem = (der, label) =>
+    `-----BEGIN ${label}-----\n${Buffer.from(der).toString('base64').replace(/(.{64})/g, '$1\n')}\n-----END ${label}-----\n`
+  return {
+    privateKey: kp.privateKey,
+    publicKey:  kp.publicKey,
+    privatePem: pem(privateDer, 'PRIVATE KEY'),
+    publicPem:  pem(publicDer, 'PUBLIC KEY'),
+  }
+}
+
+test('pemToDer: PEM ヘッダ/フッタを除去して DER バイト列に変換する', () => {
+  const key = { privatePem: '-----BEGIN PRIVATE KEY-----\nQUJD\n-----END PRIVATE KEY-----\n' }
+  const der = pemToDer(key.privatePem)
+  assert.equal(Buffer.from(der).toString('base64'), 'QUJD')
+})
+
+test('buildServiceAccountJwt: RS256 署名が公開鍵で検証でき、claims が正しい', async () => {
+  const key = await generateRsaKey()
+  const sa = { client_email: 'svc@timer-c0ed3.iam.gserviceaccount.com', private_key: key.privatePem }
+  const jwt = await buildServiceAccountJwt(sa, 1_700_000_000)
+
+  const [h, p, s] = jwt.split('.')
+  assert.ok(h && p && s, 'JWT は header.payload.signature の3部構成であること')
+
+  // 署名を公開鍵で検証
+  const pubB64 = key.publicPem.replace(/-----BEGIN PUBLIC KEY-----/, '').replace(/-----END PUBLIC KEY-----/, '').replace(/\s+/g, '')
+  const pubKey = await crypto.subtle.importKey(
+    'spki', Buffer.from(pubB64, 'base64'),
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']
+  )
+  const sigB64url = s.replace(/-/g, '+').replace(/_/g, '/')
+  const sig = Uint8Array.from(Buffer.from(sigB64url, 'base64'))
+  const ok = await crypto.subtle.verify(
+    { name: 'RSASSA-PKCS1-v1_5' }, pubKey, sig, new TextEncoder().encode(`${h}.${p}`)
+  )
+  assert.equal(ok, true, 'RS256 署名が公開鍵で検証できること')
+
+  // claims の内容を確認
+  const claims = JSON.parse(Buffer.from(p, 'base64url').toString('utf8'))
+  assert.equal(claims.iss, sa.client_email)
+  assert.equal(claims.aud, 'https://oauth2.googleapis.com/token')
+  assert.equal(claims.scope, 'https://www.googleapis.com/auth/datastore')
+  assert.equal(claims.exp - claims.iat, 3600)
+})
+
+test('getFirestoreAccessToken: サービスアカウント JSON からトークンを取得し、Authorization ヘッダに付与する', async () => {
+  resetTokenCache()
+  const key = await generateRsaKey()
+  const sa = {
+    type: 'service_account',
+    project_id: 'timer-c0ed3',
+    private_key: key.privatePem,
+    client_email: 'svc@timer-c0ed3.iam.gserviceaccount.com',
+  }
+  const calls = []
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), init })
+    if (String(url).includes('oauth2.googleapis.com/token')) {
+      return new Response(JSON.stringify({ access_token: 'fake-access-token', expires_in: 3600 }), { status: 200 })
+    }
+    if (String(url).includes('firestore.googleapis.com')) {
+      return new Response(JSON.stringify({ ok: true }), { status: 200 })
+    }
+    return new Response(JSON.stringify({}), { status: 404 })
+  }
+  try {
+    const token = await getFirestoreAccessToken({ FIREBASE_SERVICE_ACCOUNT_JSON: JSON.stringify(sa) })
+    assert.equal(token, 'fake-access-token')
+    assert.equal(calls.filter(c => String(c.url).includes('oauth2.googleapis.com/token')).length, 1, 'トークン交換が1回だけ行われること')
+
+    const res = await firestoreFetch({ FIREBASE_SERVICE_ACCOUNT_JSON: JSON.stringify(sa) },
+      'https://firestore.googleapis.com/v1/projects/timer-c0ed3/databases/(default)/documents:runQuery',
+      { method: 'POST', body: '{}' }
+    )
+    assert.ok(res.ok)
+    const authHeader = calls.filter(c => String(c.url).includes('firestore.googleapis.com')).pop().init.headers['Authorization']
+    assert.equal(authHeader, 'Bearer fake-access-token', 'Firestore へ Bearer トークンが付与されること')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('getFirestoreAccessToken: サービスアカウント未設定ならトークンを取得しない（従来挙動維持）', async () => {
+  resetTokenCache()
+  const calls = []
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async (url, init) => {
+    calls.push(String(url))
+    return new Response(JSON.stringify({}), { status: 200 })
+  }
+  try {
+    const token = await getFirestoreAccessToken({})
+    assert.equal(token, '')
+    assert.equal(calls.length, 0, '未設定時は外部へ一切アクセスしないこと')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
 })
