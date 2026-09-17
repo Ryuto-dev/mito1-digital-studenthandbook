@@ -1,5 +1,9 @@
 /* components.css — index.html の <style> から純粋移動（見た目変更なし）。
-   カスケード順は index.html の <link> 記述順に依存するため、link の順序を変えないこと。 */
+   カスケード順は index.html の <link> 記述順に依存するため、link の順序を変えないこと。
+   #81: @media(max-width:560px) の line-banner-body は元々後段にあったが、現在は
+   responsive.css が後段のため相対順序が前寄り。セレクタ重複なしで無害だが、
+   同一ブレークポイント・同一セレクタを追加する際は responsive.css 側に集約するか
+   明示的に順序を設計すること。 */
 /* ===========================
    LOADING — シネマティック版
 =========================== */
@@ -78,6 +82,7 @@
   letter-spacing:.3em;margin-top:2px;
   opacity:0;animation:slideUp .5s ease 1.5s forwards;
 }
+/* #80: 以前は本ファイル内に同名 @keyframes が2定義あったため1つに統合 */
 @keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes charIn{to{opacity:1;transform:translateY(0)}}
 
