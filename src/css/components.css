@@ -459,6 +459,25 @@ select.cf-input{cursor:pointer}
   .line-link-btn{align-self:center}
 }
 
+/* LINE連携: 待機中パネル（セッション+ポーリング方式） */
+.line-wait{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+}
+.line-wait-spinner{
+  width:30px;height:30px;flex-shrink:0;
+  border:3px solid rgba(6,199,85,.25);border-top-color:#06c755;
+  border-radius:50%;animation:lineSpin .8s linear infinite;
+}
+@keyframes lineSpin{to{transform:rotate(360deg)}}
+.line-wait-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.line-wait-open{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:9px 16px;background:#06c755;color:#fff;
+  border:none;border-radius:8px;font-size:12px;font-weight:700;
+  cursor:pointer;text-decoration:none;font-family:inherit;
+}
+.line-wait-open:hover{background:#05b54d}
+
 /* ===========================
    マイページ: LINE連携済みカード
    =========================== */

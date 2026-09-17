@@ -183,6 +183,48 @@ service cloud.firestore {
     }
 
     // =============================================
+    // LINE連携セッション（PWA/別タブ分断の解消用）
+    //   doc id = state（192bitランダム。本人のみ知る秘密キー＝capability）
+    //   OAuthの「同じタブ・同じログイン状態に戻ってくる」前提を捨て、
+    //   このセッションdocを中継して「認可側（コールバック）」と
+    //   「連携確定側（元のタブ/PWA）」を分離する。
+    //
+    //   - create : 本人のみ（uid一致・status=pending）
+    //   - read   : 本人のみ（uid一致。ポーリングは本人が行う）
+    //   - update :
+    //       コールバック側（未ログイン・別コンテキストでも可・capability方式）:
+    //         status pending|done → done（uid不変・プロフィールのみ書き込み）
+    //       本人側:
+    //         status done → consumed（連携確定後・一度だけ） /
+    //         status pending → cancelled（中断）
+    //   - delete : 本人のみ（古いセッションの掃除用）
+    // =============================================
+    match /lineLinkSessions/{state} {
+      allow create: if isAuthenticated()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'pending';
+
+      allow read: if isAuthenticated() && resource.data.uid == request.auth.uid;
+
+      allow update: if (
+            resource.data.status in ['pending', 'done']
+            && request.resource.data.status == 'done'
+            && request.resource.data.uid == resource.data.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['status', 'lineUserId', 'displayName', 'pictureUrl', 'completedAt'])
+          )
+        || (isAuthenticated()
+            && resource.data.uid == request.auth.uid
+            && (
+                 (resource.data.status == 'done' && request.resource.data.status == 'consumed')
+              || (resource.data.status == 'pending' && request.resource.data.status == 'cancelled')
+            )
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']));
+
+      allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+    }
+
+    // =============================================
     // Cases (absence applications) collection
     // 公欠申請ケース: モデレーター・管理者(生徒)は閲覧不可
     // =============================================
