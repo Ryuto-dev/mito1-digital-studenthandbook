@@ -7,7 +7,7 @@ import {
   collection, doc, addDoc, updateDoc, getDoc, getDocs, deleteDoc,
   query, where, orderBy, serverTimestamp,
 } from 'firebase/firestore'
-import { notifyStudentPush } from './push.js'
+import { notifyStudentPush, getNotificationPrefs } from './push.js'
 
 // 承認完了時のPWAプッシュ通知（購読済み端末へ。失敗しても承認処理は止めない）
 async function notifyApprovedPush(caseId, caseData) {
@@ -18,10 +18,20 @@ async function notifyApprovedPush(caseId, caseData) {
       body: `${caseData.title || ''}（${datesStr}）`,
       url: '/#mypage',
       tag: `case-approved-${caseId}`,
-    })
+    }, 'approval')
   } catch (e) {
     console.warn('[push-notify] failed:', e)
   }
+}
+
+// LINE通知を送るか（生徒の「受け取る通知」設定で承認完了OFFの場合は送らない）
+async function shouldNotifyLine(studentId) {
+  if (!studentId) return false
+  try {
+    const prefs = await getNotificationPrefs(studentId)
+    return prefs.approval !== false
+  } catch { /* 取得失敗時は送信する（従来動作を維持） */ }
+  return true
 }
 
 // NOTE: "hundbook" might be a typo for "handbook". Please verify against the Worker deployment.
@@ -283,6 +293,7 @@ export async function processToken(token, action, caseIdFromUrl = null) {
           appBaseUrl: APP_BASE,
         })
         // LINEプッシュ通知（担任承認完了時、Messaging API経由）
+        if (await shouldNotifyLine(caseData.studentId)) {
         try {
           let lineUserId = caseData.studentLineUserId || caseData.lineUserId || ''
           if (!lineUserId) {
@@ -307,6 +318,7 @@ export async function processToken(token, action, caseIdFromUrl = null) {
           })
         } catch (e) {
           console.warn('[line-notify] failed:', e)
+        }
         }
         // PWAプッシュ通知（購読済み端末へ）
         await notifyApprovedPush(caseId, caseData)
@@ -382,6 +394,7 @@ export async function approveByTeacher(caseId, step, teacherUid) {
       appBaseUrl: APP_BASE,
     })
     // LINEプッシュ通知（ダッシュボード承認完了時も）
+    if (await shouldNotifyLine(caseData.studentId)) {
     try {
       let lineUserId = caseData.studentLineUserId || caseData.lineUserId || ''
       if (!lineUserId) {
@@ -406,6 +419,7 @@ export async function approveByTeacher(caseId, step, teacherUid) {
       })
     } catch (e) {
       console.warn('[line-notify] dashboard approve failed:', e)
+    }
     }
     // PWAプッシュ通知（購読済み端末へ）
     await notifyApprovedPush(caseId, caseData)

@@ -804,3 +804,31 @@ select.cf-input{cursor:pointer}
 /* 設定シート内に移設したカード群は上下の余白のみ調整（見た目はそのまま） */
 .settings-sheet-scroll .line-banner,
 .settings-sheet-scroll .line-linked{margin-bottom:12px}
+
+/* ===========================
+   設定シート: 受け取る通知（Issue #21）
+   Push/LINE共通の通知種別チェックリスト
+   =========================== */
+.notify-prefs{margin-bottom:12px}
+.notify-prefs .settings-sec-label{padding-top:16px}
+.notify-prefs-list{
+  display:flex;flex-direction:column;gap:8px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:14px 16px;
+}
+.notify-pref-item{
+  display:flex;align-items:center;gap:11px;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;user-select:none;
+}
+.notify-pref-item input{position:absolute;opacity:0;width:0;height:0}
+.notify-pref-check{
+  width:20px;height:20px;flex-shrink:0;border-radius:5px;
+  border:1.5px solid var(--border-2);background:var(--surface2);
+  display:flex;align-items:center;justify-content:center;transition:.15s;
+}
+.notify-pref-check svg{width:12px;height:12px;stroke:#fff;fill:none;stroke-width:3;opacity:0;transition:opacity .12s}
+.notify-pref-item input:checked + .notify-pref-check{background:var(--navy);border-color:var(--navy)}
+.notify-pref-item input:checked + .notify-pref-check svg{opacity:1}
+.notify-pref-item input:focus-visible + .notify-pref-check{outline:2px solid var(--navy);outline-offset:2px}
+.notify-pref-label{font-size:13px;font-weight:500;color:var(--text)}
+.notify-prefs-hint{font-size:10.5px;color:var(--text-3);margin-top:8px;padding:0 2px;line-height:1.7}
