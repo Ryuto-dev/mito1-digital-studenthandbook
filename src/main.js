@@ -58,16 +58,14 @@ async function loadPrincipals() {
 
   items
     .sort((a, b) => {
-      const toNumber = value => {
-        if (value === '初代') return 1
-
-        return Number.parseInt(
-          String(value || '').replace(/[０-９]/g, char =>
-            String.fromCharCode(char.charCodeAt(0) - 0xfee0)
-          ),
-          10
-        )
-      }
+      const toNumber = (value) => {
+        const s = String(value ?? "")
+          .trim()
+          .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+        if (s.startsWith("初")) return 1;
+        const m = s.match(/\d+/);
+        return m ? Number.parseInt(m[0], 10) : Number.MAX_SAFE_INTEGER;
+      };
 
       return toNumber(a.gen) - toNumber(b.gen)
     })
