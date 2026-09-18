@@ -96,17 +96,21 @@ async function loadGoals() {
 // =============================================
 function escAttrSong(s) {
   return String(s ?? '')
-    .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+    .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
     .replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-/** 音声URLとして利用できるのは http(s) のみ。javascript:/data: 等は再生しない */
+/**
+ * 音声URLとして利用できるのは絶対URLの http(s) のみ。
+ * javascript:/data: 等は再生しない。相対パスも対象外（管理画面の保存時
+ * バリデーション `^https?://` と一致させるため）。
+ */
 function isSafeSongAudioUrl(u) {
   if (typeof u !== 'string') return false
   const t = u.trim()
-  if (!t) return false
+  if (!/^https?:\/\/.+/i.test(t)) return false
   try {
-    const parsed = new URL(t, location.origin)
+    const parsed = new URL(t)
     return parsed.protocol === 'http:' || parsed.protocol === 'https:'
   } catch {
     return false

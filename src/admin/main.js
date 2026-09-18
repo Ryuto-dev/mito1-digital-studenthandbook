@@ -711,7 +711,7 @@ function renderSongsList(items) {
         <span class="item-title">${escHtml(item.title)}</span>
         ${item.lyricist ? `<span class="item-chip">作詞 ${escHtml(item.lyricist)}</span>` : ''}
         ${item.composer ? `<span class="item-chip">作曲 ${escHtml(item.composer)}</span>` : ''}
-        ${isHttpUrl(item.audioUrl) ? `<span class="item-chip" style="color:#0e6655;background:#d1f2eb">♪ 音声あり</span>` : ''}
+        ${isHttpUrl(item.audioUrl) ? `<span class="item-chip item-chip-audio">♪ 音声あり</span>` : ''}
         ${itemOps('songs', item.id, i, items.length)}
       </div>
       <div class="item-card-body">
