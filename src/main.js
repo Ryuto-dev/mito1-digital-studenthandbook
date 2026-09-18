@@ -56,6 +56,20 @@ async function loadPrincipals() {
   const items = await fetchOrdered('principals')
   if (!items.length) return
 
+  items
+    .sort((a, b) => {
+      const toNumber = (value) => {
+        const s = String(value ?? "")
+          .trim()
+          .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+        if (s.startsWith("初")) return 1;
+        const m = s.match(/\d+/);
+        return m ? Number.parseInt(m[0], 10) : Number.MAX_SAFE_INTEGER;
+      };
+
+      return toNumber(a.gen) - toNumber(b.gen)
+    })
+
   const el = document.getElementById('principalsListFront')
   if (!el) return
 
