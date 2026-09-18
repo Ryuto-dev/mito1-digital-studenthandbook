@@ -70,6 +70,8 @@ html.kb-open .main{padding-bottom:24px!important}
   .home-wrap{padding-top:48px}
   .card{padding:18px 16px}
   .song-verses{padding:18px 16px}
+  .song-audio{padding:12px 16px;gap:10px}
+  .song-player{flex-basis:100%}
   .history-item{flex-direction:column;gap:2px}
   .history-year{min-width:0}
   .principal-item{grid-template-columns:34px 1fr;grid-template-areas:"gen name" "gen term"}

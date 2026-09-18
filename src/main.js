@@ -91,8 +91,28 @@ async function loadGoals() {
 }
 
 // =============================================
-// 歌詞
+// 歌詞（Issue #87: 音声URLが設定されていれば試聴プレイヤーを表示）
+// audioUrl が無い旧データでも従来どおり歌詞のみ表示（後方互換）
 // =============================================
+function escAttrSong(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/** 音声URLとして利用できるのは http(s) のみ。javascript:/data: 等は再生しない */
+function isSafeSongAudioUrl(u) {
+  if (typeof u !== 'string') return false
+  const t = u.trim()
+  if (!t) return false
+  try {
+    const parsed = new URL(t, location.origin)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 async function loadSongs() {
   const items = await fetchOrdered('songs')
   if (!items.length) return
@@ -100,15 +120,29 @@ async function loadSongs() {
   const el = document.getElementById('songsListFront')
   if (!el) return
 
-  el.innerHTML = items.map(item => `
+  el.innerHTML = items.map(item => {
+    const rawAudio = typeof item.audioUrl === 'string' ? item.audioUrl.trim() : ''
+    const audioUrl = isSafeSongAudioUrl(rawAudio) ? rawAudio : ''
+    const ttl = item.title || item.type || '歌詞'
+    return `
     <div class="song-card">
       <div class="song-hdr">
-        <div class="song-hdr-ttl">${item.title || item.type || ''}</div>
+        <div class="song-hdr-ttl">${ttl}</div>
         <div class="song-hdr-badge">
           ${[item.lyricist && `作詞：${item.lyricist}`, item.composer && `作曲：${item.composer}`]
             .filter(Boolean).join('　／　')}
         </div>
       </div>
+      ${audioUrl ? `
+      <div class="song-audio">
+        <div class="song-audio-lbl">
+          <span class="song-audio-ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          </span>
+          試聴する
+        </div>
+        <audio class="song-player" controls preload="none" src="${escAttrSong(audioUrl)}" aria-label="${escAttrSong(ttl)}の音声"></audio>
+      </div>` : ''}
       <div class="song-verses">
         ${(item.verses || []).map((v, i) => `
           <div>
@@ -118,7 +152,15 @@ async function loadSongs() {
         `).join('')}
       </div>
     </div>
-  `).join('')
+    `
+  }).join('')
+
+  // 複数の曲を同時再生しない（1つ再生したら他を止める）
+  el.querySelectorAll('audio.song-player').forEach(a => {
+    a.addEventListener('play', () => {
+      el.querySelectorAll('audio.song-player').forEach(o => { if (o !== a) o.pause() })
+    })
+  })
 }
 
 // =============================================

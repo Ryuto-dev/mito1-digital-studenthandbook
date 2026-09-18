@@ -137,6 +137,21 @@
 .song-hdr-ttl{font-family:'Noto Serif JP',serif;font-size:16px;font-weight:600}
 .song-hdr-badge{font-size:10.5px;background:rgba(255,255,255,.14);padding:3px 10px;border-radius:12px}
 .song-verses{padding:22px 28px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:22px}
+.song-audio{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  padding:14px 22px;background:var(--surface2);
+  border-bottom:1px solid var(--border);
+}
+.song-audio-lbl{
+  display:inline-flex;align-items:center;gap:8px;flex-shrink:0;
+  font-size:12.5px;font-weight:600;color:var(--text);
+}
+.song-audio-ico{
+  width:28px;height:28px;border-radius:50%;
+  background:var(--navy);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.song-audio-ico svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.song-player{flex:1 1 220px;min-width:200px;max-width:100%;height:36px;accent-color:var(--enjii)}
 .verse-num{font-size:10.5px;color:var(--enjii);font-weight:700;margin-bottom:5px;letter-spacing:.1em}
 .verse-text{font-family:'Noto Serif JP',serif;font-size:13.5px;color:var(--text-2);line-height:2.4}
 
