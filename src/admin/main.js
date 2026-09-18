@@ -703,6 +703,7 @@ function renderSongsList(items) {
   const el = $('songsList')
   if (!el) return
   if (!items.length) { el.innerHTML = emptyState('歌詞がまだ登録されていません'); return }
+  const isHttpUrl = (u) => typeof u === 'string' && /^https?:\/\/.+/i.test(u.trim())
   el.innerHTML = items.map((item, i) => `
     <div class="item-card">
       <div class="item-card-header">
@@ -710,10 +711,16 @@ function renderSongsList(items) {
         <span class="item-title">${escHtml(item.title)}</span>
         ${item.lyricist ? `<span class="item-chip">作詞 ${escHtml(item.lyricist)}</span>` : ''}
         ${item.composer ? `<span class="item-chip">作曲 ${escHtml(item.composer)}</span>` : ''}
+        ${isHttpUrl(item.audioUrl) ? `<span class="item-chip item-chip-audio">♪ 音声あり</span>` : ''}
         ${itemOps('songs', item.id, i, items.length)}
       </div>
       <div class="item-card-body">
         <div class="item-body-text">${(item.verses || []).map((v, n) => `${n + 1}番\n${escHtml(v)}`).join('\n\n')}</div>
+        ${isHttpUrl(item.audioUrl) ? `
+        <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px">
+          <div style="font-size:11px;color:var(--text-3);word-break:break-all">音声URL: ${escHtml(item.audioUrl.trim())}</div>
+          <audio controls preload="none" src="${escHtml(item.audioUrl.trim())}" style="width:100%;max-width:420px;height:36px"></audio>
+        </div>` : ''}
       </div>
     </div>`).join('')
 }
@@ -1175,6 +1182,7 @@ MODAL_CONFIGS.songs = {
   sticky: ['f_type', 'f_lyricist', 'f_composer'],
   fields: ({ col, seed }) => {
     const s = { ...getSticky('songs'), ...(seed || {}) }
+    const audioUrl = seed?.audioUrl ?? s.audioUrl ?? s.f_audioUrl ?? ''
     return `
     <div class="form-row-2 form-row">
       <div>
@@ -1201,6 +1209,11 @@ MODAL_CONFIGS.songs = {
       </div>
     </div>
     <div class="form-row">
+      <label>音声URL（任意）</label>
+      <input type="url" id="f_audioUrl" inputmode="url" value="${escHtml(audioUrl)}" placeholder="https://.../kouka.mp3">
+      <div class="form-hint">校歌・応援歌のMP3などのURLを入れると、生徒手帳側に試聴プレイヤーが表示されます。空欄でも歌詞のみで従来どおり動作します。</div>
+    </div>
+    <div class="form-row">
       <label>一番</label>
       <textarea id="f_v1" rows="4" placeholder="歌詞を入力...">${escHtml((seed?.verses || [])[0])}</textarea>
     </div>
@@ -1219,6 +1232,7 @@ MODAL_CONFIGS.songs = {
     title:    trimVal('f_title'),
     lyricist: trimVal('f_lyricist'),
     composer: trimVal('f_composer'),
+    audioUrl: trimVal('f_audioUrl'),
     verses:   ['f_v1', 'f_v2', 'f_v3'].map(trimVal).filter(Boolean),
     order:    orderValue(col),
   }),
@@ -1227,6 +1241,7 @@ MODAL_CONFIGS.songs = {
     $('f_title').value    = data.title    || ''
     $('f_lyricist').value = data.lyricist || ''
     $('f_composer').value = data.composer || ''
+    if ($('f_audioUrl')) $('f_audioUrl').value = data.audioUrl || ''
     const v = data.verses || []
     $('f_v1').value = v[0] || ''
     $('f_v2').value = v[1] || ''
@@ -1435,6 +1450,15 @@ function validateModal(type) {
     if (!trimVal(id)) {
       showToast(`${label}を入力してください`)
       $(id)?.focus()
+      return false
+    }
+  }
+  // 校歌・応援歌: 音声URLは任意だが、入力時は http(s) のみ許可（後方互換のため空欄はOK）
+  if (type === 'songs') {
+    const u = trimVal('f_audioUrl')
+    if (u && !/^https?:\/\/.+/i.test(u)) {
+      showToast('音声URLは https:// または http:// から始まるURLを入力してください')
+      $('f_audioUrl')?.focus()
       return false
     }
   }
