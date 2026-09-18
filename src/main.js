@@ -56,6 +56,22 @@ async function loadPrincipals() {
   const items = await fetchOrdered('principals')
   if (!items.length) return
 
+  items
+    .sort((a, b) => {
+      const toNumber = value => {
+        if (value === '初代') return 1
+
+        return Number.parseInt(
+          String(value || '').replace(/[０-９]/g, char =>
+            String.fromCharCode(char.charCodeAt(0) - 0xfee0)
+          ),
+          10
+        )
+      }
+
+      return toNumber(a.gen) - toNumber(b.gen)
+    })
+
   const el = document.getElementById('principalsListFront')
   if (!el) return
 
